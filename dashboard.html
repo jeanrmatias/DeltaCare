@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeltaCare | Dashboard Médico</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="dashboard-style.css">
+</head>
+
+<body>
+    <aside class="sidebar">
+        <div class="logo">DeltaCare</div>
+        <nav>
+            <div class="menu-item">Dashboard</div>
+            <div class="menu-item">Módulos Clínicos</div>
+            <div class="menu-item">Quizzes</div>
+            <div class="menu-item">Ranking</div>
+            <div class="menu-item">Perfil</div>
+        </nav>
+    </aside>
+    <main class="main-content">
+        <header>
+            <div>
+                <h1 id="welcome">Olá, estudante!</h1>
+                <p id="date-display"></p>
+            </div>
+            <div class="stats-bar">
+                <div class="badge" id="xp-counter">XP: 0</div>
+                <div class="badge">Nível 12</div>
+            </div>
+        </header>
+        <section class="grid">
+            <div class="card">
+                <h3>XP Total</h3>
+                <p id="xp-val">0</p>
+            </div>
+            <div class="card">
+                <h3>Nível Atual</h3>
+                <p>12</p>
+            </div>
+            <div class="card">
+                <h3>Ofensiva</h3>
+                <p>14 dias</p>
+            </div>
+            <div class="card">
+                <h3>Módulos</h3>
+                <p>8/24</p>
+            </div>
+            <div class="chart-container">Gráfico de Desempenho (Placeholder)</div>
+            <div class="side-widgets">
+                <div class="card">
+                    <h3>Próximos</h3>
+                    <p style="font-size: 1rem;">Plantão: 22/10</p>
+                </div>
+                <div class="card">
+                    <h3>Lembretes</h3>
+                    <p style="font-size: 1rem;">Revisar ECG</p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="dashboard-script.js"></script>
+</body>
+
+</html>
