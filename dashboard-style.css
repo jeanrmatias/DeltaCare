@@ -38,14 +38,53 @@
             margin-bottom: 3rem;
         }
 
-        .menu-item {
+        .dashboard {
             padding: 1rem 0;
             cursor: pointer;
             opacity: 0.8;
             transition: 0.3s;
         }
-
-        .menu-item:hover {
+        .dashboard:hover {
+            opacity: 1;
+            font-weight: 600;
+        }
+        .quizzes {
+            padding: 1rem 0;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: 0.3s;
+        }
+        .quizzes:hover {
+            opacity: 1;
+            font-weight: 600;
+        }
+        .rnk {
+            padding: 1rem 0;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: 0.3s;
+        }
+        .rnk:hover {
+            opacity: 1;
+            font-weight: 600;
+        }
+        .m.clinico {
+            padding: 1rem 0;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: 0.3s;
+        }
+        .m.clinico:hover {
+            opacity: 1;
+            font-weight: 600;
+        }
+        .profile {
+            padding: 1rem 0;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: 0.3s;
+        }
+        .profile:hover {
             opacity: 1;
             font-weight: 600;
         }
