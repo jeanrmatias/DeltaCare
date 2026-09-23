@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Turmas (Admin)</title>
+    <title>Delta Care | Usuários (Admin)</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=3">
 </head>
 <body>
@@ -23,11 +23,11 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
                     Início
                 </a>
-                <a href="adm-turmas.html" class="sidebar-link ativo">
+                <a href="adm-turmas.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14c2.7.3 4.5 2.6 4.5 6"/></svg>
                     Turmas
                 </a>
-                <a href="usuarios.html" class="sidebar-link">
+                <a href="usuarios.html" class="sidebar-link ativo">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c0-4.1 3.4-7.5 7.5-7.5s7.5 3.4 7.5 7.5"/></svg>
                     Usuários
                 </a>
@@ -48,7 +48,7 @@
             <div class="sidebar-perfil">
                 <span class="avatar" id="avatarRodape">--</span>
                 <div class="sidebar-perfil-texto">
-                    <strong id="nomeRodape">Administrador</strong>
+                    <strong id="nomeRodape">Admin</strong>
                     <button type="button" id="botaoSair" class="sidebar-perfil-sair">Sair</button>
                 </div>
             </div>
@@ -57,54 +57,83 @@
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1>Turmas</h1>
-                    <p>Crie turmas e atribua cada uma a um professor.</p>
+                    <h1>Usuários</h1>
+                    <p>Contas com acesso à plataforma. Professores e administradores só podem ser criados aqui.</p>
                 </div>
 
                 <div class="topo-acoes">
-                    <button type="button" class="acao acao--primaria" id="botaoNovaTurma">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Nova turma
-                    </button>
+                    <label class="busca">
+                        <input type="search" id="campoBusca" placeholder="Buscar por e-mail...">
+                    </label>
+                    <button type="button" class="acao acao--primaria" id="botaoNovoUsuario">Nova conta</button>
                 </div>
             </header>
 
-            <p class="estado-vazio" id="semProfessores" hidden>
-                Ainda não há nenhum professor cadastrado. Cadastre um professor antes de criar uma turma.
-            </p>
-
-            <section class="cartao" id="formularioTurmaCartao" hidden>
-                <h2 class="cartao-titulo">Nova turma</h2>
-                <form id="formularioTurma" class="formulario formulario--linha">
-                    <div class="campo">
-                        <label for="turmaProfessor">Professor</label>
-                        <select id="turmaProfessor" required></select>
-                    </div>
-                    <div class="campo">
-                        <label for="turmaNome">Nome da turma</label>
-                        <input type="text" id="turmaNome" placeholder="ex.: 3A" required>
-                    </div>
-                    <div class="campo">
-                        <label for="turmaSemestre">Semestre</label>
-                        <input type="text" id="turmaSemestre" placeholder="ex.: 2026/2" required>
-                    </div>
-                    <div class="campo campo--acoes">
-                        <button type="submit" class="acao acao--primaria">Criar turma</button>
-                        <button type="button" class="acao" id="botaoCancelarTurma">Cancelar</button>
-                    </div>
-                </form>
-                <p class="formulario-mensagem" id="turmaMensagem"></p>
+            <section class="stats">
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Administradores</span>
+                    <strong class="stat-valor" id="statAdmins">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Professores</span>
+                    <strong class="stat-valor" id="statProfessores">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Alunos</span>
+                    <strong class="stat-valor" id="statAlunos">0</strong>
+                </article>
             </section>
 
-            <section class="lista-materiais" id="listaTurmas"></section>
-            <p class="estado-vazio" id="turmasVazio" hidden>
-                Nenhuma turma criada ainda. Clique em "Nova turma" para começar.
-            </p>
+            <section class="cartao" id="cartaoFormulario" hidden>
+                <h2 class="cartao-titulo">Nova conta de professor ou administrador</h2>
+                <p class="campo-dica">
+                    Contas de aluno não são criadas aqui: o aluno se cadastra sozinho pela
+                    tela de login, e a administração apenas o matricula numa turma.
+                </p>
+
+                <form class="formulario" id="formularioUsuario">
+                    <div class="formulario--linha">
+                        <label class="campo campo--larga">
+                            <span>E-mail institucional</span>
+                            <input type="email" id="usuarioEmail" required placeholder="nome@instituicao.edu.br">
+                        </label>
+
+                        <label class="campo">
+                            <span>Perfil</span>
+                            <select id="usuarioTipo">
+                                <option value="professor">Professor</option>
+                                <option value="adm">Administrador</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="formulario--linha">
+                        <label class="campo campo--larga">
+                            <span>Senha provisória</span>
+                            <input type="text" id="usuarioSenha" required minlength="6" placeholder="mínimo 6 caracteres">
+                            <span class="campo-dica">A pessoa deve trocar no primeiro acesso, pela opção "Esqueci minha senha".</span>
+                        </label>
+
+                        <div class="campo campo--acoes">
+                            <button type="submit" class="acao acao--primaria">Criar conta</button>
+                            <button type="button" class="acao" id="botaoCancelar">Cancelar</button>
+                        </div>
+                    </div>
+
+                    <p class="formulario-mensagem" id="mensagemFormulario"></p>
+                </form>
+            </section>
+
+            <p class="estado-vazio" id="estadoVazio" hidden></p>
+
+            <section class="cartao" id="cartaoLista">
+                <div class="lista-materiais" id="listaUsuarios"></div>
+            </section>
         </main>
     </div>
 
     <script src="../config.js?v=3"></script>
     <script src="../auth.js?v=3"></script>
-    <script src="adm-turmas.js?v=3"></script>
+    <script src="usuarios.js?v=3"></script>
 </body>
 </html>

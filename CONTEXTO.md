@@ -5,7 +5,7 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 ## Estrutura de pastas do front
 - Raiz (`/`): arquivos globais — `index.html` (login), `script.js`, `auth.js`, `config.js`, `markdown.js`, `servir.py`, `tokens.css`, `style_index.css`, `style_dashboard.css`, `style_aluno.css`.
 - `professor/`: `prof.html` (dashboard), `materiais.html`, `turmas.html` (+ .js de cada).
-- `administracao/`: `adm.html`, `adm-turmas.html` (+ .js de cada). **A pasta chama-se `administracao`, mas o valor de `tipo` no banco é `adm`** — os dois já estiveram trocados e quebraram o redirecionamento do login.
+- `administracao/`: `adm.html`, `adm-turmas.html`, `usuarios.html` (+ .js de cada). **A pasta chama-se `administracao`, mas o valor de `tipo` no banco é `adm`** — os dois já estiveram trocados e quebraram o redirecionamento do login.
 - `aluno/`: `inicio.html` (tela inicial), `aluno.html` (chat de estudos), `materiais.html` (+ .js de cada).
 - Páginas dentro de subpasta referenciam os arquivos globais com `../` (ex.: `../auth.js`).
 - Os `<script>` e `<link>` levam `?v=N`. Ao mexer em .js/.css compartilhado, subir esse número evita o navegador usar a versão antiga.
@@ -17,6 +17,9 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 - Exceção proposital: `professor_email` em `TurmaRequest` e `aluno_email` em `MatriculaRequest` continuam existindo — ali são o **alvo** da ação (quem recebe a turma, quem é matriculado), não a identidade de quem faz a requisição. Ambas são rotas só de admin.
 - Token opaco no banco em vez de JWT: dá pra revogar na hora e não exige gerenciar chave de assinatura. JWT faria sentido com vários serviços validando sem consultar o banco, que não é o caso.
 - O primeiro admin nasce só pelo `seed_demo.py`, inserido direto no banco: o cadastro público só cria aluno e `criar_conta_staff` exige um admin já existente.
+
+## Testes
+`python backend/testes.py` roda 40 testes num banco temporário (variável `DELTACARE_DB`), sem precisar do Ollama. O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de material, sessão e integridade do banco ao excluir. Interface e formatação ficam de fora — erro de CSS aparece na tela, erro de permissão não.
 
 ## Regras de permissão (todas validadas no backend, não só escondidas na UI)
 - Só **admin** cria/exclui turma e matricula/desmatricula aluno.

@@ -162,8 +162,22 @@ de outra pessoa apenas trocando esse campo.
 - Dashboard do professor tem partes ainda mockadas (entregas, gráfico,
   mensagens).
 
+## Testes
+
+```
+cd backend
+python testes.py
+```
+
+40 testes das regras de negócio: permissões, visibilidade de material,
+sessão e integridade do banco. Rodam num banco temporário e **não precisam do
+Ollama ligado** — as funções que falam com o modelo entram como parâmetro, que
+é para isso que elas foram isoladas em `chat_ia.py`.
+
 ## Documentos relacionados
 
+- [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas de arquitetura, fluxo de
+  autenticação, funcionamento do RAG, modelo de dados e matriz de permissões.
 - [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com
   as perguntas a fazer no chat, respostas para as dúvidas mais prováveis e
   plano B se algum serviço cair.

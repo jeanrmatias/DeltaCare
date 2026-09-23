@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from security import hash_senha, verificar_senha
 
-DB_PATH = "deltacare.db"
+from database import CAMINHO_DB as DB_PATH
 TIPOS_VALIDOS = ("adm", "professor", "aluno")
 # Os caminhos precisam bater com as pastas reais em frontend/ — a pasta do
 # administrador chama-se "administracao", não "adm" (que é o valor do campo

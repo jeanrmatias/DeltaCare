@@ -31,6 +31,7 @@ from logica_turmas import (
     listar_professores,
     listar_turmas,
     listar_turmas_admin,
+    listar_usuarios,
 )
 from logica_matriculas import (
     desmatricular_aluno,
@@ -246,6 +247,12 @@ def excluir_turma_rota(turma_id: int, admin: dict = Depends(usuario_admin)):
 @app.get("/admin/professores")
 def listar_professores_rota(admin: dict = Depends(usuario_admin)):
     return listar_professores(admin["email"])
+
+
+@app.get("/admin/usuarios")
+def listar_usuarios_rota(admin: dict = Depends(usuario_admin)):
+    """Todas as contas do sistema, para a tela de gestão de usuários."""
+    return listar_usuarios(admin["email"])
 
 
 @app.post("/admin/matriculas")

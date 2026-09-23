@@ -3,15 +3,28 @@ import sqlite3
 
 from security import hash_senha
 
-CAMINHO_DB = "deltacare.db"
+# Caminho único do banco. Os outros módulos importam daqui em vez de repetir
+# a string — já esteve duplicado em três arquivos, e bastaria mudar um deles
+# para o sistema passar a gravar em dois bancos diferentes sem avisar.
+# DELTACARE_DB permite apontar para outro arquivo (é o que os testes usam,
+# para não tocar no banco de demonstração).
+CAMINHO_DB = os.environ.get("DELTACARE_DB", "deltacare.db")
 
 
-def configurar_banco():
-    print("Python está procurando o banco em:", os.path.abspath(CAMINHO_DB))
+def configurar_banco(silencioso: bool = False):
+    """Cria as tabelas que ainda não existem. Seguro chamar várias vezes.
+
+    `silencioso` existe para os testes: eles recriam o banco a cada caso, e as
+    mensagens de conexão afogariam o resultado da suíte.
+    """
+    if not silencioso:
+        print("Python está procurando o banco em:", os.path.abspath(CAMINHO_DB))
 
     conexao = sqlite3.connect(CAMINHO_DB)
     cursor = conexao.cursor()
-    print("Conexão com o banco de dados estabelecida com sucesso!")
+
+    if not silencioso:
+        print("Conexão com o banco de dados estabelecida com sucesso!")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (

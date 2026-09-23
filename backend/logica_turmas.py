@@ -9,7 +9,7 @@ materiais dentro delas.
 import sqlite3
 from datetime import datetime, timezone
 
-DB_PATH = "deltacare.db"
+from database import CAMINHO_DB as DB_PATH
 
 
 def conectar():
@@ -205,6 +205,48 @@ def listar_professores(admin_email: str) -> dict:
     conexao.close()
 
     return {"sucesso": True, "professores": professores}
+
+
+def listar_usuarios(admin_email: str) -> dict:
+    """Todos os usuários do sistema, para a tela de gestão do admin.
+
+    Traz junto o que cada conta tem vinculado (turmas para professor,
+    matrículas para aluno), porque é isso que o admin precisa saber antes de
+    mexer numa conta — e é o que impede exclusões às cegas.
+    """
+    conexao = conectar()
+
+    if not _eh_admin(conexao, admin_email):
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Só um administrador pode ver isso.", "usuarios": []}
+
+    cursor = conexao.cursor()
+    cursor.execute(
+        '''
+        SELECT u.id, u.email, u.tipo,
+               (SELECT COUNT(*) FROM turmas t WHERE t.professor_id = u.id),
+               (SELECT COUNT(*) FROM matriculas m WHERE m.aluno_id = u.id)
+        FROM users u
+        ORDER BY
+            CASE u.tipo WHEN 'adm' THEN 1 WHEN 'professor' THEN 2 ELSE 3 END,
+            u.email
+        '''
+    )
+    linhas = cursor.fetchall()
+    conexao.close()
+
+    usuarios = [
+        {
+            "id": linha[0],
+            "email": linha[1],
+            "tipo": linha[2],
+            "total_turmas": linha[3],
+            "total_matriculas": linha[4],
+        }
+        for linha in linhas
+    ]
+
+    return {"sucesso": True, "usuarios": usuarios}
 
 
 def turma_pertence_ao_professor(turma_id: int, professor_email: str) -> bool:

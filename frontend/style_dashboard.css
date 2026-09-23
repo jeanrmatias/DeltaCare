@@ -1276,3 +1276,21 @@ body {
     letter-spacing: 0.02em;
     text-transform: uppercase;
 }
+
+
+/* Etiqueta de perfil na tela de gestão de usuários. Cada perfil tem uma cor
+   para dar para varrer a lista sem ler cada linha. */
+.badge-perfil--adm {
+    background: rgba(47, 112, 242, 0.12);
+    color: var(--color-primary);
+}
+
+.badge-perfil--professor {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.badge-perfil--aluno {
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+}
