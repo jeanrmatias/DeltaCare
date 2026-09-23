@@ -47,6 +47,87 @@ def configurar_banco():
             )
     conexao.commit()
 
+    # Turmas do professor.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS turmas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            semestre TEXT NOT NULL,
+            professor_id INTEGER NOT NULL,
+            criado_em TEXT NOT NULL,
+            FOREIGN KEY (professor_id) REFERENCES users (id)
+        )
+    ''')
+
+    # Materiais publicados pelo professor em uma turma.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS materiais (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            professor_id INTEGER NOT NULL,
+            turma_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            descricao TEXT,
+            tipo TEXT NOT NULL,
+            link_url TEXT,
+            arquivo_nome TEXT,
+            arquivo_caminho TEXT,
+            assunto TEXT,
+            topico TEXT,
+            aula TEXT,
+            semestre TEXT,
+            rascunho INTEGER NOT NULL DEFAULT 0,
+            data_liberacao TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL,
+            FOREIGN KEY (professor_id) REFERENCES users (id),
+            FOREIGN KEY (turma_id) REFERENCES turmas (id)
+        )
+    ''')
+
+    # Matrícula: quais alunos estão em quais turmas. Só o admin faz a
+    # matrícula (mesmo padrão de permissão das turmas).
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS matriculas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER NOT NULL,
+            turma_id INTEGER NOT NULL,
+            criado_em TEXT NOT NULL,
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (turma_id) REFERENCES turmas (id),
+            UNIQUE (aluno_id, turma_id)
+        )
+    ''')
+
+    # Pedaços de texto extraídos dos PDFs de material, com embedding, pra
+    # alimentar a busca do chat de IA do aluno (RAG restrito ao material
+    # liberado pelo professor).
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS material_chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            material_id INTEGER NOT NULL,
+            indice INTEGER NOT NULL,
+            texto TEXT NOT NULL,
+            embedding TEXT NOT NULL,
+            FOREIGN KEY (material_id) REFERENCES materiais (id)
+        )
+    ''')
+
+    # Histórico de conversas do aluno com o chat de IA, por turma.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_mensagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER NOT NULL,
+            turma_id INTEGER NOT NULL,
+            papel TEXT NOT NULL,
+            conteudo TEXT NOT NULL,
+            fontes TEXT,
+            criado_em TEXT NOT NULL,
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (turma_id) REFERENCES turmas (id)
+        )
+    ''')
+
+    conexao.commit()
     conexao.close()
 
 

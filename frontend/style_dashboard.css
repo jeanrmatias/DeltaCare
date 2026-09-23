@@ -1,0 +1,1173 @@
+@import url('tokens.css');
+
+
+/* =========================
+   Reset
+   ========================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Garante que o atributo "hidden" sempre esconda o elemento, mesmo quando
+   alguma regra mais abaixo no arquivo define "display" para a mesma classe
+   (ex.: .campo, .cartao usam display: flex). Sem isso, o hidden é ignorado. */
+[hidden] {
+    display: none !important;
+}
+
+button {
+    font-family: inherit;
+}
+
+
+/* =========================
+   Estrutura base
+   ========================= */
+
+body {
+    min-height: 100vh;
+
+    background: var(--color-bg);
+    color: var(--color-text);
+
+    font-family: var(--font-family);
+}
+
+.app {
+    display: flex;
+    min-height: 100vh;
+}
+
+
+/* =========================
+   Barra lateral
+   ========================= */
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+
+    width: 232px;
+    flex-shrink: 0;
+
+    padding: 20px 16px;
+
+    background: var(--color-navy-900);
+    color: var(--color-text-inverso);
+}
+
+.sidebar-topo {
+    margin-bottom: 24px;
+    padding: 0 8px;
+}
+
+.sidebar-marca {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    font-size: 17px;
+    font-weight: 700;
+    color: #FFFFFF;
+}
+
+.sidebar-marca-icone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 30px;
+    height: 30px;
+
+    background: var(--color-primary);
+    border-radius: var(--radius-sm);
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    flex: 1;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 9px 10px;
+
+    border-radius: var(--radius-sm);
+
+    color: rgba(231, 236, 251, 0.75);
+    text-decoration: none;
+
+    font-size: 14px;
+    font-weight: 500;
+
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-link svg {
+    flex-shrink: 0;
+}
+
+.sidebar-link:hover {
+    background: var(--color-navy-700);
+    color: #FFFFFF;
+}
+
+.sidebar-link.ativo {
+    background: var(--color-primary);
+    color: #FFFFFF;
+}
+
+.sidebar-perfil {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    margin-top: 16px;
+    padding: 10px 8px 4px;
+
+    border-top: 1px solid var(--color-navy-700);
+}
+
+.sidebar-perfil-texto {
+    display: flex;
+    flex-direction: column;
+
+    font-size: 13px;
+    line-height: 1.3;
+    overflow: hidden;
+}
+
+.sidebar-perfil-texto strong {
+    color: #FFFFFF;
+    font-weight: 600;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-perfil-texto span {
+    color: rgba(231, 236, 251, 0.55);
+    font-size: 12px;
+}
+
+.sidebar-perfil-sair {
+    padding: 0;
+    margin-top: 2px;
+
+    background: none;
+    border: none;
+
+    color: rgba(231, 236, 251, 0.55);
+
+    font-size: 12px;
+    text-align: left;
+
+    cursor: pointer;
+}
+
+.sidebar-perfil-sair:hover {
+    color: #FFFFFF;
+    text-decoration: underline;
+}
+
+
+/* =========================
+   Avatar
+   ========================= */
+
+.avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    width: 34px;
+    height: 34px;
+
+    background: var(--color-primary);
+    color: #FFFFFF;
+
+    border: none;
+    border-radius: 50%;
+
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.avatar--botao {
+    cursor: pointer;
+}
+
+
+/* =========================
+   Conteúdo principal
+   ========================= */
+
+.conteudo {
+    flex: 1;
+    min-width: 0;
+
+    padding: 28px 36px 48px;
+}
+
+
+/* =========================
+   Topo
+   ========================= */
+
+.topo {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+
+    margin-bottom: 24px;
+}
+
+.topo-saudacao h1 {
+    color: var(--color-navy-900);
+
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.topo-saudacao p {
+    margin-top: 4px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+.topo-acoes {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.seletor-turma {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 9px 14px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text);
+
+    font-size: 13px;
+    font-weight: 500;
+
+    cursor: pointer;
+}
+
+.busca {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 9px 14px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text-secondary);
+}
+
+.busca input {
+    border: none;
+    outline: none;
+
+    width: 140px;
+
+    font-family: var(--font-family);
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+.botao-icone {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 38px;
+    height: 38px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text-secondary);
+
+    cursor: pointer;
+}
+
+.badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--color-danger);
+    color: #FFFFFF;
+
+    border-radius: 999px;
+
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.menu-avatar {
+    position: relative;
+}
+
+.menu-avatar-lista {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 10;
+
+    display: flex;
+    flex-direction: column;
+
+    min-width: 200px;
+    padding: 12px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(13, 29, 58, 0.14);
+}
+
+.menu-avatar-lista #menuNome {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.menu-avatar-lista #menuEmail {
+    margin-top: 2px;
+    margin-bottom: 10px;
+
+    font-size: 12px;
+    color: var(--color-text-secondary);
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.menu-avatar-lista button {
+    padding: 8px 10px;
+
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-danger);
+
+    font-size: 13px;
+    font-weight: 600;
+
+    cursor: pointer;
+    text-align: left;
+}
+
+.menu-avatar-lista button:hover {
+    background: var(--color-danger-bg);
+}
+
+.menu-avatar-lista[hidden] {
+    display: none;
+}
+
+
+/* =========================
+   Cartões genéricos
+   ========================= */
+
+.cartao {
+    padding: 20px;
+
+    background: var(--color-surface);
+
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+}
+
+.cartao-titulo {
+    margin-bottom: 16px;
+
+    color: var(--color-navy-900);
+
+    font-size: 15px;
+    font-weight: 600;
+}
+
+
+/* =========================
+   Cartões de estatística
+   ========================= */
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+
+    margin-bottom: 20px;
+}
+
+.stat-cartao {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    padding: 18px 20px;
+
+    background: var(--color-surface);
+
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+}
+
+.stat-rotulo {
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.stat-valor {
+    color: var(--color-navy-900);
+
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.stat-valor--sucesso {
+    color: var(--color-success);
+}
+
+
+/* =========================
+   Layout do painel (2 colunas)
+   ========================= */
+
+.painel {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 20px;
+
+    align-items: start;
+}
+
+.painel-coluna {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+
+    min-width: 0;
+}
+
+
+/* =========================
+   Calendário
+   ========================= */
+
+.calendario-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 16px;
+}
+
+.calendario-topo h2 {
+    color: var(--color-navy-900);
+
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.calendario-nav {
+    display: flex;
+    gap: 6px;
+}
+
+.calendario-nav button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 26px;
+    height: 26px;
+
+    background: var(--color-bg);
+    border: none;
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text-secondary);
+
+    cursor: pointer;
+}
+
+.calendario-grade {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+
+    text-align: center;
+}
+
+.calendario-cabecalho {
+    padding-bottom: 8px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.calendario-dia {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+
+    padding: 7px 0 10px;
+
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+
+    font-size: 13px;
+    color: var(--color-text);
+
+    cursor: default;
+}
+
+.calendario-dia--vazio {
+    cursor: default;
+}
+
+.calendario-dia--hoje {
+    border-color: var(--color-primary);
+    font-weight: 700;
+}
+
+.calendario-dia--selecionado {
+    background: var(--color-primary);
+    color: #FFFFFF;
+    font-weight: 700;
+}
+
+.calendario-dia .ponto {
+    position: static;
+}
+
+.ponto {
+    display: inline-block;
+
+    width: 5px;
+    height: 5px;
+
+    border-radius: 50%;
+}
+
+.ponto--azul { background: var(--color-primary); }
+.ponto--verde { background: var(--color-success); }
+.ponto--ambar { background: var(--color-amber); }
+
+.calendario-legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+
+    margin-top: 16px;
+    padding-top: 14px;
+
+    border-top: 1px solid var(--color-bg);
+
+    color: var(--color-text-secondary);
+
+    font-size: 12px;
+}
+
+.calendario-legenda span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+
+/* =========================
+   Entregas recentes
+   ========================= */
+
+.lista-entregas {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    list-style: none;
+}
+
+.lista-entregas li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lista-entregas .avatar {
+    background: var(--color-navy-600);
+}
+
+.entrega-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.entrega-info strong {
+    display: block;
+
+    color: var(--color-text);
+
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.entrega-info span {
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+.botao-corrigir {
+    padding: 7px 14px;
+
+    background: var(--color-primary);
+    border: none;
+    border-radius: var(--radius-sm);
+
+    color: #FFFFFF;
+
+    font-size: 13px;
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+.botao-corrigir:hover {
+    background: #245FCC;
+}
+
+
+/* =========================
+   Ações rápidas
+   ========================= */
+
+.acoes-rapidas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.acao {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 12px 16px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+
+    color: var(--color-text);
+    text-decoration: none;
+
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+
+    cursor: pointer;
+    text-align: left;
+}
+
+.acao:hover {
+    border-color: var(--color-primary);
+}
+
+.acao--primaria {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #FFFFFF;
+}
+
+.acao--primaria:hover {
+    background: #245FCC;
+}
+
+
+/* =========================
+   Gráfico de barras
+   ========================= */
+
+.grafico {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+
+    height: 160px;
+    padding-top: 8px;
+}
+
+.grafico-barra {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+
+    flex: 1;
+    height: 100%;
+}
+
+.grafico-barra-valor {
+    color: var(--color-primary);
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.grafico-barra-coluna {
+    width: 60%;
+
+    background: var(--color-primary);
+    border-radius: 6px 6px 0 0;
+}
+
+.grafico-barra-rotulo {
+    color: var(--color-text-secondary);
+
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.3;
+}
+
+
+/* =========================
+   Mensagens
+   ========================= */
+
+.lista-mensagens {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    list-style: none;
+}
+
+.lista-mensagens li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.lista-mensagens .avatar {
+    background: var(--color-navy-600);
+}
+
+.mensagem-info strong {
+    display: block;
+
+    color: var(--color-text);
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.mensagem-info span {
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+
+/* =========================
+   Formulários (turmas, materiais)
+   ========================= */
+
+.formulario {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.formulario--linha {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    flex: 1;
+    min-width: 180px;
+}
+
+.campo--larga {
+    flex-basis: 100%;
+}
+
+.campo--acoes {
+    flex-direction: row;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.campo label {
+    color: var(--color-text);
+
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+    padding: 10px 12px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+    color: var(--color-text);
+
+    outline: none;
+
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.campo textarea {
+    resize: vertical;
+    min-height: 70px;
+}
+
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(47, 112, 242, 0.12);
+}
+
+.campo-dica {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.formulario-mensagem {
+    margin-top: 12px;
+
+    color: var(--color-danger);
+
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.formulario-mensagem--sucesso {
+    color: var(--color-success);
+}
+
+
+/* =========================
+   Grade de turmas
+   ========================= */
+
+.grade-turmas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+
+    margin-top: 20px;
+}
+
+.turma-cartao h2 {
+    color: var(--color-navy-900);
+
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.turma-semestre {
+    display: inline-block;
+    margin-top: 4px;
+
+    padding: 2px 8px;
+
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+
+    border-radius: var(--radius-sm);
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.turma-cartao p {
+    margin: 12px 0 14px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+.turma-cartao .acao {
+    justify-content: center;
+    padding: 8px 14px;
+    font-size: 13px;
+}
+
+
+/* =========================
+   Seletor de turma no topo (páginas de gestão)
+   ========================= */
+
+.campo--seletor {
+    min-width: 0;
+}
+
+.campo--seletor select {
+    padding: 9px 14px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: var(--font-family);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+
+    cursor: pointer;
+}
+
+
+/* =========================
+   Lista de materiais
+   ========================= */
+
+.lista-materiais {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    margin-top: 20px;
+}
+
+.material-linha {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.material-linha-topo {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.material-linha-info h3 {
+    color: var(--color-navy-900);
+
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.material-classificacao {
+    margin-top: 4px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+.material-descricao {
+    margin-top: 6px;
+
+    color: var(--color-text);
+
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.material-referencia {
+    margin-top: 8px;
+
+    font-size: 13px;
+}
+
+.material-referencia a {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.material-linha-acoes {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.material-linha-acoes .acao {
+    padding: 8px 14px;
+    font-size: 13px;
+    box-shadow: none;
+}
+
+.acao--perigo {
+    color: var(--color-danger);
+}
+
+.acao--perigo:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+}
+
+
+/* =========================
+   Badges (tipo e status)
+   ========================= */
+
+.badge-tipo {
+    padding: 3px 9px;
+
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+
+    border-radius: var(--radius-sm);
+
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.badge-status {
+    padding: 3px 9px;
+
+    border-radius: var(--radius-sm);
+
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.badge-status--rascunho {
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+}
+
+.badge-status--agendado {
+    background: var(--color-amber-bg);
+    color: #92610A;
+}
+
+.badge-status--publicado {
+    background: var(--color-success-bg);
+    color: #157A3C;
+}
+
+
+/* =========================
+   Estado vazio
+   ========================= */
+
+.estado-vazio {
+    margin-top: 24px;
+    padding: 32px;
+
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+
+    color: var(--color-text-secondary);
+
+    font-size: 14px;
+    text-align: center;
+}
+
+
+/* =========================
+   Responsividade
+   ========================= */
+
+@media (max-width: 1100px) {
+    .painel {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .app {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .sidebar-link span {
+        display: none;
+    }
+
+    .conteudo {
+        padding: 20px;
+    }
+
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .busca input {
+        width: 90px;
+    }
+}

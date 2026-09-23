@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delta Care | Turmas (Admin)</title>
+    <link rel="stylesheet" href="../style_dashboard.css">
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="sidebar-topo">
+                <span class="sidebar-marca">
+                    <span class="sidebar-marca-icone">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg>
+                    </span>
+                    Delta Care
+                </span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="adm.html" class="sidebar-link">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
+                    Início
+                </a>
+                <a href="adm-turmas.html" class="sidebar-link ativo">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14c2.7.3 4.5 2.6 4.5 6"/></svg>
+                    Turmas
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Gestão de usuários">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c0-4.1 3.4-7.5 7.5-7.5s7.5 3.4 7.5 7.5"/></svg>
+                    Usuários
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Gestão de denúncias">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"/><path d="M10.3 4.3 2.8 17a1.7 1.7 0 0 0 1.5 2.5h15.4a1.7 1.7 0 0 0 1.5-2.5L13.7 4.3a1.7 1.7 0 0 0-3 0Z"/></svg>
+                    Denúncias
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Supervisão de conteúdo">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2Z"/><path d="M12 6.5v13"/></svg>
+                    Conteúdo
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Relatórios de desempenho">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>
+                    Relatórios
+                </a>
+            </nav>
+
+            <div class="sidebar-perfil">
+                <span class="avatar" id="avatarRodape">--</span>
+                <div class="sidebar-perfil-texto">
+                    <strong id="nomeRodape">Administrador</strong>
+                    <button type="button" id="botaoSair" class="sidebar-perfil-sair">Sair</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="conteudo">
+            <header class="topo">
+                <div class="topo-saudacao">
+                    <h1>Turmas</h1>
+                    <p>Crie turmas e atribua cada uma a um professor.</p>
+                </div>
+
+                <div class="topo-acoes">
+                    <button type="button" class="acao acao--primaria" id="botaoNovaTurma">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Nova turma
+                    </button>
+                </div>
+            </header>
+
+            <p class="estado-vazio" id="semProfessores" hidden>
+                Ainda não há nenhum professor cadastrado. Cadastre um professor antes de criar uma turma.
+            </p>
+
+            <section class="cartao" id="formularioTurmaCartao" hidden>
+                <h2 class="cartao-titulo">Nova turma</h2>
+                <form id="formularioTurma" class="formulario formulario--linha">
+                    <div class="campo">
+                        <label for="turmaProfessor">Professor</label>
+                        <select id="turmaProfessor" required></select>
+                    </div>
+                    <div class="campo">
+                        <label for="turmaNome">Nome da turma</label>
+                        <input type="text" id="turmaNome" placeholder="ex.: 3A" required>
+                    </div>
+                    <div class="campo">
+                        <label for="turmaSemestre">Semestre</label>
+                        <input type="text" id="turmaSemestre" placeholder="ex.: 2026/2" required>
+                    </div>
+                    <div class="campo campo--acoes">
+                        <button type="submit" class="acao acao--primaria">Criar turma</button>
+                        <button type="button" class="acao" id="botaoCancelarTurma">Cancelar</button>
+                    </div>
+                </form>
+                <p class="formulario-mensagem" id="turmaMensagem"></p>
+            </section>
+
+            <section class="lista-materiais" id="listaTurmas"></section>
+            <p class="estado-vazio" id="turmasVazio" hidden>
+                Nenhuma turma criada ainda. Clique em "Nova turma" para começar.
+            </p>
+        </main>
+    </div>
+
+    <script src="../config.js"></script>
+    <script src="../auth.js"></script>
+    <script src="adm-turmas.js"></script>
+</body>
+</html>

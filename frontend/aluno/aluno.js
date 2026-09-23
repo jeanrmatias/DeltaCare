@@ -1,0 +1,162 @@
+/**
+ * Chat de estudos do aluno. Assistente de IA restrito ao material (PDF) que
+ * o professor liberou na turma selecionada — nunca sai desse escopo (isso é
+ * garantido no backend, em chat_ia.py, não aqui).
+ */
+
+const usuario = exigirAcesso("aluno");
+
+let turmaAtual = null;
+
+if (usuario) {
+    montarRodapePerfil(usuario);
+    carregarTurmas();
+    ligarFormularioChat();
+    ligarPlaceholders();
+    document.querySelector("#botaoSair").addEventListener("click", sair);
+}
+
+function montarRodapePerfil(usuario) {
+    const nome = nomeAPartirDoEmail(usuario.email);
+    document.querySelector("#avatarRodape").textContent = iniciais(nome);
+    document.querySelector("#nomeRodape").textContent = nome;
+}
+
+function nomeAPartirDoEmail(email) {
+    return email.split("@")[0]
+        .split(/[.\-_]/)
+        .filter(Boolean)
+        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+        .join(" ") || email;
+}
+
+function iniciais(nome) {
+    const partes = nome.trim().split(/\s+/);
+    const primeira = partes[0]?.[0] ?? "";
+    const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
+    return (primeira + ultima).toUpperCase();
+}
+
+async function carregarTurmas() {
+    const seletorCampo = document.querySelector("#seletorTurmaCampo");
+    const seletor = document.querySelector("#seletorTurma");
+    const semTurmas = document.querySelector("#semTurmas");
+    const chatCartao = document.querySelector("#chatCartao");
+
+    try {
+        const resposta = await fetch(`${API_URL}/aluno/turmas?aluno_email=${encodeURIComponent(usuario.email)}`);
+        const dados = await resposta.json();
+        const turmas = dados.turmas || [];
+
+        if (turmas.length === 0) {
+            seletorCampo.hidden = true;
+            chatCartao.hidden = true;
+            semTurmas.hidden = false;
+            return;
+        }
+
+        semTurmas.hidden = true;
+        seletorCampo.hidden = false;
+        chatCartao.hidden = false;
+
+        seletor.innerHTML = turmas.map((t) => `<option value="${t.id}">${t.nome} · ${t.semestre}</option>`).join("");
+        turmaAtual = turmas[0].id;
+
+        seletor.addEventListener("change", () => {
+            turmaAtual = Number(seletor.value);
+            carregarHistorico();
+        });
+
+        await carregarHistorico();
+    } catch (erro) {
+        console.error("Erro ao carregar turmas:", erro);
+        semTurmas.hidden = false;
+        semTurmas.textContent = "Não foi possível conectar ao servidor. Tente novamente.";
+    }
+}
+
+async function carregarHistorico() {
+    const mensagensEl = document.querySelector("#chatMensagens");
+    mensagensEl.innerHTML = "";
+
+    if (!turmaAtual) return;
+
+    try {
+        const resposta = await fetch(
+            `${API_URL}/chat/historico?aluno_email=${encodeURIComponent(usuario.email)}&turma_id=${turmaAtual}`
+        );
+        const dados = await resposta.json();
+        (dados.mensagens || []).forEach((m) => adicionarMensagem(m.papel, m.conteudo, m.fontes));
+
+        if (!dados.mensagens || dados.mensagens.length === 0) {
+            adicionarMensagem("assistant", "Oi! Pode perguntar qualquer coisa sobre o material liberado nessa turma que eu ajudo — só não saio do que o professor disponibilizou.");
+        }
+    } catch (erro) {
+        console.error("Erro ao carregar histórico:", erro);
+    }
+}
+
+function adicionarMensagem(papel, texto, fontes) {
+    const mensagensEl = document.querySelector("#chatMensagens");
+    const bolha = document.createElement("div");
+    bolha.className = `chat-bolha chat-bolha--${papel === "user" ? "aluno" : "ia"}`;
+    bolha.textContent = texto;
+
+    if (fontes && fontes.length > 0) {
+        const rodape = document.createElement("div");
+        rodape.className = "chat-bolha-fontes";
+        rodape.textContent = `Fonte(s): ${fontes.join(", ")}`;
+        bolha.appendChild(rodape);
+    }
+
+    mensagensEl.appendChild(bolha);
+    mensagensEl.scrollTop = mensagensEl.scrollHeight;
+}
+
+function ligarFormularioChat() {
+    const formulario = document.querySelector("#chatFormulario");
+    const entrada = document.querySelector("#chatEntrada");
+    const botao = document.querySelector("#chatBotaoEnviar");
+
+    formulario.addEventListener("submit", async (evento) => {
+        evento.preventDefault();
+
+        const pergunta = entrada.value.trim();
+        if (!pergunta || !turmaAtual) return;
+
+        adicionarMensagem("user", pergunta);
+        entrada.value = "";
+        botao.disabled = true;
+        botao.textContent = "Enviando...";
+
+        try {
+            const resposta = await fetch(`${API_URL}/chat/perguntar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ aluno_email: usuario.email, turma_id: turmaAtual, pergunta: pergunta }),
+            });
+            const dados = await resposta.json();
+
+            if (dados.sucesso) {
+                adicionarMensagem("assistant", dados.resposta, dados.fontes);
+            } else {
+                adicionarMensagem("assistant", dados.mensagem || "Não foi possível responder agora.");
+            }
+        } catch (erro) {
+            console.error("Erro ao perguntar:", erro);
+            adicionarMensagem("assistant", "Não foi possível conectar ao servidor. Tente novamente.");
+        }
+
+        botao.disabled = false;
+        botao.textContent = "Enviar";
+    });
+}
+
+function ligarPlaceholders() {
+    document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
+        elemento.addEventListener("click", (evento) => {
+            evento.preventDefault();
+            alert(`${elemento.dataset.emBreve} ainda não está disponível — chega em uma próxima sprint.`);
+        });
+    });
+}

@@ -12,7 +12,7 @@ from security import hash_senha, verificar_senha
 
 DB_PATH = "deltacare.db"
 TIPOS_VALIDOS = ("adm", "professor", "aluno")
-PAGINAS = {"adm": "adm.html", "professor": "prof.html", "aluno": "aluno.html"}
+PAGINAS = {"adm": "adm/adm.html", "professor": "professor/prof.html", "aluno": "aluno/aluno.html"}
 VALIDADE_TOKEN_MINUTOS = 15
 
 
@@ -30,21 +30,32 @@ def realizar_login(email: str, senha: str) -> dict:
     conexao.close()
 
     if usuario and verificar_senha(senha, usuario[0]):
-        pagina = PAGINAS.get(usuario[1])
+        tipo = usuario[1]
+        pagina = PAGINAS.get(tipo)
         if pagina:
-            return {"mensagem": "Login bem-sucedido!", "pagina": pagina}
+            return {
+                "mensagem": "Login bem-sucedido!",
+                "pagina": pagina,
+                "email": email,
+                "tipo": tipo,
+            }
 
     return {"mensagem": "E-mail ou senha incorretos."}
 
 
 def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:
+    """Cadastro público. Só cria conta de aluno — professor e admin são
+    contas de confiança e só podem ser criadas por um administrador
+    (ver criar_conta_staff), senão qualquer pessoa poderia se cadastrar
+    como admin direto por essa rota.
+    """
     email = email.strip().lower()
     tipo = tipo.strip().lower()
 
-    if tipo not in TIPOS_VALIDOS:
+    if tipo != "aluno":
         return {
             "sucesso": False,
-            "mensagem": f"Tipo inválido. Use um destes: {', '.join(TIPOS_VALIDOS)}.",
+            "mensagem": "O cadastro público é só para conta de aluno.",
         }
 
     if len(senha) < 6:
@@ -52,6 +63,44 @@ def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:
 
     conexao = _conectar()
     cursor = conexao.cursor()
+
+    cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+    if cursor.fetchone():
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Já existe uma conta com esse e-mail."}
+
+    cursor.execute(
+        "INSERT INTO users (email, senha, tipo) VALUES (?, ?, ?)",
+        (email, hash_senha(senha), tipo),
+    )
+    conexao.commit()
+    conexao.close()
+
+    return {"sucesso": True, "mensagem": "Conta criada com sucesso!"}
+
+
+def criar_conta_staff(admin_email: str, email: str, senha: str, tipo: str) -> dict:
+    """Cria conta de professor ou admin. Só um admin já existente pode
+    chamar isso (mesmo padrão de permissão usado em logica_turmas.criar_turma).
+    """
+    admin_email = admin_email.strip().lower()
+    email = email.strip().lower()
+    tipo = tipo.strip().lower()
+
+    if tipo not in ("professor", "adm"):
+        return {"sucesso": False, "mensagem": "Tipo inválido. Use 'professor' ou 'adm'."}
+
+    if len(senha) < 6:
+        return {"sucesso": False, "mensagem": "A senha precisa ter pelo menos 6 caracteres."}
+
+    conexao = _conectar()
+    cursor = conexao.cursor()
+
+    cursor.execute("SELECT tipo FROM users WHERE email = ?", (admin_email,))
+    admin = cursor.fetchone()
+    if not admin or admin[0] != "adm":
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Só um administrador pode criar essa conta."}
 
     cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
     if cursor.fetchone():

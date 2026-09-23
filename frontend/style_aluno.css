@@ -1,0 +1,93 @@
+/* Estilos específicos da área do aluno (chat de estudos). Importa os
+   tokens globais e complementa style_dashboard.css. */
+
+.conteudo--chat {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.chat-cartao {
+    display: flex;
+    flex-direction: column;
+
+    flex: 1;
+    min-height: 0;
+
+    padding: 0;
+    overflow: hidden;
+}
+
+.chat-mensagens {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    padding: 20px;
+}
+
+.chat-bolha {
+    max-width: 70%;
+    padding: 12px 16px;
+
+    border-radius: var(--radius-md);
+
+    font-size: 14px;
+    line-height: 1.5;
+
+    white-space: pre-wrap;
+}
+
+.chat-bolha--aluno {
+    align-self: flex-end;
+
+    background: var(--color-primary);
+    color: #FFFFFF;
+}
+
+.chat-bolha--ia {
+    align-self: flex-start;
+
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.chat-bolha-fontes {
+    margin-top: 8px;
+
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.chat-formulario {
+    display: flex;
+    gap: 10px;
+
+    padding: 16px 20px;
+
+    border-top: 1px solid var(--color-border);
+}
+
+.chat-formulario input {
+    flex: 1;
+
+    padding: 12px 14px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+
+    outline: none;
+}
+
+.chat-formulario input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(47, 112, 242, 0.12);
+}

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delta Care | Área do Professor</title>
+    <link rel="stylesheet" href="../style_dashboard.css">
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="sidebar-topo">
+                <span class="sidebar-marca">
+                    <span class="sidebar-marca-icone">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg>
+                    </span>
+                    Delta Care
+                </span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="prof.html" class="sidebar-link ativo">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
+                    Início
+                </a>
+                <a href="materiais.html" class="sidebar-link">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2Z"/><path d="M12 6.5v13"/></svg>
+                    Materiais
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Atividades">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg>
+                    Atividades
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Calendário">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 9.5h18"/></svg>
+                    Calendário
+                </a>
+                <a href="turmas.html" class="sidebar-link">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14c2.7.3 4.5 2.6 4.5 6"/></svg>
+                    Turmas
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Chat">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-8.9 8.5c-1.4 0-2.7-.3-3.9-.9L3 21l1.5-4.7A8.5 8.5 0 1 1 21 12Z"/></svg>
+                    Chat
+                </a>
+                <a href="#" class="sidebar-link" data-em-breve="Desempenho">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>
+                    Desempenho
+                </a>
+            </nav>
+
+            <div class="sidebar-perfil">
+                <span class="avatar" id="avatarRodape">--</span>
+                <div class="sidebar-perfil-texto">
+                    <strong id="nomeRodape">Professor</strong>
+                    <span>Ver perfil</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="conteudo">
+            <header class="topo">
+                <div class="topo-saudacao">
+                    <h1 id="saudacao">Olá</h1>
+                    <p id="dataHoje"></p>
+                </div>
+
+                <div class="topo-acoes">
+                    <button type="button" class="seletor-turma" id="seletorTurma">
+                        Turma 3A · 2026/2
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+
+                    <label class="busca">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+                        <input type="search" placeholder="Buscar" id="campoBusca">
+                    </label>
+
+                    <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
+                        <span class="badge">5</span>
+                    </button>
+
+                    <div class="menu-avatar">
+                        <button type="button" class="avatar avatar--botao" id="botaoAvatar">--</button>
+                        <div class="menu-avatar-lista" id="listaAvatar" hidden>
+                            <span id="menuNome">Professor</span>
+                            <span id="menuEmail">-</span>
+                            <button type="button" id="botaoSair">Sair</button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="stats">
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Entregas pendentes</span>
+                    <strong class="stat-valor">12</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Materiais agendados</span>
+                    <strong class="stat-valor" id="statMateriaisAgendados">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Atividades ativas</span>
+                    <strong class="stat-valor">7</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Média da turma</span>
+                    <strong class="stat-valor stat-valor--sucesso">7,8</strong>
+                </article>
+            </section>
+
+            <section class="painel">
+                <div class="painel-coluna">
+                    <div class="cartao calendario">
+                        <div class="calendario-topo">
+                            <h2 id="calendarioMes">Setembro 2026</h2>
+                            <div class="calendario-nav">
+                                <button type="button" aria-label="Mês anterior">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+                                </button>
+                                <button type="button" aria-label="Próximo mês">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="calendario-grade" id="calendarioGrade"></div>
+
+                        <div class="calendario-legenda">
+                            <span><i class="ponto ponto--azul"></i> Entrega de atividade</span>
+                            <span><i class="ponto ponto--verde"></i> Novo material</span>
+                            <span><i class="ponto ponto--ambar"></i> Prazo próximo</span>
+                        </div>
+                    </div>
+
+                    <div class="cartao">
+                        <h2 class="cartao-titulo">Entregas recentes</h2>
+                        <ul class="lista-entregas" id="listaEntregas"></ul>
+                    </div>
+                </div>
+
+                <div class="painel-coluna painel-coluna--lateral">
+                    <div class="acoes-rapidas">
+                        <a href="materiais.html" class="acao acao--primaria">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                            Publicar material
+                        </a>
+                        <button type="button" class="acao" data-em-breve="Criar atividade">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg>
+                            Criar atividade
+                        </button>
+                        <button type="button" class="acao" data-em-breve="Enviar alerta">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
+                            Enviar alerta
+                        </button>
+                    </div>
+
+                    <div class="cartao">
+                        <h2 class="cartao-titulo">Tópicos com maior índice de erro</h2>
+                        <div class="grafico" id="grafico"></div>
+                    </div>
+
+                    <div class="cartao">
+                        <h2 class="cartao-titulo">Mensagens</h2>
+                        <ul class="lista-mensagens" id="listaMensagens"></ul>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="../config.js"></script>
+    <script src="../auth.js"></script>
+    <script src="prof.js"></script>
+</body>
+</html>
