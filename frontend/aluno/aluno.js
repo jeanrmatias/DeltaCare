@@ -100,7 +100,17 @@ function adicionarMensagem(papel, texto, fontes) {
     const mensagensEl = document.querySelector("#chatMensagens");
     const bolha = document.createElement("div");
     bolha.className = `chat-bolha chat-bolha--${papel === "user" ? "aluno" : "ia"}`;
-    bolha.textContent = texto;
+
+    if (papel === "user") {
+        // Pergunta do aluno é texto puro: nada a formatar, e o CSS já preserva
+        // as quebras de linha que ele digitou.
+        bolha.textContent = texto;
+    } else {
+        // Resposta da IA vem em Markdown (títulos, listas, tabelas). O
+        // renderizador monta os elementos um a um, sem passar por innerHTML.
+        bolha.classList.add("chat-bolha--markdown");
+        renderizarMarkdown(texto, bolha);
+    }
 
     if (fontes && fontes.length > 0) {
         const rodape = document.createElement("div");
@@ -111,6 +121,54 @@ function adicionarMensagem(papel, texto, fontes) {
 
     mensagensEl.appendChild(bolha);
     mensagensEl.scrollTop = mensagensEl.scrollHeight;
+}
+
+/**
+ * Mostra a bolha de "pensando" enquanto a IA responde.
+ *
+ * O modelo roda localmente e leva de 10 a 20 segundos por resposta. Sem um
+ * sinal de progresso, esse tempo parece travamento. Devolve uma função que
+ * remove a bolha.
+ */
+function mostrarPensando() {
+    const mensagensEl = document.querySelector("#chatMensagens");
+
+    const bolha = document.createElement("div");
+    bolha.className = "chat-bolha chat-bolha--ia chat-bolha--pensando";
+
+    const pontos = document.createElement("span");
+    pontos.className = "chat-pensando-pontos";
+    // Três pontos animados por CSS, um atraso diferente em cada.
+    for (let i = 0; i < 3; i += 1) {
+        pontos.appendChild(document.createElement("span"));
+    }
+
+    const texto = document.createElement("span");
+    texto.className = "chat-pensando-texto";
+    texto.textContent = "Consultando o material da turma";
+
+    const cronometro = document.createElement("span");
+    cronometro.className = "chat-pensando-tempo";
+
+    bolha.appendChild(pontos);
+    bolha.appendChild(texto);
+    bolha.appendChild(cronometro);
+
+    mensagensEl.appendChild(bolha);
+    mensagensEl.scrollTop = mensagensEl.scrollHeight;
+
+    // O contador dá a sensação de que algo está acontecendo e evita que o
+    // aluno clique em Enviar de novo achando que falhou.
+    const inicio = Date.now();
+    const intervalo = setInterval(() => {
+        const segundos = Math.floor((Date.now() - inicio) / 1000);
+        cronometro.textContent = segundos >= 3 ? `${segundos}s` : "";
+    }, 1000);
+
+    return function removerPensando() {
+        clearInterval(intervalo);
+        bolha.remove();
+    };
 }
 
 function ligarFormularioChat() {
@@ -129,6 +187,8 @@ function ligarFormularioChat() {
         botao.disabled = true;
         botao.textContent = "Enviando...";
 
+        const removerPensando = mostrarPensando();
+
         try {
             const resposta = await fetch(`${API_URL}/chat/perguntar`, {
                 method: "POST",
@@ -137,6 +197,8 @@ function ligarFormularioChat() {
             });
             const dados = await resposta.json();
 
+            removerPensando();
+
             if (dados.sucesso) {
                 adicionarMensagem("assistant", dados.resposta, dados.fontes);
             } else {
@@ -144,6 +206,7 @@ function ligarFormularioChat() {
             }
         } catch (erro) {
             console.error("Erro ao perguntar:", erro);
+            removerPensando();
             adicionarMensagem("assistant", "Não foi possível conectar ao servidor. Tente novamente.");
         }
 

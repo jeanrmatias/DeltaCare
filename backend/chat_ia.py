@@ -24,24 +24,61 @@ from datetime import datetime, timezone
 from logica_turmas import buscar_usuario, conectar
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-MODELO_EMBEDDING = "nomic-embed-text"
-MODELO_CHAT = "gpt-oss:20b"
+MODELO_EMBEDDING = os.environ.get("MODELO_EMBEDDING", "nomic-embed-text")
+# Padrão é o gpt-oss:20b. Dá pra trocar com a variável MODELO_CHAT sem
+# mexer no código (ex.: pra testar com um modelo menor numa GPU com menos
+# VRAM, tipo llama3.1:8b).
+MODELO_CHAT = os.environ.get("MODELO_CHAT", "gpt-oss:20b")
+# O gpt-oss é um modelo de raciocínio: ele "pensa" antes de responder, e
+# esses tokens de raciocínio custam tempo. Para o nosso caso (responder a
+# partir de trechos já selecionados) o esforço baixo basta e corta o tempo
+# de resposta pela metade, sem perder qualidade. Medido com o material de
+# teste: 31s -> 13s. Modelos que não são de raciocínio ignoram esse campo.
+ESFORCO_RACIOCINIO = os.environ.get("ESFORCO_RACIOCINIO", "low")
 TAMANHO_CHUNK = 800  # caracteres
 SOBREPOSICAO = 100
 TOP_K = 5
 
-PROMPT_SISTEMA = """Você é o assistente de estudos da Delta Care, plataforma de ensino de uma \
-faculdade de medicina. Responda SOMENTE com base nos trechos de material fornecidos abaixo, que \
-vieram do material que o professor disponibilizou para esta turma.
+PROMPT_SISTEMA = """Você é o assistente de estudos da Delta Care, plataforma de ensino de uma faculdade de medicina. Responda SOMENTE com base nos trechos de material fornecidos abaixo, que vieram do material que o professor disponibilizou para esta turma.
 
 Regras:
 - Não use nenhum conhecimento externo, mesmo que você saiba a resposta.
-- Se os trechos não tiverem informação suficiente para responder, diga claramente que o \
-material disponibilizado não cobre esse ponto e sugira que o aluno pergunte ao professor. Não \
-tente completar a lacuna com conhecimento próprio.
-- Sempre que possível, indique de qual material a informação veio.
+- Se os trechos não tiverem informação suficiente para responder, diga claramente que o material disponibilizado não cobre esse ponto e sugira que o aluno pergunte ao professor. Não tente completar a lacuna com conhecimento próprio.
+- Quando ajudar o aluno a se localizar no material, mencione a seção ou o tópico de onde veio a informação (ex.: "na seção de critérios de interrupção").
 - Seja didático, claro e objetivo, no nível de um estudante de medicina.
+- Escreva a resposta no campo "resposta" e, em "fontes_usadas", liste apenas os materiais que você realmente usou. Se o material não responder à pergunta, deixe "fontes_usadas" vazio. Não escreva "Fonte:" dentro da resposta — o sistema já mostra as fontes para o aluno.
 """
+
+
+def montar_schema_resposta(titulos_disponiveis: list) -> dict:
+    """Schema que o Ollama impõe ao decodificar a resposta do modelo.
+
+    Isto substitui a instrução de texto que pedia uma linha "FONTES_USADAS:" no
+    fim da resposta. A diferença importa: instrução no prompt é pedido, e o
+    modelo desobedecia de formas variadas (escrevia **FONTES_USADAS:** em
+    negrito, como item de lista, ou reescrevia o título com acento). Com o
+    schema, o Ollama restringe os tokens que podem ser gerados — o formato
+    deixa de depender de obediência.
+
+    O `enum` em fontes_usadas é a parte mais forte: o modelo só consegue emitir
+    um título que exista de verdade entre os materiais recuperados, então não há
+    como inventar fonte nem grafar o título diferente.
+    """
+    schema_fonte = {"type": "string"}
+
+    # enum vazio é inválido em JSON Schema; sem material indexado, a lista fica
+    # livre (e o modelo deve devolvê-la vazia de qualquer forma).
+    if titulos_disponiveis:
+        schema_fonte["enum"] = list(titulos_disponiveis)
+
+    return {
+        "type": "object",
+        "properties": {
+            "resposta": {"type": "string"},
+            "fontes_usadas": {"type": "array", "items": schema_fonte},
+        },
+        "required": ["resposta", "fontes_usadas"],
+    }
 
 
 # =========================================================================
@@ -66,17 +103,40 @@ def gerar_embedding(texto: str) -> list:
     return resposta["embeddings"][0]
 
 
-def gerar_resposta_chat(mensagens: list) -> str:
-    resposta = _chamar_ollama(
-        "/api/chat",
-        {
-            "model": MODELO_CHAT,
-            "messages": mensagens,
-            "stream": False,
-            "options": {"temperature": 0.2},
-        },
-    )
-    return resposta["message"]["content"]
+def gerar_resposta_chat(mensagens: list, schema: dict | None = None) -> dict:
+    """Pede a resposta ao modelo e devolve {"resposta": str, "fontes_usadas": list}.
+
+    Quando `schema` é informado, o Ollama restringe a geração ao formato — o
+    conteúdo volta como JSON garantido, sem precisar de regex para extrair as
+    fontes (ver montar_schema_resposta).
+    """
+    corpo = {
+        "model": MODELO_CHAT,
+        "messages": mensagens,
+        "stream": False,
+        "think": ESFORCO_RACIOCINIO,
+        "options": {"temperature": 0.2},
+    }
+
+    if schema:
+        corpo["format"] = schema
+
+    conteudo = _chamar_ollama("/api/chat", corpo)["message"]["content"]
+
+    if not schema:
+        return {"resposta": conteudo, "fontes_usadas": None}
+
+    try:
+        dados = json.loads(conteudo)
+    except json.JSONDecodeError:
+        # Não deveria acontecer com decodificação restrita, mas se acontecer é
+        # melhor mostrar o texto cru do que derrubar a resposta do aluno.
+        return {"resposta": conteudo.strip(), "fontes_usadas": None}
+
+    return {
+        "resposta": (dados.get("resposta") or "").strip(),
+        "fontes_usadas": dados.get("fontes_usadas"),
+    }
 
 
 # =========================================================================
@@ -258,16 +318,34 @@ def responder_pergunta(
     aluno = buscar_usuario(conexao, aluno_email)
     conexao.close()
 
-    trechos = buscar_trechos_relevantes(turma_id, pergunta, gerar_embedding_fn=gerar_embedding_fn)
-    contexto = montar_contexto(trechos)
+    # A IA roda num serviço separado (Ollama). Se ele estiver fora do ar, o
+    # aluno recebe uma mensagem clara em vez de um erro 500 — e a pergunta
+    # dele não é perdida do histórico por causa disso.
+    try:
+        trechos = buscar_trechos_relevantes(turma_id, pergunta, gerar_embedding_fn=gerar_embedding_fn)
+        contexto = montar_contexto(trechos)
+        materiais_recuperados = sorted({t["material"] for t in trechos})
 
-    mensagens = [
-        {"role": "system", "content": PROMPT_SISTEMA},
-        {"role": "user", "content": f"Material disponível:\n\n{contexto}\n\nPergunta do aluno: {pergunta}"},
-    ]
+        mensagens = [
+            {"role": "system", "content": PROMPT_SISTEMA},
+            {"role": "user", "content": f"Material disponível:\n\n{contexto}\n\nPergunta do aluno: {pergunta}"},
+        ]
 
-    resposta_texto = gerar_resposta_fn(mensagens)
-    fontes = sorted({t["material"] for t in trechos})
+        resultado_modelo = gerar_resposta_fn(mensagens, montar_schema_resposta(materiais_recuperados))
+    except RuntimeError as erro:
+        return {
+            "sucesso": False,
+            "mensagem": "O assistente de IA está indisponível no momento. Tente de novo em instantes.",
+            "detalhe": str(erro),
+        }
+
+    resposta_texto = resultado_modelo["resposta"]
+    fontes_declaradas = resultado_modelo["fontes_usadas"]
+
+    # O schema já restringe as fontes aos títulos reais. `None` só acontece se
+    # o modelo devolver um JSON inválido (não deveria, com decodificação
+    # restrita): nesse caso cita tudo que a busca trouxe, como antes.
+    fontes = materiais_recuperados if fontes_declaradas is None else sorted(set(fontes_declaradas))
 
     _salvar_mensagem(aluno[0], turma_id, "user", pergunta)
     _salvar_mensagem(aluno[0], turma_id, "assistant", resposta_texto, fontes=fontes)

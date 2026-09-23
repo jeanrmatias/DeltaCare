@@ -64,6 +64,165 @@
     opacity: 0.7;
 }
 
+/* ---------------------------------------------------------------------------
+   Bolha de "pensando": o modelo roda local e leva de 10 a 20s por resposta.
+   --------------------------------------------------------------------------- */
+
+.chat-bolha--pensando {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.chat-pensando-pontos {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.chat-pensando-pontos span {
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+    background: var(--color-primary);
+
+    animation: chat-pulsar 1.4s ease-in-out infinite;
+}
+
+.chat-pensando-pontos span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.chat-pensando-pontos span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+.chat-pensando-tempo {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.6;
+}
+
+@keyframes chat-pulsar {
+    0%, 60%, 100% {
+        opacity: 0.25;
+        transform: translateY(0);
+    }
+    30% {
+        opacity: 1;
+        transform: translateY(-3px);
+    }
+}
+
+/* Respeita quem prefere menos animação no sistema. */
+@media (prefers-reduced-motion: reduce) {
+    .chat-pensando-pontos span {
+        animation: none;
+        opacity: 0.6;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Respostas da IA renderizadas a partir de Markdown (ver frontend/markdown.js).
+   A bolha da IA pode conter títulos, listas e tabelas; a do aluno continua
+   sendo texto puro com pre-wrap.
+   --------------------------------------------------------------------------- */
+
+.chat-bolha--markdown {
+    /* O renderizador já cria os blocos; manter pre-wrap duplicaria o espaço
+       entre eles. */
+    white-space: normal;
+
+    max-width: 82%;
+}
+
+.chat-bolha--markdown > *:first-child {
+    margin-top: 0;
+}
+
+.chat-bolha--markdown > *:last-child {
+    margin-bottom: 0;
+}
+
+.md-paragrafo {
+    margin: 0 0 10px;
+}
+
+.md-titulo {
+    margin: 14px 0 6px;
+
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.md-lista {
+    margin: 0 0 10px;
+    padding-left: 20px;
+}
+
+.md-lista li {
+    margin-bottom: 4px;
+}
+
+.md-citacao {
+    margin: 0 0 10px;
+    padding: 2px 0 2px 12px;
+
+    border-left: 3px solid var(--color-border);
+
+    color: var(--color-text-secondary);
+}
+
+.chat-bolha--markdown code {
+    padding: 1px 5px;
+
+    border-radius: var(--radius-sm);
+    background: rgba(15, 23, 42, 0.07);
+
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: 12.5px;
+}
+
+.chat-bolha--markdown hr {
+    margin: 12px 0;
+
+    border: none;
+    border-top: 1px solid var(--color-border);
+}
+
+/* A tabela rola na horizontal em vez de esticar a bolha em tela estreita. */
+.md-tabela-moldura {
+    margin: 0 0 10px;
+    overflow-x: auto;
+}
+
+.md-tabela {
+    border-collapse: collapse;
+    width: 100%;
+
+    font-size: 13px;
+}
+
+.md-tabela th,
+.md-tabela td {
+    padding: 7px 10px;
+
+    border: 1px solid var(--color-border);
+
+    text-align: left;
+    vertical-align: top;
+}
+
+.md-tabela th {
+    background: rgba(47, 112, 242, 0.08);
+
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .chat-formulario {
     display: flex;
     gap: 10px;

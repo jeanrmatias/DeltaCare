@@ -1,0 +1,34 @@
+# Bytecode do Python — gerado automaticamente, nunca deve ir para o repositório
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+
+# Banco de dados local.
+# Os dados de demonstração são recriados pelo script de seed, então o .db não
+# precisa (nem deve) ser versionado: é binário, gera conflito a cada execução e
+# guarda hash de senha das contas de teste.
+*.db
+*.db-journal
+
+# Arquivos enviados pelos professores (PDFs dos materiais).
+# Em produção isso vai para storage em nuvem; em desenvolvimento fica só local.
+backend/uploads/
+
+# Variáveis de ambiente / segredos (OLLAMA_URL, chaves de API no futuro)
+.env
+.env.local
+
+# Sistema operacional
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+*.swp
