@@ -31,8 +31,10 @@ formulario.addEventListener("submit", async function (event) {
             mostrarMensagem(dados.mensagem);
         }
 
-        if (dados.pagina) {
-            salvarUsuarioLogado({ email: dados.email, tipo: dados.tipo });
+        if (dados.pagina && dados.token) {
+            // O token é o que autentica as próximas requisições; sem ele, as
+            // páginas de perfil mandam de volta para cá.
+            salvarUsuarioLogado({ email: dados.email, tipo: dados.tipo }, dados.token);
             window.location.href = dados.pagina;
             return;
         }

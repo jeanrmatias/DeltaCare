@@ -31,9 +31,7 @@ function iniciais(nome) {
 
 async function carregarProfessoresETurmas() {
     try {
-        const respostaProfessores = await fetch(
-            `${API_URL}/admin/professores?admin_email=${encodeURIComponent(usuario.email)}`
-        );
+        const respostaProfessores = await api("/admin/professores");
         const dadosProfessores = await respostaProfessores.json();
         const professores = dadosProfessores.professores || [];
 
@@ -61,7 +59,7 @@ async function carregarTurmas() {
     const vazio = document.querySelector("#turmasVazio");
 
     try {
-        const resposta = await fetch(`${API_URL}/admin/turmas?admin_email=${encodeURIComponent(usuario.email)}`);
+        const resposta = await api("/admin/turmas");
         const dados = await resposta.json();
         const turmas = dados.turmas || [];
 
@@ -131,11 +129,9 @@ function ligarFormularioTurma() {
         const semestre = document.querySelector("#turmaSemestre").value.trim();
 
         try {
-            const resposta = await fetch(`${API_URL}/admin/turmas`, {
+            const resposta = await api("/admin/turmas", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    admin_email: usuario.email,
                     professor_email: professorEmail,
                     nome: nome,
                     semestre: semestre,
@@ -164,11 +160,7 @@ async function excluirTurma(turma) {
     }
 
     try {
-        const resposta = await fetch(`${API_URL}/admin/turmas/${turma.id}`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ admin_email: usuario.email }),
-        });
+        const resposta = await api(`/admin/turmas/${turma.id}`, { method: "DELETE" });
         const dados = await resposta.json();
 
         if (dados.sucesso) {
@@ -210,8 +202,8 @@ async function carregarAlunosDaTurma(turma, painel) {
 
     try {
         const [respostaMatriculados, respostaTodos] = await Promise.all([
-            fetch(`${API_URL}/admin/turmas/${turma.id}/alunos?admin_email=${encodeURIComponent(usuario.email)}`),
-            fetch(`${API_URL}/admin/alunos?admin_email=${encodeURIComponent(usuario.email)}`),
+            api(`/admin/turmas/${turma.id}/alunos`),
+            api("/admin/alunos"),
         ]);
 
         const matriculados = (await respostaMatriculados.json()).alunos || [];
@@ -253,10 +245,9 @@ async function carregarAlunosDaTurma(turma, painel) {
         if (!alunoEmail) return;
 
         try {
-            const resposta = await fetch(`${API_URL}/admin/matriculas`, {
+            const resposta = await api("/admin/matriculas", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ admin_email: usuario.email, aluno_email: alunoEmail, turma_id: turma.id }),
+                body: JSON.stringify({ aluno_email: alunoEmail, turma_id: turma.id }),
             });
             const dados = await resposta.json();
             mensagem.textContent = dados.mensagem;
@@ -276,10 +267,9 @@ async function desmatricular(turma, alunoEmail, painel) {
     if (!confirm(`Remover ${alunoEmail} da turma "${turma.nome}"?`)) return;
 
     try {
-        const resposta = await fetch(`${API_URL}/admin/matriculas`, {
+        const resposta = await api("/admin/matriculas", {
             method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ admin_email: usuario.email, aluno_email: alunoEmail, turma_id: turma.id }),
+            body: JSON.stringify({ aluno_email: alunoEmail, turma_id: turma.id }),
         });
         const dados = await resposta.json();
 

@@ -1,22 +1,25 @@
 /**
- * Controle de sessão no navegador (client-side apenas).
+ * Sessão do usuário no navegador.
  *
- * Importante: isso guarda quem "parece" estar logado para decidir o que
- * mostrar na tela, mas não é segurança de verdade — qualquer pessoa pode
- * abrir o console do navegador e escrever o que quiser aqui. A proteção
- * real (impedir que alguém sem permissão LEIA os dados) tem que acontecer
- * no backend, validando em cada rota quem está fazendo a requisição. Hoje
- * o backend ainda não tem sessão/token, então esse arquivo serve só para
- * a navegação da interface — quando o backend ganhar autenticação por
- * token (JWT, por exemplo), este arquivo passa a guardar esse token e
- * cada chamada à API deve enviá-lo.
+ * O login devolve um token (ver backend/sessoes.py) que é guardado aqui e
+ * enviado em toda requisição no header `Authorization: Bearer <token>`. É esse
+ * token — e não o e-mail informado pelo cliente — que o backend usa para saber
+ * quem está fazendo a requisição.
+ *
+ * O que fica no sessionStorage (e-mail, tipo) serve só para a interface decidir
+ * o que desenhar. Adulterar isso não dá acesso a nada: o backend nunca confia
+ * no que vem do cliente, só no token, que ele valida no banco a cada chamada.
  */
 
 const USUARIO_KEY = "deltacare_usuario";
+const TOKEN_KEY = "deltacare_token";
 
-function salvarUsuarioLogado(usuario) {
+function salvarUsuarioLogado(usuario, token) {
     try {
         sessionStorage.setItem(USUARIO_KEY, JSON.stringify(usuario));
+        if (token) {
+            sessionStorage.setItem(TOKEN_KEY, token);
+        }
     } catch (erro) {
         console.error("Não foi possível salvar a sessão:", erro);
     }
@@ -31,20 +34,69 @@ function obterUsuarioLogado() {
     }
 }
 
-// auth.js fica na raiz do front (arquivo global), mas exigirAcesso() e
-// sair() só são chamadas de dentro de professor/, aluno/ ou adm/ — por
-// isso o caminho de volta para o login é "../index.html" (um nível acima).
+function obterToken() {
+    try {
+        return sessionStorage.getItem(TOKEN_KEY) || "";
+    } catch (erro) {
+        return "";
+    }
+}
+
+function limparSessaoLocal() {
+    try {
+        sessionStorage.removeItem(USUARIO_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
+    } catch (erro) {
+        /* sessionStorage indisponível: nada a limpar */
+    }
+}
+
+// As páginas de perfil ficam em subpastas (professor/, aluno/, administracao/)
+// e o login está na raiz; as páginas da raiz sobrescrevem isto para "index.html".
 const CAMINHO_LOGIN = "../index.html";
 
 /**
- * Garante que a página só é usada por quem "logou" como `tipoEsperado`
- * (ex.: "professor"). Se não houver usuário salvo ou o tipo não bater,
- * manda de volta para o login. Retorna os dados do usuário quando tudo ok.
+ * Chama a API já autenticada.
+ *
+ * Centraliza três coisas que antes estavam espalhadas por 23 chamadas soltas:
+ * o header do token, o Content-Type do JSON e o que fazer quando a sessão
+ * expira (401) — nesse caso manda de volta para o login em vez de deixar a
+ * tela quebrada com erro no console.
+ */
+async function api(caminho, opcoes = {}) {
+    const cabecalhos = Object.assign({}, opcoes.headers || {});
+    const token = obterToken();
+
+    if (token) {
+        cabecalhos["Authorization"] = `Bearer ${token}`;
+    }
+
+    if (opcoes.body && !cabecalhos["Content-Type"]) {
+        cabecalhos["Content-Type"] = "application/json";
+    }
+
+    const resposta = await fetch(`${API_URL}${caminho}`, Object.assign({}, opcoes, { headers: cabecalhos }));
+
+    if (resposta.status === 401) {
+        limparSessaoLocal();
+        window.location.href = CAMINHO_LOGIN;
+        throw new Error("Sessão expirada");
+    }
+
+    return resposta;
+}
+
+/**
+ * Garante que a página só é usada por quem logou com `tipoEsperado`.
+ *
+ * Isto é só navegação: impede a tela errada de aparecer, não protege dado
+ * nenhum. Quem protege é o backend, que confere o token e o perfil em cada
+ * rota (backend/main.py, exigir_perfil).
  */
 function exigirAcesso(tipoEsperado) {
     const usuario = obterUsuarioLogado();
 
-    if (!usuario || usuario.tipo !== tipoEsperado) {
+    if (!usuario || usuario.tipo !== tipoEsperado || !obterToken()) {
         window.location.href = CAMINHO_LOGIN;
         return null;
     }
@@ -52,7 +104,15 @@ function exigirAcesso(tipoEsperado) {
     return usuario;
 }
 
-function sair() {
-    sessionStorage.removeItem(USUARIO_KEY);
+async function sair() {
+    // Avisa o backend para invalidar o token; se a chamada falhar, a sessão
+    // local é limpa do mesmo jeito — o usuário não pode ficar preso na conta.
+    try {
+        await api("/logout", { method: "POST" });
+    } catch (erro) {
+        /* segue para a limpeza local */
+    }
+
+    limparSessaoLocal();
     window.location.href = CAMINHO_LOGIN;
 }

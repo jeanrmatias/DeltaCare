@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Área do Professor</title>
-    <link rel="stylesheet" href="../style_dashboard.css">
+    <link rel="stylesheet" href="../style_dashboard.css?v=3">
 </head>
 <body>
     <div class="app">
@@ -94,50 +94,34 @@
 
             <section class="stats">
                 <article class="stat-cartao">
-                    <span class="stat-rotulo">Entregas pendentes</span>
-                    <strong class="stat-valor">12</strong>
+                    <span class="stat-rotulo">Turmas</span>
+                    <strong class="stat-valor" id="statTurmas">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Alunos matriculados</span>
+                    <strong class="stat-valor" id="statAlunos">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Materiais publicados</span>
+                    <strong class="stat-valor" id="statMateriaisPublicados">0</strong>
                 </article>
                 <article class="stat-cartao">
                     <span class="stat-rotulo">Materiais agendados</span>
                     <strong class="stat-valor" id="statMateriaisAgendados">0</strong>
-                </article>
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">Atividades ativas</span>
-                    <strong class="stat-valor">7</strong>
-                </article>
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">Média da turma</span>
-                    <strong class="stat-valor stat-valor--sucesso">7,8</strong>
-                </article>
-            </section>
-
-            <section class="painel">
+                <            <section class="painel">
                 <div class="painel-coluna">
-                    <div class="cartao calendario">
-                        <div class="calendario-topo">
-                            <h2 id="calendarioMes">Setembro 2026</h2>
-                            <div class="calendario-nav">
-                                <button type="button" aria-label="Mês anterior">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
-                                </button>
-                                <button type="button" aria-label="Próximo mês">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="calendario-grade" id="calendarioGrade"></div>
-
-                        <div class="calendario-legenda">
-                            <span><i class="ponto ponto--azul"></i> Entrega de atividade</span>
-                            <span><i class="ponto ponto--verde"></i> Novo material</span>
-                            <span><i class="ponto ponto--ambar"></i> Prazo próximo</span>
-                        </div>
+                    <div class="cartao">
+                        <h2 class="cartao-titulo">Minhas turmas</h2>
+                        <div class="grade-turmas grade-turmas--compacta" id="listaTurmas"></div>
+                        <p class="estado-vazio" id="semTurmas" hidden>
+                            Você ainda não tem turmas atribuídas. A administração é quem cria e atribui turmas.
+                        </p>
                     </div>
 
                     <div class="cartao">
-                        <h2 class="cartao-titulo">Entregas recentes</h2>
-                        <ul class="lista-entregas" id="listaEntregas"></ul>
+                        <h2 class="cartao-titulo">Materiais recentes</h2>
+                        <ul class="lista-recentes" id="listaRecentes"></ul>
+                        <a href="materiais.html" class="acao acao--primaria bloco-acao">Gerenciar materiais</a>
                     </div>
                 </div>
 
@@ -147,32 +131,36 @@
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                             Publicar material
                         </a>
-                        <button type="button" class="acao" data-em-breve="Criar atividade">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg>
-                            Criar atividade
-                        </button>
-                        <button type="button" class="acao" data-em-breve="Enviar alerta">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
-                            Enviar alerta
-                        </button>
+                        <a href="turmas.html" class="acao">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 20v-2a4 4 0 0 0-3-3.9"/></svg>
+                            Ver turmas
+                        </a>
                     </div>
 
-                    <div class="cartao">
-                        <h2 class="cartao-titulo">Tópicos com maior índice de erro</h2>
-                        <div class="grafico" id="grafico"></div>
+                    <!-- Módulos ainda não construídos. Ficam visíveis, e declarados
+                         como indisponíveis, em vez de preenchidos com dados de
+                         exemplo que passariam por reais. -->
+                    <div class="cartao cartao--indisponivel">
+                        <h2 class="cartao-titulo">Atividades e desempenho</h2>
+                        <p>Correção de entregas, pontuação e os tópicos com maior índice de erro fazem parte do módulo de Atividades, que ainda não foi implementado.</p>
+                        <span class="etiqueta-breve">Próxima sprint</span>
                     </div>
 
-                    <div class="cartao">
+                    <div class="cartao cartao--indisponivel">
                         <h2 class="cartao-titulo">Mensagens</h2>
-                        <ul class="lista-mensagens" id="listaMensagens"></ul>
+                        <p>A conversa direta entre professor e aluno ainda não existe. Hoje o aluno tira dúvidas com o assistente de IA, restrito ao material da turma.</p>
+                        <span class="etiqueta-breve">Próxima sprint</span>
                     </div>
                 </div>
+            </section>
+
+    </div>
             </section>
         </main>
     </div>
 
-    <script src="../config.js"></script>
-    <script src="../auth.js"></script>
-    <script src="prof.js"></script>
+    <script src="../config.js?v=3"></script>
+    <script src="../auth.js?v=3"></script>
+    <script src="prof.js?v=3"></script>
 </body>
 </html>

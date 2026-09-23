@@ -44,7 +44,7 @@ async function carregarTurmas() {
     const chatCartao = document.querySelector("#chatCartao");
 
     try {
-        const resposta = await fetch(`${API_URL}/aluno/turmas?aluno_email=${encodeURIComponent(usuario.email)}`);
+        const resposta = await api("/aluno/turmas");
         const dados = await resposta.json();
         const turmas = dados.turmas || [];
 
@@ -82,9 +82,7 @@ async function carregarHistorico() {
     if (!turmaAtual) return;
 
     try {
-        const resposta = await fetch(
-            `${API_URL}/chat/historico?aluno_email=${encodeURIComponent(usuario.email)}&turma_id=${turmaAtual}`
-        );
+        const resposta = await api(`/chat/historico?turma_id=${turmaAtual}`);
         const dados = await resposta.json();
         (dados.mensagens || []).forEach((m) => adicionarMensagem(m.papel, m.conteudo, m.fontes));
 
@@ -190,10 +188,9 @@ function ligarFormularioChat() {
         const removerPensando = mostrarPensando();
 
         try {
-            const resposta = await fetch(`${API_URL}/chat/perguntar`, {
+            const resposta = await api("/chat/perguntar", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ aluno_email: usuario.email, turma_id: turmaAtual, pergunta: pergunta }),
+                body: JSON.stringify({ turma_id: turmaAtual, pergunta: pergunta }),
             });
             const dados = await resposta.json();
 

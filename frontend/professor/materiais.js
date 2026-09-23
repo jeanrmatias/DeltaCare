@@ -45,7 +45,7 @@ function ligarPlaceholders() {
 
 async function carregarTurmas() {
     try {
-        const resposta = await fetch(`${API_URL}/turmas?professor_email=${encodeURIComponent(usuario.email)}`);
+        const resposta = await api("/turmas");
         const dados = await resposta.json();
         turmas = dados.turmas || [];
 
@@ -96,9 +96,7 @@ async function carregarMateriais() {
     const vazio = document.querySelector("#materiaisVazio");
 
     try {
-        const resposta = await fetch(
-            `${API_URL}/materiais?professor_email=${encodeURIComponent(usuario.email)}&turma_id=${turmaSelecionadaId}`
-        );
+        const resposta = await api(`/materiais?turma_id=${turmaSelecionadaId}`);
         const dados = await resposta.json();
         const materiais = dados.materiais || [];
 
@@ -132,8 +130,11 @@ function criarLinhaMaterial(material) {
     if (material.tipo === "link" && material.link_url) {
         referencia = `<a href="${material.link_url}" target="_blank" rel="noopener">Abrir link</a>`;
     } else if (material.arquivo_nome) {
-        const url = `${API_URL}/materiais/${material.id}/arquivo?professor_email=${encodeURIComponent(usuario.email)}`;
-        referencia = `<a href="${url}" target="_blank" rel="noopener">${material.arquivo_nome}</a>`;
+        // Não dá para usar <a href> aqui: navegação do navegador não envia o
+        // header Authorization, e colocar o token na URL o deixaria gravado no
+        // histórico e nos logs do servidor. O clique busca o arquivo
+        // autenticado e abre a partir de um blob local.
+        referencia = `<a href="#" data-arquivo-id="${material.id}">${material.arquivo_nome}</a>`;
     }
 
     linha.innerHTML = `
@@ -156,7 +157,48 @@ function criarLinhaMaterial(material) {
     linha.querySelector("[data-acao-editar]").addEventListener("click", () => abrirFormulario(material));
     linha.querySelector("[data-acao-excluir]").addEventListener("click", () => excluirMaterial(material));
 
+    const linkArquivo = linha.querySelector("[data-arquivo-id]");
+    if (linkArquivo) {
+        linkArquivo.addEventListener("click", (evento) => {
+            evento.preventDefault();
+            baixarArquivo(linkArquivo.dataset.arquivoId, material.arquivo_nome);
+        });
+    }
+
     return linha;
+}
+
+/**
+ * Baixa o arquivo do material passando pelo helper autenticado.
+ *
+ * O download não pode ser um link direto: o navegador não manda o header
+ * Authorization numa navegação, e o token não deve viajar na URL. Então o
+ * arquivo vem por fetch e é aberto a partir de um blob local.
+ */
+async function baixarArquivo(materialId, nomeArquivo) {
+    try {
+        const resposta = await api(`/materiais/${materialId}/arquivo`);
+
+        if (!resposta.ok) {
+            alert("Não foi possível baixar o arquivo.");
+            return;
+        }
+
+        const blob = await resposta.blob();
+        const url = URL.createObjectURL(blob);
+
+        const ancora = document.createElement("a");
+        ancora.href = url;
+        ancora.download = nomeArquivo || "material";
+        document.body.appendChild(ancora);
+        ancora.click();
+        ancora.remove();
+
+        // Libera a memória do blob depois que o navegador iniciou o download.
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (erro) {
+        console.error("Erro ao baixar arquivo:", erro);
+    }
 }
 
 function ligarFormulario() {
@@ -262,16 +304,14 @@ async function salvarMaterial(publicar) {
     try {
         if (editandoId) {
             const corpo = {
-                professor_email: usuario.email,
                 titulo, descricao, assunto, topico, aula, semestre,
                 rascunho: !publicar,
                 data_liberacao: dataLiberacao,
             };
             if (tipo === "link") corpo.link_url = link;
 
-            const resposta = await fetch(`${API_URL}/materiais/${editandoId}`, {
+            const resposta = await api(`/materiais/${editandoId}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(corpo),
             });
             const dados = await resposta.json();
@@ -303,11 +343,9 @@ async function salvarMaterial(publicar) {
             arquivoNome = arquivo.name;
         }
 
-        const resposta = await fetch(`${API_URL}/materiais`, {
+        const resposta = await api("/materiais", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                professor_email: usuario.email,
                 turma_id: Number(turmaSelecionadaId),
                 titulo, descricao, tipo, assunto, topico, aula, semestre,
                 rascunho: !publicar,
@@ -337,11 +375,7 @@ async function excluirMaterial(material) {
     if (!confirm(`Excluir "${material.titulo}"? Essa ação não pode ser desfeita.`)) return;
 
     try {
-        const resposta = await fetch(`${API_URL}/materiais/${material.id}`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ professor_email: usuario.email }),
-        });
+        const resposta = await api(`/materiais/${material.id}`, { method: "DELETE" });
         const dados = await resposta.json();
 
         if (dados.sucesso) {

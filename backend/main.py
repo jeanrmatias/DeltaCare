@@ -1,11 +1,16 @@
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from database import configurar_banco
+from sessoes import (
+    buscar_usuario_da_sessao,
+    encerrar_sessao,
+    limpar_sessoes_expiradas,
+)
 from logica import (
     cadastrar_usuario,
     criar_conta_staff,
@@ -34,6 +39,11 @@ from logica_matriculas import (
     listar_turmas_do_aluno,
     matricular_aluno,
 )
+from logica_aluno import (
+    listar_materiais_do_aluno,
+    obter_arquivo_material_do_aluno,
+    resumo_do_aluno,
+)
 from chat_ia import buscar_historico, indexar_material, responder_pergunta
 
 configurar_banco()
@@ -45,6 +55,51 @@ app.add_middleware(
     allow_headers=["*"],
     allow_methods=["*"],
 )
+
+limpar_sessoes_expiradas()
+
+
+# =========================================================================
+# Autenticação
+# =========================================================================
+# Estas dependências são o único caminho pelo qual uma rota descobre quem está
+# fazendo a requisição. Antes, a identidade vinha no corpo ou na query string
+# (professor_email=...), o que significava que qualquer pessoa podia agir em
+# nome de outra só trocando o e-mail. Agora vem do token da sessão.
+
+
+def usuario_logado(authorization: Optional[str] = Header(default=None)) -> dict:
+    """Valida o header `Authorization: Bearer <token>` e devolve o usuário."""
+    token = ""
+
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+
+    usuario = buscar_usuario_da_sessao(token)
+
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada. Faça login de novo.")
+
+    return usuario
+
+
+def exigir_perfil(*perfis: str):
+    """Dependência que além de exigir login, exige um perfil específico.
+
+    O perfil vem do banco (via token), não de nada que o cliente informe.
+    """
+
+    def verificar(usuario: dict = Depends(usuario_logado)) -> dict:
+        if usuario["tipo"] not in perfis:
+            raise HTTPException(status_code=403, detail="Você não tem permissão para esta ação.")
+        return usuario
+
+    return verificar
+
+
+usuario_admin = exigir_perfil("adm")
+usuario_professor = exigir_perfil("professor")
+usuario_aluno = exigir_perfil("aluno")
 
 
 class LoginRequest(BaseModel):
@@ -59,7 +114,6 @@ class CadastroRequest(BaseModel):
 
 
 class StaffRequest(BaseModel):
-    admin_email: str
     email: str
     senha: str
     tipo: str
@@ -75,18 +129,14 @@ class RedefinicaoSenhaRequest(BaseModel):
 
 
 class TurmaRequest(BaseModel):
-    admin_email: str
+    # professor_email continua aqui de propósito: é o professor que vai receber
+    # a turma (o alvo da ação), não quem está fazendo a requisição.
     professor_email: str
     nome: str
     semestre: str
 
 
-class TurmaExclusaoRequest(BaseModel):
-    admin_email: str
-
-
 class MaterialRequest(BaseModel):
-    professor_email: str
     turma_id: int
     titulo: str
     tipo: str
@@ -103,7 +153,6 @@ class MaterialRequest(BaseModel):
 
 
 class MaterialAtualizacaoRequest(BaseModel):
-    professor_email: str
     titulo: Optional[str] = None
     descricao: Optional[str] = None
     assunto: Optional[str] = None
@@ -115,18 +164,13 @@ class MaterialAtualizacaoRequest(BaseModel):
     link_url: Optional[str] = None
 
 
-class MaterialExclusaoRequest(BaseModel):
-    professor_email: str
-
-
 class MatriculaRequest(BaseModel):
-    admin_email: str
+    # aluno_email é o aluno sendo matriculado (alvo), não quem faz a requisição.
     aluno_email: str
     turma_id: int
 
 
 class PerguntaRequest(BaseModel):
-    aluno_email: str
     turma_id: int
     pergunta: str
 
@@ -135,6 +179,9 @@ class PerguntaRequest(BaseModel):
 def inicio():
     return {"mensagem": "Backend funcionando :)"}
 
+
+# ---------------------------- rotas públicas ----------------------------
+# As únicas que não exigem token: sem elas ninguém conseguiria obter um.
 
 @app.post("/login")
 def login(dados: LoginRequest):
@@ -147,12 +194,6 @@ def cadastro(dados: CadastroRequest):
     return cadastrar_usuario(dados.email, dados.senha, dados.tipo)
 
 
-@app.post("/admin/usuarios")
-def criar_staff_rota(dados: StaffRequest):
-    """Cria conta de professor ou admin. Só um admin logado pode chamar."""
-    return criar_conta_staff(dados.admin_email, dados.email, dados.senha, dados.tipo)
-
-
 @app.post("/recuperar-senha")
 def recuperar_senha(dados: RecuperacaoSenhaRequest):
     return solicitar_recuperacao(dados.email)
@@ -163,36 +204,82 @@ def redefinicao_senha(dados: RedefinicaoSenhaRequest):
     return redefinir_senha(dados.token, dados.nova_senha)
 
 
-@app.get("/turmas")
-def listar_turmas_rota(professor_email: str):
-    """Turmas do professor logado (somente leitura — quem cria é o admin)."""
-    return listar_turmas(professor_email)
+# ---------------------------- sessão ----------------------------
+
+@app.post("/logout")
+def logout(authorization: Optional[str] = Header(default=None)):
+    """Invalida o token atual. Não dá erro se já estiver deslogado."""
+    if authorization and authorization.lower().startswith("bearer "):
+        encerrar_sessao(authorization[7:].strip())
+    return {"sucesso": True, "mensagem": "Sessão encerrada."}
+
+
+@app.get("/eu")
+def usuario_atual_rota(usuario: dict = Depends(usuario_logado)):
+    """Quem sou eu, segundo o token. O front usa para validar a sessão."""
+    return {"sucesso": True, "email": usuario["email"], "tipo": usuario["tipo"]}
+
+
+# ---------------------------- administração ----------------------------
+
+@app.post("/admin/usuarios")
+def criar_staff_rota(dados: StaffRequest, admin: dict = Depends(usuario_admin)):
+    """Cria conta de professor ou admin."""
+    return criar_conta_staff(admin["email"], dados.email, dados.senha, dados.tipo)
 
 
 @app.get("/admin/turmas")
-def listar_turmas_admin_rota(admin_email: str):
-    return listar_turmas_admin(admin_email)
+def listar_turmas_admin_rota(admin: dict = Depends(usuario_admin)):
+    return listar_turmas_admin(admin["email"])
 
 
 @app.post("/admin/turmas")
-def criar_turma_rota(dados: TurmaRequest):
-    return criar_turma(dados.admin_email, dados.professor_email, dados.nome, dados.semestre)
+def criar_turma_rota(dados: TurmaRequest, admin: dict = Depends(usuario_admin)):
+    return criar_turma(admin["email"], dados.professor_email, dados.nome, dados.semestre)
 
 
 @app.delete("/admin/turmas/{turma_id}")
-def excluir_turma_rota(turma_id: int, dados: TurmaExclusaoRequest):
-    return excluir_turma(dados.admin_email, turma_id)
+def excluir_turma_rota(turma_id: int, admin: dict = Depends(usuario_admin)):
+    return excluir_turma(admin["email"], turma_id)
 
 
 @app.get("/admin/professores")
-def listar_professores_rota(admin_email: str):
-    return listar_professores(admin_email)
+def listar_professores_rota(admin: dict = Depends(usuario_admin)):
+    return listar_professores(admin["email"])
+
+
+@app.post("/admin/matriculas")
+def matricular_aluno_rota(dados: MatriculaRequest, admin: dict = Depends(usuario_admin)):
+    return matricular_aluno(admin["email"], dados.aluno_email, dados.turma_id)
+
+
+@app.delete("/admin/matriculas")
+def desmatricular_aluno_rota(dados: MatriculaRequest, admin: dict = Depends(usuario_admin)):
+    return desmatricular_aluno(admin["email"], dados.aluno_email, dados.turma_id)
+
+
+@app.get("/admin/turmas/{turma_id}/alunos")
+def listar_alunos_da_turma_rota(turma_id: int, admin: dict = Depends(usuario_admin)):
+    return listar_alunos_da_turma(admin["email"], turma_id)
+
+
+@app.get("/admin/alunos")
+def listar_alunos_rota(admin: dict = Depends(usuario_admin)):
+    return listar_alunos(admin["email"])
+
+
+# ---------------------------- professor ----------------------------
+
+@app.get("/turmas")
+def listar_turmas_rota(professor: dict = Depends(usuario_professor)):
+    """Turmas do professor logado (somente leitura — quem cria é o admin)."""
+    return listar_turmas(professor["email"])
 
 
 @app.post("/materiais")
-def criar_material_rota(dados: MaterialRequest):
+def criar_material_rota(dados: MaterialRequest, professor: dict = Depends(usuario_professor)):
     resultado = criar_material(
-        professor_email=dados.professor_email,
+        professor_email=professor["email"],
         turma_id=dados.turma_id,
         titulo=dados.titulo,
         tipo=dados.tipo,
@@ -221,24 +308,31 @@ def criar_material_rota(dados: MaterialRequest):
 
 
 @app.get("/materiais")
-def listar_materiais_rota(professor_email: str, turma_id: Optional[int] = None):
-    return listar_materiais(professor_email, turma_id)
+def listar_materiais_rota(
+    turma_id: Optional[int] = None,
+    professor: dict = Depends(usuario_professor),
+):
+    return listar_materiais(professor["email"], turma_id)
 
 
 @app.put("/materiais/{material_id}")
-def atualizar_material_rota(material_id: int, dados: MaterialAtualizacaoRequest):
-    campos = dados.model_dump(exclude={"professor_email"}, exclude_none=True)
-    return atualizar_material(material_id, dados.professor_email, **campos)
+def atualizar_material_rota(
+    material_id: int,
+    dados: MaterialAtualizacaoRequest,
+    professor: dict = Depends(usuario_professor),
+):
+    campos = dados.model_dump(exclude_none=True)
+    return atualizar_material(material_id, professor["email"], **campos)
 
 
 @app.delete("/materiais/{material_id}")
-def excluir_material_rota(material_id: int, dados: MaterialExclusaoRequest):
-    return excluir_material(material_id, dados.professor_email)
+def excluir_material_rota(material_id: int, professor: dict = Depends(usuario_professor)):
+    return excluir_material(material_id, professor["email"])
 
 
 @app.get("/materiais/{material_id}/arquivo")
-def baixar_arquivo_material(material_id: int, professor_email: str):
-    resultado = obter_arquivo_material(material_id, professor_email)
+def baixar_arquivo_material(material_id: int, professor: dict = Depends(usuario_professor)):
+    resultado = obter_arquivo_material(material_id, professor["email"])
 
     if not resultado:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
@@ -247,36 +341,48 @@ def baixar_arquivo_material(material_id: int, professor_email: str):
     return FileResponse(caminho, filename=nome_original)
 
 
-@app.post("/admin/matriculas")
-def matricular_aluno_rota(dados: MatriculaRequest):
-    return matricular_aluno(dados.admin_email, dados.aluno_email, dados.turma_id)
-
-
-@app.delete("/admin/matriculas")
-def desmatricular_aluno_rota(dados: MatriculaRequest):
-    return desmatricular_aluno(dados.admin_email, dados.aluno_email, dados.turma_id)
-
-
-@app.get("/admin/turmas/{turma_id}/alunos")
-def listar_alunos_da_turma_rota(turma_id: int, admin_email: str):
-    return listar_alunos_da_turma(admin_email, turma_id)
-
-
-@app.get("/admin/alunos")
-def listar_alunos_rota(admin_email: str):
-    return listar_alunos(admin_email)
-
+# ---------------------------- aluno ----------------------------
 
 @app.get("/aluno/turmas")
-def listar_turmas_do_aluno_rota(aluno_email: str):
-    return listar_turmas_do_aluno(aluno_email)
+def listar_turmas_do_aluno_rota(aluno: dict = Depends(usuario_aluno)):
+    return listar_turmas_do_aluno(aluno["email"])
+
+
+@app.get("/aluno/resumo")
+def resumo_do_aluno_rota(aluno: dict = Depends(usuario_aluno)):
+    """Números da tela inicial do aluno."""
+    return resumo_do_aluno(aluno["email"])
+
+
+@app.get("/aluno/materiais")
+def listar_materiais_do_aluno_rota(
+    turma_id: Optional[int] = None,
+    aluno: dict = Depends(usuario_aluno),
+):
+    """Materiais publicados das turmas do aluno.
+
+    Rota separada da do professor de propósito: aqui nunca aparece rascunho
+    nem material agendado (ver logica_aluno).
+    """
+    return listar_materiais_do_aluno(aluno["email"], turma_id)
+
+
+@app.get("/aluno/materiais/{material_id}/arquivo")
+def baixar_arquivo_material_aluno(material_id: int, aluno: dict = Depends(usuario_aluno)):
+    resultado = obter_arquivo_material_do_aluno(aluno["email"], material_id)
+
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+
+    caminho, nome_original = resultado
+    return FileResponse(caminho, filename=nome_original)
 
 
 @app.post("/chat/perguntar")
-def perguntar_chat_rota(dados: PerguntaRequest):
-    return responder_pergunta(dados.aluno_email, dados.turma_id, dados.pergunta)
+def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usuario_aluno)):
+    return responder_pergunta(aluno["email"], dados.turma_id, dados.pergunta)
 
 
 @app.get("/chat/historico")
-def historico_chat_rota(aluno_email: str, turma_id: int):
-    return buscar_historico(aluno_email, turma_id)
+def historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
+    return buscar_historico(aluno["email"], turma_id)

@@ -1171,3 +1171,108 @@ body {
         width: 90px;
     }
 }
+
+
+/* =========================
+   Blocos compartilhados entre os painéis de aluno e professor
+   ========================= */
+
+/* Nos painéis, os cartões de turma dividem espaço com outra coluna e cabem
+   em largura menor do que na página dedicada de turmas. */
+.grade-turmas--compacta {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    margin-top: 12px;
+}
+
+.bloco-acao {
+    display: inline-flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: 14px;
+    text-decoration: none;
+}
+
+/* Lista de materiais recentes (aluno e professor) */
+.lista-recentes {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+}
+
+.lista-recentes li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    padding: 10px 0;
+
+    border-bottom: 1px solid var(--color-border);
+}
+
+.lista-recentes li:last-child {
+    border-bottom: none;
+}
+
+.recente-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    min-width: 0;
+}
+
+.recente-info strong {
+    color: var(--color-text);
+
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.recente-info span {
+    color: var(--color-text-secondary);
+
+    font-size: 12px;
+}
+
+.lista-recentes-vazio {
+    padding: 14px 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+/* Cartão de módulo que ainda não existe.
+   Fica visível e explicitamente marcado como indisponível — é o oposto de
+   preencher a tela com dados de exemplo que passariam por reais. */
+.cartao--indisponivel {
+    border-style: dashed;
+    background: transparent;
+}
+
+.cartao--indisponivel p {
+    margin: 10px 0 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.etiqueta-breve {
+    display: inline-block;
+    margin-top: 12px;
+
+    padding: 3px 10px;
+
+    background: var(--color-amber-bg);
+    color: #92400E;
+
+    border-radius: var(--radius-sm);
+
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}

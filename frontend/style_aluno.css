@@ -250,3 +250,33 @@
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(47, 112, 242, 0.12);
 }
+
+
+/* ---------------------------------------------------------------------------
+   Tela inicial do aluno: cartão de atalho para o chat.
+   --------------------------------------------------------------------------- */
+
+.destaque-chat p {
+    margin: 10px 0 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+/* Identificação da turma e data na lista de materiais do aluno */
+.material-turma {
+    color: var(--color-text-secondary);
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.material-data {
+    margin: 8px 0 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12px;
+}

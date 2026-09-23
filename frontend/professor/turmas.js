@@ -38,7 +38,7 @@ async function carregarTurmas() {
     const vazio = document.querySelector("#turmasVazio");
 
     try {
-        const resposta = await fetch(`${API_URL}/turmas?professor_email=${encodeURIComponent(usuario.email)}`);
+        const resposta = await api("/turmas");
         const dados = await resposta.json();
 
         lista.innerHTML = "";

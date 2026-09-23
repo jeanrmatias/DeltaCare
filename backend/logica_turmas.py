@@ -119,7 +119,8 @@ def listar_turmas(professor_email: str) -> dict:
     cursor.execute(
         '''
         SELECT t.id, t.nome, t.semestre, t.criado_em,
-               (SELECT COUNT(*) FROM materiais m WHERE m.turma_id = t.id AND m.rascunho = 0)
+               (SELECT COUNT(*) FROM materiais m WHERE m.turma_id = t.id AND m.rascunho = 0),
+               (SELECT COUNT(*) FROM matriculas mt WHERE mt.turma_id = t.id)
         FROM turmas t
         WHERE t.professor_id = ?
         ORDER BY t.criado_em DESC
@@ -136,6 +137,7 @@ def listar_turmas(professor_email: str) -> dict:
             "semestre": linha[2],
             "criado_em": linha[3],
             "materiais_publicados": linha[4],
+            "total_alunos": linha[5],
         }
         for linha in linhas
     ]

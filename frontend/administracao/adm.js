@@ -32,8 +32,8 @@ function montarSaudacao(usuario) {
 async function carregarResumo() {
     try {
         const [respostaProfessores, respostaTurmas] = await Promise.all([
-            fetch(`${API_URL}/admin/professores?admin_email=${encodeURIComponent(usuario.email)}`),
-            fetch(`${API_URL}/admin/turmas?admin_email=${encodeURIComponent(usuario.email)}`),
+            api("/admin/professores"),
+            api("/admin/turmas"),
         ]);
 
         const dadosProfessores = await respostaProfessores.json();

@@ -77,21 +77,51 @@ arquivos globais com `../` (ex.: `../auth.js`).
    Teste em <http://127.0.0.1:8000> — deve responder
    `{"mensagem": "Backend funcionando :)"}`.
 
-4. Abra o frontend: sirva a pasta `frontend/` com um servidor estático (ex.:
-   `python -m http.server 5500` dentro de `frontend/`) e acesse
-   `index.html` pelo navegador. Não abra o arquivo direto com `file://` —
+4. Abra o frontend:
+
+   ```
+   cd frontend
+   python servir.py
+   ```
+
+   Acesse <http://127.0.0.1:5500>. Não abra o HTML direto com `file://` —
    alguns navegadores bloqueiam as requisições à API nesse modo.
+
+   O `servir.py` existe em vez do `python -m http.server` porque envia
+   `Cache-Control: no-store`. Sem isso o navegador guarda os `.js` antigos e
+   você fica depurando um comportamento que já não está no código.
 
    Se o backend estiver rodando em outro endereço/porta, ajuste `API_URL`
    em [`frontend/config.js`](frontend/config.js).
 
-## Fluxo básico para testar
+## Dados de demonstração
 
-1. Crie um admin (não existe cadastro público de admin/professor — só de
-   aluno): use `POST /admin/usuarios` diretamente (ex.: via
-   `curl`/Postman) com um admin "semente", ou rode um script de seed se
-   houver um em `backend/`.
-2. Login como admin → cria uma turma → cria/atribui um professor a ela.
+```
+cd backend
+python seed_demo.py
+```
+
+Cria as três contas, uma turma com professor e aluno matriculado, e um PDF
+de exemplo já indexado para o chat. Pode rodar mais de uma vez — o que já
+existe é reaproveitado.
+
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Admin | `adm@deltacare.com` | `demo123` |
+| Professor | `professor@deltacare.com` | `demo123` |
+| Aluno | `aluno@deltacare.com` | `demo123` |
+
+O conteúdo do PDF é fictício de propósito (um "Protocolo Delta-7" e um
+medicamento "Cardiolex" que não existem). Assim dá para provar que o
+assistente respondeu lendo o material, e não com conhecimento próprio do
+modelo — pergunte a dose do Cardiolex e depois pergunte algo fora do
+material, como tratamento de apendicite: ele deve recusar a segunda.
+
+## Fluxo manual (se quiser testar sem o seed)
+
+1. O primeiro admin só nasce pelo `seed_demo.py`: o cadastro público cria
+   apenas aluno, e `POST /admin/usuarios` exige um admin já logado.
+2. Login como admin → cria uma turma e atribui a um professor.
 3. Cadastro público (`/cadastro`, tela de login) cria uma conta de aluno →
    admin matricula esse aluno na turma.
 4. Login como professor → sobe um material do tipo PDF na turma → publica
@@ -100,12 +130,23 @@ arquivos globais com `../` (ex.: `../auth.js`).
 5. Login como aluno → abre a turma → pergunta algo sobre o conteúdo do PDF
    no chat. A resposta deve citar o material como fonte.
 
+## Autenticação
+
+O login devolve um token de sessão, guardado na tabela `sessoes` e enviado
+pelo front no header `Authorization: Bearer <token>` (ver
+[`backend/sessoes.py`](backend/sessoes.py) e [`frontend/auth.js`](frontend/auth.js)).
+
+Nenhuma rota protegida aceita identidade vinda do cliente: quem está
+chamando é sempre deduzido do token, pelas dependências `usuario_logado` e
+`exigir_perfil` em [`backend/main.py`](backend/main.py). Antes disso, o
+backend acreditava no e-mail enviado pelo front, o que permitia agir em nome
+de outra pessoa apenas trocando esse campo.
+
 ## Limitações conhecidas (ver `CONTEXTO.md`)
 
-- **Sem autenticação real ainda**: o backend confia no e-mail que o front
-  manda em cada requisição, sem token de sessão. Não é seguro para dado
-  real de aluno — é o item mais crítico antes de qualquer uso fora de
-  demonstração.
+- Sem HTTPS: o token viaja em texto claro. Em rede local de demonstração é
+  aceitável; para uso real é obrigatório antes de qualquer dado de aluno.
+- Sem rate limiting no login — nada impede tentativas repetidas de senha.
 - SQLite (sem concorrência de verdade), storage de arquivo em disco local,
   e-mail de recuperação de senha só imprime no console: tudo adequado para
   demo, não para produção.

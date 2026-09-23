@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Área do Aluno</title>
+    <title>Delta Care | Início</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=3">
     <link rel="stylesheet" href="../style_aluno.css?v=3">
 </head>
@@ -20,11 +20,11 @@
             </div>
 
             <nav class="sidebar-nav">
-                <a href="inicio.html" class="sidebar-link">
+                <a href="inicio.html" class="sidebar-link ativo">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
                     Início
                 </a>
-                <a href="aluno.html" class="sidebar-link ativo">
+                <a href="aluno.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-8.9 8.5c-1.4 0-2.7-.3-3.9-.9L3 21l1.5-4.7A8.5 8.5 0 1 1 21 12Z"/></svg>
                     Chat de estudos
                 </a>
@@ -51,37 +51,60 @@
             </div>
         </aside>
 
-        <main class="conteudo conteudo--chat">
+        <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1>Chat de estudos</h1>
-                    <p>Tire dúvidas sobre o material que o professor disponibilizou — o assistente só responde com base nele.</p>
-                </div>
-
-                <div class="topo-acoes">
-                    <label class="campo campo--seletor" id="seletorTurmaCampo">
-                        <select id="seletorTurma"></select>
-                    </label>
+                    <h1 id="saudacao">Olá</h1>
+                    <p>Seu painel de estudos — turmas, materiais liberados e o assistente de dúvidas.</p>
                 </div>
             </header>
+
+            <section class="stats">
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Turmas matriculadas</span>
+                    <strong class="stat-valor" id="statTurmas">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Materiais disponíveis</span>
+                    <strong class="stat-valor" id="statMateriais">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Perguntas ao assistente</span>
+                    <strong class="stat-valor" id="statPerguntas">0</strong>
+                </article>
+            </section>
 
             <p class="estado-vazio" id="semTurmas" hidden>
                 Você ainda não está matriculado em nenhuma turma. Fale com a administração.
             </p>
 
-            <section class="cartao chat-cartao" id="chatCartao" hidden>
-                <div class="chat-mensagens" id="chatMensagens"></div>
-                <form class="chat-formulario" id="chatFormulario">
-                    <input type="text" id="chatEntrada" placeholder="Digite sua pergunta sobre a matéria..." autocomplete="off" required>
-                    <button type="submit" class="acao acao--primaria" id="chatBotaoEnviar">Enviar</button>
-                </form>
-            </section>
+            <div class="painel" id="painelConteudo" hidden>
+                <div class="painel-coluna">
+                    <section class="cartao">
+                        <h2 class="cartao-titulo">Minhas turmas</h2>
+                        <div class="grade-turmas grade-turmas--compacta" id="listaTurmas"></div>
+                    </section>
+                </div>
+
+                <div class="painel-coluna">
+                    <section class="cartao">
+                        <h2 class="cartao-titulo">Materiais recentes</h2>
+                        <ul class="lista-recentes" id="listaRecentes"></ul>
+                        <a href="materiais.html" class="acao acao--primaria bloco-acao">Ver todos os materiais</a>
+                    </section>
+
+                    <section class="cartao destaque-chat">
+                        <h2 class="cartao-titulo">Ficou com dúvida?</h2>
+                        <p>O assistente responde com base apenas no material que o seu professor liberou — sem inventar o que não está lá.</p>
+                        <a href="aluno.html" class="acao acao--primaria bloco-acao">Abrir o chat de estudos</a>
+                    </section>
+                </div>
+            </div>
         </main>
     </div>
 
     <script src="../config.js?v=3"></script>
     <script src="../auth.js?v=3"></script>
-    <script src="../markdown.js?v=3"></script>
-    <script src="aluno.js?v=3"></script>
+    <script src="inicio.js?v=3"></script>
 </body>
 </html>

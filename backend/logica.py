@@ -12,7 +12,14 @@ from security import hash_senha, verificar_senha
 
 DB_PATH = "deltacare.db"
 TIPOS_VALIDOS = ("adm", "professor", "aluno")
-PAGINAS = {"adm": "adm/adm.html", "professor": "professor/prof.html", "aluno": "aluno/aluno.html"}
+# Os caminhos precisam bater com as pastas reais em frontend/ — a pasta do
+# administrador chama-se "administracao", não "adm" (que é o valor do campo
+# `tipo` no banco). Já foram coisas diferentes, e o login quebrou por isso.
+PAGINAS = {
+    "adm": "administracao/adm.html",
+    "professor": "professor/prof.html",
+    "aluno": "aluno/inicio.html",
+}
 VALIDADE_TOKEN_MINUTOS = 15
 
 
@@ -25,22 +32,28 @@ def realizar_login(email: str, senha: str) -> dict:
 
     conexao = _conectar()
     cursor = conexao.cursor()
-    cursor.execute("SELECT senha, tipo FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT id, senha, tipo FROM users WHERE email = ?", (email,))
     usuario = cursor.fetchone()
     conexao.close()
 
-    if usuario and verificar_senha(senha, usuario[0]):
-        tipo = usuario[1]
+    if usuario and verificar_senha(senha, usuario[1]):
+        user_id, _, tipo = usuario
         pagina = PAGINAS.get(tipo)
         if pagina:
+            # O token é o que prova a identidade nas requisições seguintes —
+            # nenhuma rota protegida aceita e-mail vindo do cliente (sessoes.py).
+            from sessoes import criar_sessao
+
             return {
+                "sucesso": True,
                 "mensagem": "Login bem-sucedido!",
                 "pagina": pagina,
                 "email": email,
                 "tipo": tipo,
+                "token": criar_sessao(user_id),
             }
 
-    return {"mensagem": "E-mail ou senha incorretos."}
+    return {"sucesso": False, "mensagem": "E-mail ou senha incorretos."}
 
 
 def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:

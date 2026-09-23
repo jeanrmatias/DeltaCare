@@ -127,6 +127,20 @@ def configurar_banco():
         )
     ''')
 
+    # Sessões de login. O token é a prova de identidade que as rotas exigem —
+    # ver sessoes.py. Fica no banco (e não em memória) para a sessão sobreviver
+    # a um restart do servidor e para poder ser revogada.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sessoes (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            criado_em TEXT NOT NULL,
+            expira_em TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessoes_user ON sessoes (user_id)")
+
     conexao.commit()
     conexao.close()
 
