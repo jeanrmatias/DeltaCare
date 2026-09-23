@@ -232,7 +232,7 @@ graph TD
 ```
 
 A visão do professor e a do aluno vivem em módulos separados
-(`logica_materiais.py` e `logica_aluno.py`) exatamente porque diferem: a do
+(`regras/materiais.py` e `regras/aluno.py`) exatamente porque diferem: a do
 professor inclui rascunho e agendado. Misturar as duas na mesma função com um
 parâmetro de filtro seria um convite a errar e vazar material não liberado.
 
@@ -245,23 +245,27 @@ Todas essas regras são verificadas no servidor e cobertas pelos testes em
 
 ```
 backend/
-  main.py              rotas HTTP e dependências de autenticação
-  sessoes.py           token de sessão
-  security.py          hash de senha
-  database.py          schema (fonte única do caminho do banco)
+  main.py                  - API FastAPI: rotas e dependências de autenticação
+  seed_demo.py             - cria os dados de demonstração
+  testes.py                - 40 testes (rodam sem o Ollama)
 
-  logica.py            login, cadastro, recuperação de senha
-  logica_turmas.py     turmas, professores, usuários
-  logica_materiais.py  materiais na visão do PROFESSOR
-  logica_aluno.py      materiais na visão do ALUNO
-  logica_matriculas.py matrículas
-  chat_ia.py           RAG: indexação, busca híbrida, resposta
-  arquivos.py          gravação dos uploads
+  infra/                   - infraestrutura: o que o sistema USA
+    database.py              schema e caminho único do banco
+    security.py              hash de senha (PBKDF2, sem dependência externa)
+    sessoes.py               token de sessão
+    arquivos.py              gravação dos uploads
 
-  seed_demo.py         dados de demonstração
-  testes.py            40 testes (rodam sem o Ollama)
+  regras/                  - regras de negócio: o que o sistema DECIDE
+    autenticacao.py          login, cadastro, recuperação de senha
+    turmas.py                turmas, professores, usuários
+    materiais.py             materiais na visão do PROFESSOR
+    aluno.py                 materiais na visão do ALUNO
+    matriculas.py            matrículas
+    chat_ia.py               RAG: indexação, busca híbrida, resposta
 ```
 
-A lógica de negócio não importa nada do FastAPI. É o que permite testá-la
-direto, sem subir servidor, e o que permitiria trocar a camada HTTP sem
-reescrever as regras.
+A separação entre `infra/` e `regras/` responde a uma pergunta simples: o
+módulo descreve algo que o sistema **usa** (banco, hash, arquivo) ou algo que
+ele **decide** (quem vê o quê, o que é material publicado)? Nenhum módulo de
+`regras/` importa FastAPI — é o que permite testá-los direto, sem subir
+servidor, e o que permitiria trocar a camada HTTP sem reescrever as regras.

@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-from security import hash_senha
+from infra.security import hash_senha
 
 # Caminho único do banco. Os outros módulos importam daqui em vez de repetir
 # a string — já esteve duplicado em três arquivos, e bastaria mudar um deles
@@ -141,7 +141,7 @@ def configurar_banco(silencioso: bool = False):
     ''')
 
     # Sessões de login. O token é a prova de identidade que as rotas exigem —
-    # ver sessoes.py. Fica no banco (e não em memória) para a sessão sobreviver
+    # ver infra/sessoes.py. Fica no banco (e não em memória) para a sessão sobreviver
     # a um restart do servidor e para poder ser revogada.
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sessoes (

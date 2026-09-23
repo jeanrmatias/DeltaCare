@@ -5,7 +5,7 @@
 Roda num banco temporário (variável DELTACARE_DB), então não toca nos dados de
 demonstração. **Não precisa do Ollama ligado**: as funções que falam com o
 modelo entram como parâmetro (`gerar_embedding_fn` / `gerar_resposta_fn`), que
-é justamente para isso que elas foram isoladas em chat_ia.py.
+é justamente para isso que elas foram isoladas em regras/chat_ia.py.
 
 O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de
 material e sessão. Interface e formatação não são testadas aqui — um erro de
@@ -25,19 +25,19 @@ os.environ["DELTACARE_DB"] = _ARQUIVO_TEMP
 
 import sqlite3  # noqa: E402
 
-from database import CAMINHO_DB, configurar_banco  # noqa: E402
-from logica import cadastrar_usuario, criar_conta_staff, realizar_login  # noqa: E402
-from logica_aluno import (  # noqa: E402
+from infra.database import CAMINHO_DB, configurar_banco  # noqa: E402
+from regras.autenticacao import cadastrar_usuario, criar_conta_staff, realizar_login  # noqa: E402
+from regras.aluno import (  # noqa: E402
     listar_materiais_do_aluno,
     obter_arquivo_material_do_aluno,
     resumo_do_aluno,
 )
-from logica_materiais import atualizar_material, criar_material, excluir_material, listar_materiais  # noqa: E402
-from logica_matriculas import matricular_aluno  # noqa: E402
-from logica_turmas import criar_turma, excluir_turma  # noqa: E402
-from security import hash_senha, verificar_senha  # noqa: E402
-from sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
-import chat_ia  # noqa: E402
+from regras.materiais import atualizar_material, criar_material, excluir_material, listar_materiais  # noqa: E402
+from regras.matriculas import matricular_aluno  # noqa: E402
+from regras.turmas import criar_turma, excluir_turma  # noqa: E402
+from infra.security import hash_senha, verificar_senha  # noqa: E402
+from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
+from regras import chat_ia  # noqa: E402
 
 SENHA = "teste123"
 
@@ -153,6 +153,24 @@ class TestesContas(BaseDelta):
 
     def test_so_admin_cria_conta_de_staff(self):
         resultado = criar_conta_staff(PROFESSOR, "novo@teste.com", SENHA, "professor")
+        self.assertFalse(resultado["sucesso"])
+
+    def test_aluno_nao_cria_conta_de_staff(self):
+        resultado = criar_conta_staff(ALUNO, "novo@teste.com", SENHA, "adm")
+        self.assertFalse(resultado["sucesso"])
+
+    def test_admin_cria_conta_de_qualquer_perfil(self):
+        """A instituição precisa poder cadastrar aluno sem esperar ele se inscrever."""
+        for tipo in ("aluno", "professor", "adm"):
+            resultado = criar_conta_staff(ADMIN, f"criado_{tipo}@teste.com", SENHA, tipo)
+            self.assertTrue(resultado["sucesso"], f"admin não conseguiu criar {tipo}")
+
+            login = realizar_login(f"criado_{tipo}@teste.com", SENHA)
+            self.assertTrue(login["sucesso"], f"conta {tipo} criada não consegue entrar")
+            self.assertEqual(login["tipo"], tipo)
+
+    def test_conta_criada_pelo_admin_recusa_senha_curta(self):
+        resultado = criar_conta_staff(ADMIN, "curta@teste.com", "123", "professor")
         self.assertFalse(resultado["sucesso"])
 
     def test_login_correto_devolve_token(self):

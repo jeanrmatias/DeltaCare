@@ -17,12 +17,12 @@ import os
 import sqlite3
 import sys
 
-from database import CAMINHO_DB, configurar_banco
-from logica import cadastrar_usuario, criar_conta_staff
-from logica_materiais import criar_material
-from logica_matriculas import matricular_aluno
-from logica_turmas import criar_turma
-from security import hash_senha
+from infra.database import CAMINHO_DB, configurar_banco
+from regras.autenticacao import cadastrar_usuario, criar_conta_staff
+from regras.materiais import criar_material
+from regras.matriculas import matricular_aluno
+from regras.turmas import criar_turma
+from infra.security import hash_senha
 
 SENHA_PADRAO = "demo123"
 
@@ -291,7 +291,7 @@ def criar_material_indexado(turma_id: int) -> None:
         print(f"  material criado: {MATERIAL_TITULO} (id {material_id})")
 
     # A indexação depende do Ollama; sem ele o resto do seed continua válido.
-    from chat_ia import indexar_material
+    from regras.chat_ia import indexar_material
 
     try:
         resultado = indexar_material(material_id)

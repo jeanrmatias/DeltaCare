@@ -23,7 +23,7 @@ import unicodedata
 import urllib.request
 from datetime import datetime, timezone
 
-from logica_turmas import buscar_usuario, conectar
+from regras.turmas import buscar_usuario, conectar
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 MODELO_EMBEDDING = os.environ.get("MODELO_EMBEDDING", "nomic-embed-text")
@@ -296,7 +296,7 @@ def _pontuar_trecho(texto: str, similaridade: float, termos: list) -> float:
 
 
 def _status_material(rascunho: int, data_liberacao) -> str:
-    """Mesma regra de logica_materiais._calcular_status, reaplicada aqui
+    """Mesma regra de regras/materiais._calcular_status, reaplicada aqui
     pra evitar import cruzado (logica_materiais já importa de logica_turmas)."""
     if rascunho:
         return "rascunho"
@@ -378,7 +378,7 @@ def responder_pergunta(
     gerar_embedding_fn=gerar_embedding,
     gerar_resposta_fn=gerar_resposta_chat,
 ) -> dict:
-    from logica_matriculas import aluno_matriculado_na_turma
+    from regras.matriculas import aluno_matriculado_na_turma
 
     pergunta = pergunta.strip()
     if not pergunta:

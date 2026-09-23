@@ -9,7 +9,7 @@ materiais dentro delas.
 import sqlite3
 from datetime import datetime, timezone
 
-from database import CAMINHO_DB as DB_PATH
+from infra.database import CAMINHO_DB as DB_PATH
 
 
 def conectar():

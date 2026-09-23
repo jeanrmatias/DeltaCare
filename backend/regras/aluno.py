@@ -1,6 +1,6 @@
 """Visão do aluno: materiais liberados e resumo da tela inicial.
 
-Separado de logica_materiais.py de propósito. Lá, toda consulta parte do
+Separado de regras/materiais.py de propósito. Lá, toda consulta parte do
 professor dono do material (`professor_id = ?`), e o professor enxerga também
 rascunho e material agendado. O aluno tem outra regra, mais restritiva:
 
@@ -14,15 +14,15 @@ vazaria material não liberado. Aqui a regra do aluno fica isolada e explícita.
 
 from datetime import datetime, timezone
 
-from logica_turmas import buscar_usuario, conectar
+from regras.turmas import buscar_usuario, conectar
 
 
 def _esta_publicado(rascunho: int, data_liberacao) -> bool:
-    """Mesma regra de logica_materiais._calcular_status, na forma de sim/não.
+    """Mesma regra de regras/materiais._calcular_status, na forma de sim/não.
 
     Reaplicada aqui para não criar import cruzado (logica_materiais já importa
     de logica_turmas). Se a regra mudar, os três pontos precisam mudar juntos —
-    o outro é chat_ia._status_material.
+    o outro é regras/chat_ia._status_material.
     """
     if rascunho:
         return False
@@ -159,7 +159,7 @@ def resumo_do_aluno(aluno_email: str) -> dict:
 
     Tudo vem do banco: nada nesta tela é exemplo fixo.
     """
-    from logica_matriculas import listar_turmas_do_aluno
+    from regras.matriculas import listar_turmas_do_aluno
 
     conexao = conectar()
     aluno = _buscar_aluno(conexao, aluno_email)

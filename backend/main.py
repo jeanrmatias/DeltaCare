@@ -5,27 +5,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from database import configurar_banco
-from sessoes import (
+from infra.database import configurar_banco
+from infra.sessoes import (
     buscar_usuario_da_sessao,
     encerrar_sessao,
     limpar_sessoes_expiradas,
 )
-from logica import (
+from regras.autenticacao import (
     cadastrar_usuario,
     criar_conta_staff,
     realizar_login,
     redefinir_senha,
     solicitar_recuperacao,
 )
-from logica_materiais import (
+from regras.materiais import (
     atualizar_material,
     criar_material,
     excluir_material,
     listar_materiais,
     obter_arquivo_material,
 )
-from logica_turmas import (
+from regras.turmas import (
     criar_turma,
     excluir_turma,
     listar_professores,
@@ -33,19 +33,19 @@ from logica_turmas import (
     listar_turmas_admin,
     listar_usuarios,
 )
-from logica_matriculas import (
+from regras.matriculas import (
     desmatricular_aluno,
     listar_alunos,
     listar_alunos_da_turma,
     listar_turmas_do_aluno,
     matricular_aluno,
 )
-from logica_aluno import (
+from regras.aluno import (
     listar_materiais_do_aluno,
     obter_arquivo_material_do_aluno,
     resumo_do_aluno,
 )
-from chat_ia import buscar_historico, indexar_material, responder_pergunta
+from regras.chat_ia import buscar_historico, indexar_material, responder_pergunta
 
 configurar_banco()
 

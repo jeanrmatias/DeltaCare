@@ -1294,3 +1294,59 @@ body {
     background: var(--color-bg);
     color: var(--color-text-secondary);
 }
+
+
+/* =========================
+   Página de módulo planejado (em-breve.html)
+   ========================= */
+
+.modulo-cartao {
+    max-width: 640px;
+}
+
+.modulo-cartao .etiqueta-breve {
+    margin: 0 0 14px;
+}
+
+.modulo-cartao .cartao-titulo {
+    margin-bottom: 8px;
+}
+
+.modulo-itens {
+    margin: 14px 0 0;
+    padding-left: 20px;
+
+    color: var(--color-text);
+
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.modulo-itens li {
+    margin-bottom: 4px;
+}
+
+.modulo-nota {
+    margin-top: 18px;
+    padding: 12px 14px;
+
+    background: var(--color-bg);
+    border-radius: var(--radius-md);
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+
+/* Etiqueta que também é link, nos cartões de módulo não construído. */
+.etiqueta-breve--link {
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.etiqueta-breve--link:hover {
+    background: var(--color-amber);
+    color: #FFFFFF;
+}

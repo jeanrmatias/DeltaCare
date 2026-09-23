@@ -12,26 +12,23 @@ não SaaS multi-tenant.
 
 ```
 backend/
-  main.py               - API FastAPI (rotas)
-  database.py           - schema do SQLite (configurar_banco)
-  security.py           - hash de senha (PBKDF2, sem dependência externa)
-  logica.py              - login, cadastro, recuperação de senha
-  logica_turmas.py       - CRUD de turma
-  logica_materiais.py    - CRUD de material (PDF/link/vídeo)
-  logica_matriculas.py   - matrícula/desmatrícula de aluno
-  chat_ia.py              - RAG: indexação de PDF + chat restrito ao material
-  arquivos.py             - salvar/ler arquivo de material no disco
+  main.py                  - API FastAPI: rotas e dependências de autenticação
+  seed_demo.py             - cria os dados de demonstração
+  testes.py                - 40 testes (rodam sem o Ollama)
 
-frontend/
-  index.html, script.js   - login
-  privacidade.html         - política de privacidade (LGPD)
-  auth.js                   - token de sessão + helper api() autenticado
-  config.js                 - endereço da API
-  markdown.js               - renderiza a resposta da IA (sem innerHTML)
-  servir.py                 - servidor estático de desenvolvimento (no-store)
-  administracao/           - adm.html, adm-turmas.html
-  professor/                - prof.html (dashboard), turmas.html, materiais.html
-  aluno/                     - inicio.html, aluno.html (chat), materiais.html
+  infra/                   - infraestrutura: o que o sistema USA
+    database.py              schema e caminho único do banco
+    security.py              hash de senha (PBKDF2, sem dependência externa)
+    sessoes.py               token de sessão
+    arquivos.py              gravação dos uploads
+
+  regras/                  - regras de negócio: o que o sistema DECIDE
+    autenticacao.py          login, cadastro, recuperação de senha
+    turmas.py                turmas, professores, usuários
+    materiais.py             materiais na visão do PROFESSOR
+    aluno.py                 materiais na visão do ALUNO
+    matriculas.py            matrículas
+    chat_ia.py               RAG: indexação, busca híbrida, resposta
 ```
 
 > A pasta do administrador chama-se `administracao`, mas o valor de `tipo`
@@ -66,7 +63,7 @@ arquivos globais com `../` (ex.: `../auth.js`).
    > Se a GPU disponível for menor (ex.: 12GB de VRAM), o `gpt-oss:20b` pode
    > ficar lento por fazer offload para RAM/CPU. Para testar o fluxo mais
    > rápido, um modelo de chat menor (ex.: `llama3.1:8b`) também funciona —
-   > basta baixá-lo e ajustar `MODELO_CHAT` em `backend/chat_ia.py`.
+   > basta baixá-lo e ajustar `MODELO_CHAT` em `backend/regras/chat_ia.py`.
 
    Por padrão o backend fala com o Ollama em `http://localhost:11434`. Para
    apontar para outro endereço, defina a variável de ambiente `OLLAMA_URL`
@@ -134,7 +131,7 @@ material, como tratamento de apendicite: ele deve recusar a segunda.
    admin matricula esse aluno na turma.
 4. Login como professor → sobe um material do tipo PDF na turma → publica
    (tira do rascunho). Isso dispara a indexação para o chat
-   automaticamente (`chat_ia.indexar_material`).
+   automaticamente (`regras.chat_ia.indexar_material`).
 5. Login como aluno → abre a turma → pergunta algo sobre o conteúdo do PDF
    no chat. A resposta deve citar o material como fonte.
 
@@ -142,7 +139,7 @@ material, como tratamento de apendicite: ele deve recusar a segunda.
 
 O login devolve um token de sessão, guardado na tabela `sessoes` e enviado
 pelo front no header `Authorization: Bearer <token>` (ver
-[`backend/sessoes.py`](backend/sessoes.py) e [`frontend/auth.js`](frontend/auth.js)).
+[`backend/infra/sessoes.py`](backend/infra/sessoes.py) e [`frontend/auth.js`](frontend/auth.js)).
 
 Nenhuma rota protegida aceita identidade vinda do cliente: quem está
 chamando é sempre deduzido do token, pelas dependências `usuario_logado` e
@@ -172,7 +169,7 @@ python testes.py
 40 testes das regras de negócio: permissões, visibilidade de material,
 sessão e integridade do banco. Rodam num banco temporário e **não precisam do
 Ollama ligado** — as funções que falam com o modelo entram como parâmetro, que
-é para isso que elas foram isoladas em `chat_ia.py`.
+é para isso que elas foram isoladas em `regras/chat_ia.py`.
 
 ## Documentos relacionados
 

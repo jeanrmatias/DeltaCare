@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Área do Administrador</title>
+    <title>Delta Care | Módulo</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=4">
 </head>
 <body>
@@ -19,7 +19,7 @@
             </div>
 
             <nav class="sidebar-nav">
-                <a href="adm.html" class="sidebar-link ativo">
+                <a href="adm.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
                     Início
                 </a>
@@ -54,42 +54,31 @@
             </div>
         </aside>
 
+
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1 id="saudacao">Olá</h1>
-                    <p>Painel de administração do Delta Care.</p>
+                    <h1 id="moduloTitulo">Módulo</h1>
+                    <p id="moduloResumo"></p>
                 </div>
             </header>
 
-            <section class="stats">
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">Professores cadastrados</span>
-                    <strong class="stat-valor" id="statProfessores">0</strong>
-                </article>
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">Turmas ativas</span>
-                    <strong class="stat-valor" id="statTurmas">0</strong>
-                </article>
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">Materiais cadastrados</span>
-                    <strong class="stat-valor" id="statMateriais">0</strong>
-                </article>
-            </section>
+            <section class="cartao cartao--indisponivel modulo-cartao">
+                <span class="etiqueta-breve" id="moduloSprint">Planejado</span>
 
-            <section class="cartao" style="margin-top: 20px;">
-                <h2 class="cartao-titulo">Próximo passo</h2>
-                <p style="color: var(--color-text-secondary); font-size: 14px; line-height: 1.6;">
-                    Comece criando turmas e atribuindo cada uma a um professor em
-                    <a href="adm-turmas.html" style="color: var(--color-primary); font-weight: 600;">Turmas</a>.
-                    Os professores só publicam materiais nas turmas que você atribuir a eles.
-                </p>
+                <h2 class="cartao-titulo">Ainda não construído nesta versão</h2>
+                <p>O que este módulo vai permitir quando for entregue:</p>
+
+                <ul class="modulo-itens" id="moduloItens"></ul>
+
+                <p class="modulo-nota" id="moduloNota" hidden></p>
             </section>
         </main>
     </div>
 
     <script src="../config.js?v=4"></script>
     <script src="../auth.js?v=4"></script>
-    <script src="adm.js?v=4"></script>
+    <script src="../modulos.js?v=4"></script>
+    <script src="em-breve.js?v=4"></script>
 </body>
 </html>

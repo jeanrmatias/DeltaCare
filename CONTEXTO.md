@@ -26,9 +26,9 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 - Professor só vê as turmas atribuídas a ele (leitura) e gerencia materiais dentro delas.
 - Cadastro público (`/cadastro`) só cria conta **aluno**. Professor/admin só são criados por um admin já existente (`POST /admin/usuarios`).
 - Aluno só acessa (e só pergunta no chat sobre) turmas em que está matriculado.
-- A visão do aluno mora em `logica_aluno.py`, separada de `logica_materiais.py`: lá toda consulta parte do professor dono e **inclui rascunho e agendado**. Misturar as duas na mesma função convidaria a um erro de filtro que vazaria material não liberado.
+- A visão do aluno mora em `regras/aluno.py`, separada de `regras/materiais.py`: lá toda consulta parte do professor dono e **inclui rascunho e agendado**. Misturar as duas na mesma função convidaria a um erro de filtro que vazaria material não liberado.
 
-## Chat de IA do aluno (`chat_ia.py`)
+## Chat de IA do aluno (`regras/chat_ia.py`)
 - RAG restrito ao material: só indexa PDF (por enquanto — vídeo/link/doc ficaram de fora do escopo inicial).
 - Fluxo: upload de PDF pelo professor → extrai texto (`pypdf`) → divide em chunks → gera embedding → salva.
 - Pergunta do aluno → embedding da pergunta → busca por similaridade de cosseno só nos materiais **publicados** (nunca rascunho/agendado) da turma → monta prompt que restringe a resposta ao contexto encontrado → chama o modelo de chat.

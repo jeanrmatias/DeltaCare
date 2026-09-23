@@ -1,13 +1,13 @@
 """Matrícula de alunos em turmas. Sem depender do FastAPI (testável sozinho).
 
-Mesmo padrão de permissão de logica_turmas.py: só o admin matricula ou
+Mesmo padrão de permissão de regras/turmas.py: só o admin matricula ou
 remove um aluno de uma turma. O aluno só vê e conversa (via chat de IA)
 sobre as turmas em que está matriculado.
 """
 
 from datetime import datetime, timezone
 
-from logica_turmas import _eh_admin, buscar_usuario, conectar
+from regras.turmas import _eh_admin, buscar_usuario, conectar
 
 
 def matricular_aluno(admin_email: str, aluno_email: str, turma_id: int) -> dict:

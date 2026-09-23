@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Turmas</title>
+    <title>Delta Care | Módulo</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=4">
 </head>
 <body>
@@ -35,7 +35,7 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 9.5h18"/></svg>
                     Calendário
                 </a>
-                <a href="turmas.html" class="sidebar-link ativo">
+                <a href="turmas.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14c2.7.3 4.5 2.6 4.5 6"/></svg>
                     Turmas
                 </a>
@@ -53,28 +53,36 @@
                 <span class="avatar" id="avatarRodape">--</span>
                 <div class="sidebar-perfil-texto">
                     <strong id="nomeRodape">Professor</strong>
-                    <button type="button" id="botaoSair" class="sidebar-perfil-sair">Sair</button>
+                    <span>Ver perfil</span>
                 </div>
             </div>
         </aside>
 
+
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1>Turmas</h1>
-                    <p>As turmas atribuídas a você pela administração. Só um administrador pode criar ou editar turmas.</p>
+                    <h1 id="moduloTitulo">Módulo</h1>
+                    <p id="moduloResumo"></p>
                 </div>
             </header>
 
-            <section class="grade-turmas" id="listaTurmas"></section>
-            <p class="estado-vazio" id="turmasVazio" hidden>
-                Você ainda não tem nenhuma turma atribuída. Fale com a administração para ser vinculado a uma turma.
-            </p>
+            <section class="cartao cartao--indisponivel modulo-cartao">
+                <span class="etiqueta-breve" id="moduloSprint">Planejado</span>
+
+                <h2 class="cartao-titulo">Ainda não construído nesta versão</h2>
+                <p>O que este módulo vai permitir quando for entregue:</p>
+
+                <ul class="modulo-itens" id="moduloItens"></ul>
+
+                <p class="modulo-nota" id="moduloNota" hidden></p>
+            </section>
         </main>
     </div>
 
     <script src="../config.js?v=4"></script>
     <script src="../auth.js?v=4"></script>
-    <script src="turmas.js?v=4"></script>
+    <script src="../modulos.js?v=4"></script>
+    <script src="em-breve.js?v=4"></script>
 </body>
 </html>

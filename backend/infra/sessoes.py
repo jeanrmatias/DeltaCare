@@ -20,7 +20,7 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-from database import CAMINHO_DB
+from infra.database import CAMINHO_DB
 
 # Uma sessão dura o suficiente para uma aula ou uma demonstração sem obrigar
 # o usuário a logar de novo no meio.

@@ -8,9 +8,9 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta
 
-from security import hash_senha, verificar_senha
+from infra.security import hash_senha, verificar_senha
 
-from database import CAMINHO_DB as DB_PATH
+from infra.database import CAMINHO_DB as DB_PATH
 TIPOS_VALIDOS = ("adm", "professor", "aluno")
 # Os caminhos precisam bater com as pastas reais em frontend/ — a pasta do
 # administrador chama-se "administracao", não "adm" (que é o valor do campo
@@ -41,8 +41,8 @@ def realizar_login(email: str, senha: str) -> dict:
         pagina = PAGINAS.get(tipo)
         if pagina:
             # O token é o que prova a identidade nas requisições seguintes —
-            # nenhuma rota protegida aceita e-mail vindo do cliente (sessoes.py).
-            from sessoes import criar_sessao
+            # nenhuma rota protegida aceita e-mail vindo do cliente (infra/sessoes.py).
+            from infra.sessoes import criar_sessao
 
             return {
                 "sucesso": True,
@@ -93,15 +93,21 @@ def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:
 
 
 def criar_conta_staff(admin_email: str, email: str, senha: str, tipo: str) -> dict:
-    """Cria conta de professor ou admin. Só um admin já existente pode
-    chamar isso (mesmo padrão de permissão usado em logica_turmas.criar_turma).
+    """Cria conta de qualquer perfil. Só um admin já existente pode chamar
+    isso (mesmo padrão de permissão usado em regras/turmas.criar_turma).
+
+    Aceita também "aluno", e isso não contradiz a restrição do cadastro
+    público: lá o risco é qualquer pessoa da internet escolher o próprio
+    perfil, e por isso `cadastrar_usuario` só cria aluno. Aqui quem cria já é
+    um administrador autenticado, e uma instituição precisa poder cadastrar a
+    turma inteira sem depender de cada aluno se inscrever sozinho.
     """
     admin_email = admin_email.strip().lower()
     email = email.strip().lower()
     tipo = tipo.strip().lower()
 
-    if tipo not in ("professor", "adm"):
-        return {"sucesso": False, "mensagem": "Tipo inválido. Use 'professor' ou 'adm'."}
+    if tipo not in ("professor", "adm", "aluno"):
+        return {"sucesso": False, "mensagem": "Tipo inválido. Use 'aluno', 'professor' ou 'adm'."}
 
     if len(senha) < 6:
         return {"sucesso": False, "mensagem": "A senha precisa ter pelo menos 6 caracteres."}

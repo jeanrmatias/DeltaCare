@@ -3,8 +3,8 @@
 import sqlite3
 from datetime import datetime, timezone
 
-from arquivos import remover_arquivo, salvar_arquivo_base64
-from logica_turmas import turma_pertence_ao_professor, buscar_professor, conectar
+from infra.arquivos import remover_arquivo, salvar_arquivo_base64
+from regras.turmas import turma_pertence_ao_professor, buscar_professor, conectar
 
 TIPOS_VALIDOS = ("pdf", "documento", "video", "link")
 
