@@ -18,6 +18,8 @@ de ambiente OLLAMA_URL (padrão http://localhost:11434).
 import json
 import math
 import os
+import re
+import unicodedata
 import urllib.request
 from datetime import datetime, timezone
 
@@ -37,7 +39,18 @@ MODELO_CHAT = os.environ.get("MODELO_CHAT", "gpt-oss:20b")
 ESFORCO_RACIOCINIO = os.environ.get("ESFORCO_RACIOCINIO", "low")
 TAMANHO_CHUNK = 800  # caracteres
 SOBREPOSICAO = 100
-TOP_K = 5
+
+# Quantos trechos vão para o contexto do modelo.
+# Medido com uma apostila de 18 trechos: com 5, a busca perdia informação em
+# 8% das perguntas; com 10, acertou todas. Dez trechos ocupam ~2,5 mil dos
+# 4096 tokens de contexto, deixando folga suficiente para a resposta — 14 já
+# deixaria só ~570 tokens e arriscaria cortar o texto no meio.
+TOP_K = 10
+
+# Peso do casamento literal de termos na ordenação dos trechos (ver
+# _pontuar_trecho). Pequeno de propósito: desempata entre trechos já
+# semanticamente próximos, sem virar busca por palavra.
+PESO_BUSCA_LITERAL = 0.12
 
 PROMPT_SISTEMA = """Você é o assistente de estudos da Delta Care, plataforma de ensino de uma faculdade de medicina. Responda SOMENTE com base nos trechos de material fornecidos abaixo, que vieram do material que o professor disponibilizou para esta turma.
 
@@ -224,6 +237,64 @@ def _similaridade_cosseno(a: list, b: list) -> float:
     return produto / (norma_a * norma_b)
 
 
+# Palavras que aparecem em praticamente todo trecho de material didático e por
+# isso não ajudam a distinguir um do outro.
+PALAVRAS_COMUNS = {
+    "qual", "quais", "como", "quando", "onde", "porque", "para", "pela", "pelo",
+    "que", "sao", "esta", "este", "essa", "esse", "dos", "das", "com", "sem",
+    "disciplina", "material", "protocolo", "adotada", "adotado", "sobre",
+    "paciente", "clinico", "clinica", "aula", "conteudo", "seguinte",
+}
+
+
+def _normalizar_para_busca(texto: str) -> str:
+    """Minúsculas e sem acento, para casar 'Cardiolex' com 'cardiolex'."""
+    sem_acento = "".join(
+        letra for letra in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(letra) != "Mn"
+    )
+    return sem_acento.casefold()
+
+
+def _termos_distintivos(pergunta: str) -> list:
+    """Termos da pergunta que valem para busca literal.
+
+    Ficam de fora as palavras comuns; sobram siglas, códigos, números e
+    palavras longas — justamente o que costuma identificar um assunto
+    específico ("ARR-7", "DCM-4", "Cardiolex", "12,5").
+    """
+    candidatos = re.findall(r"[a-z0-9][a-z0-9\-,\.]{2,}", _normalizar_para_busca(pergunta))
+
+    return [
+        termo for termo in candidatos
+        if termo not in PALAVRAS_COMUNS
+        and (any(c.isdigit() for c in termo) or "-" in termo or len(termo) > 4)
+    ]
+
+
+def _pontuar_trecho(texto: str, similaridade: float, termos: list) -> float:
+    """Combina similaridade semântica com correspondência literal de termos.
+
+    Por que não usar só o cosseno: um trecho de 800 caracteres em que apenas
+    80 respondem à pergunta tem o embedding dominado pelos outros 720, que
+    costumam ser texto genérico. Medindo numa apostila de 18 trechos, o trecho
+    que definia o "escore ARR-7" caía para a 7ª posição por similaridade pura —
+    atrás de trechos que não respondiam nada — e o modelo respondia que o
+    material não cobria o assunto. Com o bônus literal ele vai para a 1ª, e
+    nenhuma das outras perguntas testadas piorou.
+
+    O bônus é pequeno de propósito: ele desempata dentro de um conjunto já
+    semanticamente próximo, em vez de transformar a busca em "procurar palavra".
+    """
+    if not termos:
+        return similaridade
+
+    alvo = _normalizar_para_busca(texto)
+    encontrados = sum(1 for termo in termos if termo in alvo)
+
+    return similaridade + PESO_BUSCA_LITERAL * (encontrados / len(termos))
+
+
 def _status_material(rascunho: int, data_liberacao) -> str:
     """Mesma regra de logica_materiais._calcular_status, reaplicada aqui
     pra evitar import cruzado (logica_materiais já importa de logica_turmas)."""
@@ -247,6 +318,7 @@ def buscar_trechos_relevantes(turma_id: int, pergunta: str, gerar_embedding_fn=g
     da turma — o aluno nunca vê rascunho nem material agendado pro futuro.
     """
     embedding_pergunta = gerar_embedding_fn(pergunta)
+    termos = _termos_distintivos(pergunta)
 
     conexao = conectar()
     cursor = conexao.cursor()
@@ -267,10 +339,11 @@ def buscar_trechos_relevantes(turma_id: int, pergunta: str, gerar_embedding_fn=g
         if _status_material(rascunho, data_liberacao) != "publicado":
             continue
         embedding = json.loads(embedding_json)
-        pontuacao = _similaridade_cosseno(embedding_pergunta, embedding)
+        similaridade = _similaridade_cosseno(embedding_pergunta, embedding)
         candidatos.append({
             "texto": texto,
-            "pontuacao": pontuacao,
+            "pontuacao": _pontuar_trecho(texto, similaridade, termos),
+            "similaridade": similaridade,
             "material": titulo_material,
             "material_id": material_id,
         })

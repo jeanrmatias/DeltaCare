@@ -238,3 +238,24 @@ button:disabled {
 #esqueciSenha:hover {
     text-decoration: underline;
 }
+
+/* Link para a política de privacidade, exigida pela LGPD. Fica discreto no
+   rodapé da tela de login — precisa estar acessível antes de o usuário
+   entregar qualquer dado, inclusive no cadastro. */
+.rodape-privacidade {
+    margin-top: 22px;
+
+    text-align: center;
+}
+
+.rodape-privacidade a {
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+    text-decoration: none;
+}
+
+.rodape-privacidade a:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+}

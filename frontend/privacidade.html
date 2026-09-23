@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delta Care | Privacidade e uso de dados</title>
+    <link rel="stylesheet" href="tokens.css?v=3">
+    <style>
+        body {
+            margin: 0;
+            padding: 40px 20px 64px;
+
+            background: var(--color-bg);
+            color: var(--color-text);
+
+            font-family: var(--font-family);
+            line-height: 1.6;
+        }
+
+        main {
+            max-width: 720px;
+            margin: 0 auto;
+
+            padding: 36px 40px;
+
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            color: var(--color-navy-900);
+            font-size: 26px;
+        }
+
+        .subtitulo {
+            margin: 0 0 28px;
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        h2 {
+            margin: 30px 0 10px;
+            color: var(--color-navy-800);
+            font-size: 17px;
+        }
+
+        p, li { font-size: 14.5px; }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 6px; }
+
+        .aviso {
+            margin: 24px 0 0;
+            padding: 14px 16px;
+
+            background: var(--color-amber-bg);
+            border-radius: var(--radius-md);
+
+            font-size: 13.5px;
+        }
+
+        .voltar {
+            display: inline-block;
+            margin-top: 28px;
+
+            color: var(--color-primary);
+
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .voltar:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Privacidade e uso de dados</h1>
+        <p class="subtitulo">Delta Care — plataforma de apoio ao estudo em saúde</p>
+
+        <h2>Que dados a plataforma guarda</h2>
+        <ul>
+            <li><strong>Conta:</strong> e-mail e senha. A senha nunca é guardada em texto — fica só o hash (PBKDF2 com salt individual), que não permite recuperar a senha original.</li>
+            <li><strong>Vínculo acadêmico:</strong> em quais turmas você está matriculado e qual o seu perfil (aluno, professor ou administração).</li>
+            <li><strong>Material de aula:</strong> os arquivos que o professor publica e o texto extraído deles para o assistente de estudos.</li>
+            <li><strong>Conversas com o assistente:</strong> suas perguntas, as respostas e os materiais citados, para você poder retomar o estudo depois.</li>
+            <li><strong>Sessão:</strong> um token temporário que identifica o seu acesso, com validade de 12 horas.</li>
+        </ul>
+
+        <h2>Onde os dados ficam</h2>
+        <p>
+            O modelo de inteligência artificial roda <strong>na infraestrutura da
+            própria instituição</strong>. Nem o material de aula nem as perguntas dos
+            alunos são enviados a serviços de terceiros — não há chamada a APIs
+            externas de IA em nenhum ponto do sistema.
+        </p>
+
+        <h2>Quem enxerga o quê</h2>
+        <ul>
+            <li>O aluno acessa apenas o material publicado nas turmas em que está matriculado. Rascunhos e materiais agendados são invisíveis para ele.</li>
+            <li>O professor acessa apenas as turmas atribuídas a ele e os materiais que ele mesmo criou.</li>
+            <li>A administração gerencia contas, turmas e matrículas.</li>
+            <li>As conversas de um aluno com o assistente são individuais e não ficam visíveis para outros alunos.</li>
+        </ul>
+        <p>
+            Essas regras são verificadas no servidor a cada requisição, e não apenas
+            escondidas na interface.
+        </p>
+
+        <h2>Seus direitos (LGPD)</h2>
+        <p>
+            A Lei Geral de Proteção de Dados garante a você o direito de confirmar o
+            tratamento, acessar, corrigir, solicitar a exclusão e obter a portabilidade
+            dos seus dados. Para exercer qualquer um deles, procure a coordenação
+            acadêmica da instituição, que é a controladora dos dados desta plataforma.
+        </p>
+
+        <h2>Por quanto tempo guardamos</h2>
+        <p>
+            Os dados são mantidos enquanto durar o vínculo acadêmico. O histórico de
+            conversas com o assistente pode ser apagado a pedido do aluno, sem que isso
+            afete o acesso ao material das turmas.
+        </p>
+
+        <div class="aviso">
+            <strong>Versão de demonstração.</strong> Este é um protótipo acadêmico.
+            Ainda não há HTTPS configurado nem política formal de retenção aprovada
+            pela instituição — itens necessários antes de qualquer uso com dados reais
+            de estudantes. Não cadastre informação pessoal verdadeira nesta versão.
+        </div>
+
+        <a class="voltar" href="index.html">&larr; Voltar para o login</a>
+    </main>
+</body>
+</html>

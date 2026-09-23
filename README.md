@@ -23,12 +23,20 @@ backend/
   arquivos.py             - salvar/ler arquivo de material no disco
 
 frontend/
-  index.html, script.js   - login (arquivo global, raiz)
-  auth.js, config.js       - sessão no navegador + endereço da API
-  administracao/           - páginas do admin
-  professor/                - páginas do professor
-  aluno/                     - páginas do aluno (inclui o chat)
+  index.html, script.js   - login
+  privacidade.html         - política de privacidade (LGPD)
+  auth.js                   - token de sessão + helper api() autenticado
+  config.js                 - endereço da API
+  markdown.js               - renderiza a resposta da IA (sem innerHTML)
+  servir.py                 - servidor estático de desenvolvimento (no-store)
+  administracao/           - adm.html, adm-turmas.html
+  professor/                - prof.html (dashboard), turmas.html, materiais.html
+  aluno/                     - inicio.html, aluno.html (chat), materiais.html
 ```
+
+> A pasta do administrador chama-se `administracao`, mas o valor de `tipo`
+> no banco é `adm`. Os dois já estiveram trocados e quebraram o
+> redirecionamento do login.
 
 Páginas dentro de `administracao/`, `professor/` e `aluno/` referenciam os
 arquivos globais com `../` (ex.: `../auth.js`).
@@ -154,5 +162,10 @@ de outra pessoa apenas trocando esse campo.
 - Dashboard do professor tem partes ainda mockadas (entregas, gráfico,
   mensagens).
 
-O `CONTEXTO.md` na raiz tem o histórico de decisões e a lista completa do
-que falta para virar produto de verdade.
+## Documentos relacionados
+
+- [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com
+  as perguntas a fazer no chat, respostas para as dúvidas mais prováveis e
+  plano B se algum serviço cair.
+- [`CONTEXTO.md`](CONTEXTO.md) — histórico de decisões, o que falta para
+  virar produto e as armadilhas já encontradas (para não repetir).

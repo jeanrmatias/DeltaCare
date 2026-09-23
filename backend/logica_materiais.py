@@ -227,6 +227,9 @@ def excluir_material(material_id: int, professor_email: str) -> dict:
         return {"sucesso": False, "mensagem": "Material não encontrado."}
 
     cursor = conexao.cursor()
+    # Os trechos indexados para o chat de IA precisam sair junto: sem isso eles
+    # ficam órfãos no banco, acumulando a cada material excluído.
+    cursor.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
     cursor.execute("DELETE FROM materiais WHERE id = ?", (material_id,))
     conexao.commit()
     conexao.close()

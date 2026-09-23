@@ -98,7 +98,18 @@ def excluir_turma(admin_email: str, turma_id: int) -> dict:
 
     # Os materiais dessa turma ficam órfãos sem a turma; para manter a
     # integridade, exclui os materiais junto (aviso já é dado no front).
+    # Os trechos indexados para o chat e as matrículas seguem o mesmo caminho —
+    # senão sobram no banco apontando para algo que não existe mais.
+    cursor.execute(
+        '''
+        DELETE FROM material_chunks
+        WHERE material_id IN (SELECT id FROM materiais WHERE turma_id = ?)
+        ''',
+        (turma_id,),
+    )
     cursor.execute("DELETE FROM materiais WHERE turma_id = ?", (turma_id,))
+    cursor.execute("DELETE FROM chat_mensagens WHERE turma_id = ?", (turma_id,))
+    cursor.execute("DELETE FROM matriculas WHERE turma_id = ?", (turma_id,))
     cursor.execute("DELETE FROM turmas WHERE id = ?", (turma_id,))
     conexao.commit()
     conexao.close()

@@ -35,6 +35,15 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 - **As fontes citadas vêm de structured output, não de regex.** O schema JSON passado ao Ollama restringe o decodificador, e o `enum` limita as fontes aos títulos reais dos materiais recuperados — o modelo não consegue inventar fonte nem grafar o título diferente. Antes disso a instrução ficava no prompt e o modelo desobedecia de formas variadas (`**FONTES_USADAS:**` em negrito, como item de lista), o que exigia ~90 linhas de regex e limpeza.
 - Histórico de chat (pergunta + resposta + fontes citadas) é salvo por aluno/turma e recarregado ao abrir a página.
 
+### Busca híbrida: semântica + literal
+Medido com uma apostila de 18 trechos e fatos únicos por seção:
+
+- `TOP_K = 5` perdia informação em 8% das perguntas; com 10, recuperou todas. Dez trechos ocupam ~2,5 mil dos 4096 tokens, deixando folga para a resposta. Catorze deixariam ~570 e arriscariam cortar o texto.
+- Só similaridade de cosseno **não basta**. Um trecho de 800 caracteres em que apenas 80 respondem à pergunta tem o embedding dominado pelos outros 720, que costumam ser texto genérico. O trecho que definia o "escore ARR-7" caía para a 7ª posição, atrás de trechos que não respondiam nada, e o modelo dizia que o material não cobria o assunto.
+- A correção foi somar um bônus pequeno (`PESO_BUSCA_LITERAL = 0.12`) para trechos que contêm literalmente os termos distintivos da pergunta — siglas, códigos e números, que é o que identifica assunto em texto médico. O trecho do ARR-7 foi para a 1ª posição e nenhuma outra pergunta piorou. Quatro perguntas fora do material (incluindo um "escore XYZ-99" inventado, justamente para tentar enganar o bônus) continuaram sendo recusadas.
+
+**Prefixos do nomic-embed-text foram testados e descartados.** A documentação do modelo sugere `search_query:` e `search_document:`, mas medindo no caso difícil eles pioraram o resultado (posição 4 → 9) sem melhorar os fáceis.
+
 ### Por que não dá pra tirar o julgamento do modelo
 Medimos os scores de similaridade: pergunta válida deu 0,70 e pergunta fora do material deu 0,65. A margem é estreita demais pra um corte por limiar — qualquer valor que barrasse a pergunta fora do material também barraria uma legítima. Quem decide se o material responde à pergunta é o modelo, e ele acertou em todos os testes. O que é **forma** (formato, validação, limpeza) fica no código; o que é **significado** fica com o modelo.
 
@@ -45,7 +54,7 @@ Medimos os scores de similaridade: pergunta válida deu 0,70 e pergunta fora do 
 - Storage de arquivo em nuvem (hoje é disco local).
 - Serviço de e-mail de verdade pra recuperação de senha (hoje só imprime no console).
 - Indexar outros tipos de material pro chat (vídeo precisa de transcrição; link precisa de scraping).
-- `TOP_K = 5` e contexto de 4096 tokens: com o PDF de teste (4 chunks) o documento inteiro cabe no contexto, então a completude das respostas é consequência do material ser pequeno, não do sistema ser robusto. Com um PDF real de 50 páginas (~150 chunks) uma pergunta ampla teria lacunas.
+- Contexto de 4096 tokens limita o `TOP_K` a 10 (ver abaixo). Para apostilas muito maiores, o caminho é aumentar o contexto — o que custa VRAM numa GPU já cheia — ou reordenar os trechos com um reranker.
 - Módulo de Atividades (Sprint 3 do backlog), chat professor↔aluno, notificações, favoritos e anotações.
 - LGPD: política de privacidade e termo de uso.
 
@@ -59,4 +68,5 @@ Medimos os scores de similaridade: pergunta válida deu 0,70 e pergunta fora do 
 - **Não usar `uvicorn --reload`**: o reloader deixou um worker órfão segurando a porta 8000 e servindo código antigo; os restarts falhavam com `Errno 10048` em silêncio enquanto o processo fantasma respondia. Depois de reiniciar, conferir o log do bind.
 - **`python -m http.server` não manda `Cache-Control`**, só `Last-Modified`. O navegador aplica cache heurístico e serve .js antigo sem revalidar. Use `frontend/servir.py`, que envia `no-store`.
 - Ao escrever `servir.py`, usar `ThreadingHTTPServer` e não `socketserver.TCPServer`: o servidor de uma requisição por vez trava na primeira conexão keep-alive do navegador e a página pendura.
+- Excluir material ou turma precisa apagar também os trechos indexados (`material_chunks`), as matrículas e o histórico de chat. Sem isso sobram registros órfãos apontando para algo que não existe mais — foram 18 trechos órfãos encontrados de uma vez. Não chega a vazar conteúdo porque a busca usa `JOIN` com `materiais` e o id é `AUTOINCREMENT` (nunca reaproveitado), mas acumula lixo.
 - O download de arquivo não pode ser `<a href>`: navegação do navegador não envia o header `Authorization`, e token na URL fica no histórico e nos logs. As telas buscam o arquivo autenticado e abrem via blob.
