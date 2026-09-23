@@ -14,7 +14,7 @@ não SaaS multi-tenant.
 backend/
   main.py                  - API FastAPI: rotas e dependências de autenticação
   seed_demo.py             - cria os dados de demonstração
-  testes.py                - 40 testes (rodam sem o Ollama)
+  testes.py                - 43 testes (rodam sem o Ollama)
 
   infra/                   - infraestrutura: o que o sistema USA
     database.py              schema e caminho único do banco
@@ -29,6 +29,22 @@ backend/
     aluno.py                 materiais na visão do ALUNO
     matriculas.py            matrículas
     chat_ia.py               RAG: indexação, busca híbrida, resposta
+
+frontend/
+  index.html                - login
+  privacidade.html          - política de privacidade (LGPD)
+  servir.py                 - servidor estático de desenvolvimento (no-store)
+
+  config.js                 - endereço da API
+  auth.js                   - token de sessão e helper api() autenticado
+  markdown.js               - renderiza a resposta da IA (sem innerHTML)
+  modulos.js                - catálogo dos módulos ainda não construídos
+
+  administracao/            - adm.html, adm-turmas.html, usuarios.html
+  professor/                - prof.html, turmas.html, materiais.html
+  aluno/                    - inicio.html, aluno.html (chat), materiais.html
+
+  */em-breve.html           - página de módulo planejado, uma por perfil
 ```
 
 > A pasta do administrador chama-se `administracao`, mas o valor de `tipo`
@@ -36,7 +52,8 @@ backend/
 > redirecionamento do login.
 
 Páginas dentro de `administracao/`, `professor/` e `aluno/` referenciam os
-arquivos globais com `../` (ex.: `../auth.js`).
+arquivos globais com `../` (ex.: `../auth.js`), e os `<script>`/`<link>` levam
+`?v=N` — ao mexer em .js ou .css compartilhado, suba esse número.
 
 ## Pré-requisitos
 
@@ -166,13 +183,16 @@ cd backend
 python testes.py
 ```
 
-40 testes das regras de negócio: permissões, visibilidade de material,
+43 testes das regras de negócio: permissões, visibilidade de material,
 sessão e integridade do banco. Rodam num banco temporário e **não precisam do
 Ollama ligado** — as funções que falam com o modelo entram como parâmetro, que
 é para isso que elas foram isoladas em `regras/chat_ia.py`.
 
 ## Documentos relacionados
 
+- [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil:
+  criar contas e turmas, publicar material com rascunho e agendamento, e como
+  o aluno usa o assistente de estudos.
 - [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas de arquitetura, fluxo de
   autenticação, funcionamento do RAG, modelo de dados e matriz de permissões.
 - [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com

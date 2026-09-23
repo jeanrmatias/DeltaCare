@@ -247,7 +247,7 @@ Todas essas regras são verificadas no servidor e cobertas pelos testes em
 backend/
   main.py                  - API FastAPI: rotas e dependências de autenticação
   seed_demo.py             - cria os dados de demonstração
-  testes.py                - 40 testes (rodam sem o Ollama)
+  testes.py                - 43 testes (rodam sem o Ollama)
 
   infra/                   - infraestrutura: o que o sistema USA
     database.py              schema e caminho único do banco

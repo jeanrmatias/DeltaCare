@@ -19,7 +19,7 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 - O primeiro admin nasce só pelo `seed_demo.py`, inserido direto no banco: o cadastro público só cria aluno e `criar_conta_staff` exige um admin já existente.
 
 ## Testes
-`python backend/testes.py` roda 40 testes num banco temporário (variável `DELTACARE_DB`), sem precisar do Ollama. O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de material, sessão e integridade do banco ao excluir. Interface e formatação ficam de fora — erro de CSS aparece na tela, erro de permissão não.
+`python backend/testes.py` roda 43 testes num banco temporário (variável `DELTACARE_DB`), sem precisar do Ollama. O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de material, sessão e integridade do banco ao excluir. Interface e formatação ficam de fora — erro de CSS aparece na tela, erro de permissão não.
 
 ## Regras de permissão (todas validadas no backend, não só escondidas na UI)
 - Só **admin** cria/exclui turma e matricula/desmatricula aluno.

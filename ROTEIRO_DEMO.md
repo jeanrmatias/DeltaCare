@@ -53,9 +53,15 @@ python seed_demo.py
 1. Login como `adm@deltacare.com`.
 2. Na visão geral, aponte os números: professores, turmas e materiais — todos
    vindos do banco.
-3. Vá em **Turmas**. Mostre a turma Cardiologia I, o professor responsável e
+3. Vá em **Usuários**. Mostre a lista com os três perfis e abra **Nova conta**.
+   Vale criar uma conta de professor ao vivo: é rápido e responde antes de ser
+   perguntado como alguém entra no sistema.
+4. **Frase-chave:** "Professor e administrador só nascem aqui. Pela tela de
+   login existe cadastro público, mas ele só cria conta de aluno — ninguém de
+   fora consegue criar para si uma conta de confiança."
+5. Vá em **Turmas**. Mostre a turma Cardiologia I, o professor responsável e
    os alunos matriculados.
-4. **Frase-chave:** "Quem cria turma e matricula aluno é só a administração.
+6. **Frase-chave:** "Quem cria turma e matricula aluno é só a administração.
    O professor não consegue, nem que tente pela API — a regra está no backend."
 
 ---
@@ -142,6 +148,11 @@ dele. Nenhuma rota aceita identidade informada pelo cliente. O que ainda falta
 antes de uso real: HTTPS e limite de tentativas de login.
 
 ---
+
+## Se precisar consultar
+
+O [TUTORIAL.md](TUTORIAL.md) descreve cada tela em detalhe, perfil por perfil —
+útil se a banca pedir para ver algo fora do roteiro.
 
 ## Plano B
 
