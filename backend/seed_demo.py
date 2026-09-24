@@ -18,7 +18,7 @@ import sqlite3
 import sys
 
 from infra.database import CAMINHO_DB, configurar_banco
-from regras.autenticacao import cadastrar_usuario, criar_conta_staff
+from regras.autenticacao import criar_conta_staff
 from regras.materiais import criar_material
 from regras.matriculas import matricular_aluno
 from regras.turmas import criar_turma
@@ -29,6 +29,13 @@ SENHA_PADRAO = "demo123"
 ADMIN = "adm@deltacare.com"
 PROFESSOR = "professor@deltacare.com"
 ALUNO = "aluno@deltacare.com"
+
+NOME_ADMIN = "Helena Prado"
+NOME_PROFESSOR = "Ricardo Salles"
+NOME_ALUNO = "Marina Duarte"
+
+DISCIPLINAS_PROFESSOR = "Cardiologia; Clínica Médica"
+MATRICULA_ALUNO = "2026001234"
 
 TURMA_NOME = "Cardiologia I"
 TURMA_SEMESTRE = "2026.2"
@@ -196,8 +203,8 @@ def criar_admin_inicial() -> None:
     conexao = _conectar()
     cursor = conexao.cursor()
     cursor.execute(
-        "INSERT INTO users (email, senha, tipo) VALUES (?, ?, ?)",
-        (ADMIN, hash_senha(SENHA_PADRAO), "adm"),
+        "INSERT INTO users (email, senha, tipo, nome) VALUES (?, ?, ?, ?)",
+        (ADMIN, hash_senha(SENHA_PADRAO), "adm", NOME_ADMIN),
     )
     conexao.commit()
     conexao.close()
@@ -208,13 +215,19 @@ def criar_contas() -> None:
     if _usuario_existe(PROFESSOR):
         print(f"  professor ja existe: {PROFESSOR}")
     else:
-        resultado = criar_conta_staff(ADMIN, PROFESSOR, SENHA_PADRAO, "professor")
+        resultado = criar_conta_staff(
+            ADMIN, PROFESSOR, SENHA_PADRAO, "professor",
+            nome=NOME_PROFESSOR, disciplinas=DISCIPLINAS_PROFESSOR,
+        )
         print(f"  professor: {resultado['mensagem']}")
 
     if _usuario_existe(ALUNO):
         print(f"  aluno ja existe: {ALUNO}")
     else:
-        resultado = cadastrar_usuario(ALUNO, SENHA_PADRAO, "aluno")
+        resultado = criar_conta_staff(
+            ADMIN, ALUNO, SENHA_PADRAO, "aluno",
+            nome=NOME_ALUNO, matricula=MATRICULA_ALUNO,
+        )
         print(f"  aluno: {resultado['mensagem']}")
 
 

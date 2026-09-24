@@ -87,6 +87,36 @@ async function api(caminho, opcoes = {}) {
 }
 
 /**
+ * Nome a exibir para um usuário.
+ *
+ * Prefere o nome cadastrado. Contas criadas antes de o campo existir não têm
+ * esse dado, e aí o e-mail vira um nome aproximado ("ana.paula@x" -> "Ana
+ * Paula") — melhor do que mostrar o endereço cru no rodapé.
+ */
+function nomeExibicao(usuario) {
+    if (usuario && usuario.nome && usuario.nome.trim()) {
+        return usuario.nome.trim();
+    }
+
+    const email = (usuario && usuario.email) || "";
+    const apelido = email.split("@")[0].replace(/[._-]+/g, " ");
+
+    return apelido
+        .split(" ")
+        .filter(Boolean)
+        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+        .join(" ") || email;
+}
+
+/** Iniciais para o avatar, a partir do nome de exibição. */
+function iniciaisDe(nome) {
+    const partes = (nome || "").trim().split(/\s+/).filter(Boolean);
+    if (partes.length === 0) return "--";
+    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
+/**
  * Garante que a página só é usada por quem logou com `tipoEsperado`.
  *
  * Isto é só navegação: impede a tela errada de aparecer, não protege dado

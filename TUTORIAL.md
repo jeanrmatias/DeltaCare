@@ -49,6 +49,27 @@ Para criar uma conta, clique em **Nova conta** e preencha e-mail, perfil e uma
 senha provisória. A pessoa deve trocá-la no primeiro acesso, usando "Esqueci
 minha senha" na tela de login.
 
+Ao criar um aluno, dá para informar a matrícula e já escolher a turma — evita
+cadastrar e depois matricular um a um. Para professor, o campo é a lista de
+disciplinas que ele leciona.
+
+### Importar uma turma inteira
+
+Menu lateral → **Usuários** → **Importar planilha**.
+
+Aceita **.csv** e **.xlsx**. A planilha precisa de uma coluna de nome e uma de
+e-mail; matrícula é opcional. O cabeçalho pode estar escrito de várias formas
+("Nome Completo", "Aluno", "E-mail", "RA") — não é preciso renomear nada.
+
+O fluxo tem dois passos:
+
+1. **Conferir planilha** — lê e valida **sem gravar nada**, e mostra quantas
+   linhas estão prontas e quais foram recusadas, com o motivo de cada uma.
+2. **Importar** — cria as contas. Escolha uma senha provisória (a mesma para
+   todos) e, se quiser, a turma em que todos serão matriculados.
+
+Linhas com problema são puladas individualmente; as demais entram normalmente.
+
 > **Por que o aluno também pode se cadastrar sozinho?**
 > Pela tela de login existe um cadastro público, mas ele **só cria conta de
 > aluno** — nunca professor ou administrador. A instituição escolhe: cadastrar
@@ -91,6 +112,9 @@ tem turmas atribuídas, fale com a coordenação.
 ### Publicar material
 
 Menu lateral → **Materiais** → **Novo material**.
+
+Marque em **quais turmas** o material deve entrar. Dá para escolher várias de
+uma vez, e há um "Selecionar todas" quando você leciona em mais de uma.
 
 Preencha o título e escolha o tipo:
 
@@ -135,9 +159,19 @@ Entre com `aluno@deltacare.com`.
 
 ### Tela inicial
 
-Abre com seus números: turmas em que está matriculado, materiais disponíveis e
-quantas perguntas você já fez ao assistente. Abaixo, suas turmas e os materiais
-liberados mais recentes.
+Abre com seu progresso: nível, XP acumulado, sequência de dias estudando e um
+gráfico dos últimos 14 dias. Abaixo, suas turmas e os materiais liberados mais
+recentes.
+
+**De onde vem o XP:** cada pergunta ao assistente vale 10, cada material novo
+que você abre vale 15, e cada dia com atividade vale 25. A composição fica
+visível no próprio cartão — reabrir o mesmo material não conta de novo.
+
+### Notificações
+
+O sino no topo avisa quando um professor publica material novo numa turma sua,
+inclusive os que estavam agendados e chegaram na data. Clicar numa notificação
+a marca como lida e leva até o material.
 
 ### Materiais
 
@@ -146,8 +180,16 @@ Menu lateral → **Materiais**.
 Lista tudo que os professores liberaram nas suas turmas. Use o seletor no topo
 para filtrar por turma, e a busca para procurar por título, assunto ou tópico.
 
-Clique em **Baixar** para salvar o arquivo, ou **Abrir link** quando o material
-for um endereço externo.
+Use os filtros de assunto, tópico, tipo e período para achar mais rápido quando
+o semestre acumular material.
+
+Clique em **Visualizar** para abrir o material **dentro da plataforma**, sem
+precisar baixar — funciona para PDF, imagem, vídeo e áudio. **Baixar** salva o
+arquivo no seu computador, e **Abrir link** vale para material que é um
+endereço externo.
+
+Formatos que o navegador não sabe exibir (como .docx) não têm o botão
+Visualizar; para esses, use Baixar.
 
 > Se um material que o professor mencionou em aula não aparece aqui, ele ainda
 > está como rascunho ou foi agendado para uma data futura.
@@ -168,6 +210,9 @@ nenhuma, é porque a resposta não veio do material.
 A resposta leva de 10 a 20 segundos, porque o modelo roda na infraestrutura da
 instituição, e não em serviço externo. Enquanto processa, aparece um indicador
 com o tempo decorrido — é normal, não travou.
+
+Se mudar de ideia no meio, o botão **Parar** interrompe a geração e devolve o
+campo de digitação. Não é preciso recarregar a página.
 
 Seu histórico fica salvo por turma e volta quando você reabre a página.
 

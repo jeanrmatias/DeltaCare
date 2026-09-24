@@ -71,6 +71,7 @@ def criar_material(
     link_url: str | None = None,
     arquivo_base64: str | None = None,
     arquivo_nome: str | None = None,
+    _caminho_pronto: str | None = None,
 ) -> dict:
     titulo = titulo.strip()
     tipo = tipo.strip().lower()
@@ -92,6 +93,10 @@ def criar_material(
             return {"sucesso": False, "mensagem": "Informe o link do material."}
         if not (link_url.startswith("http://") or link_url.startswith("https://")):
             return {"sucesso": False, "mensagem": "O link precisa começar com http:// ou https://."}
+    elif _caminho_pronto:
+        # Publicação em várias turmas: o arquivo já foi gravado na primeira.
+        caminho_arquivo = _caminho_pronto
+        link_url = None
     else:
         if not arquivo_base64 or not arquivo_nome:
             return {"sucesso": False, "mensagem": "Envie um arquivo para este tipo de material."}
@@ -124,13 +129,105 @@ def criar_material(
     )
     conexao.commit()
     material_id = cursor.lastrowid
+    turma = cursor.execute("SELECT nome FROM turmas WHERE id = ?", (turma_id,)).fetchone()
     conexao.close()
+
+    # Avisa os alunos só quando o material já está visível para eles. Rascunho
+    # não avisa nunca; agendado avisa quando a data chega (ver
+    # regras/notificacoes._liberar_agendados_pendentes).
+    if not rascunho and not data_liberacao:
+        from regras.notificacoes import notificar_alunos_da_turma
+
+        notificar_alunos_da_turma(
+            turma_id,
+            "material",
+            "Novo material disponível",
+            f'"{titulo}" foi publicado em {turma[0] if turma else "sua turma"}.',
+            "materiais.html",
+        )
 
     return {
         "sucesso": True,
         "mensagem": "Material salvo como rascunho." if rascunho else "Material publicado com sucesso!",
         "material_id": material_id,
     }
+
+
+def criar_material_em_turmas(professor_email: str, turma_ids: list, **campos) -> dict:
+    """Publica o mesmo material em várias turmas de uma vez.
+
+    O schema guarda `turma_id` na própria linha do material, então cada turma
+    recebe um registro próprio. Mudar para uma relação muitos-para-muitos
+    quebraria a listagem por turma do professor e a busca por turma do chat,
+    sem ganho para o caso real — o professor edita e despublica turma a turma.
+
+    O arquivo, porém, é gravado **uma única vez** e o caminho é compartilhado
+    entre os registros; um PDF de 15 MB em cinco turmas ocuparia 75 MB à toa.
+    Por isso `excluir_material` só apaga o arquivo do disco quando nenhum outro
+    registro aponta para ele.
+    """
+    if not turma_ids:
+        return {"sucesso": False, "mensagem": "Escolha pelo menos uma turma."}
+
+    # Valida todas antes de criar qualquer uma: publicação parcial deixaria o
+    # professor sem saber em quais turmas o material entrou.
+    for turma_id in turma_ids:
+        if not turma_pertence_ao_professor(turma_id, professor_email):
+            return {"sucesso": False, "mensagem": "Uma das turmas não pertence a este professor."}
+
+    criados = []
+    caminho_compartilhado = None
+    campos_arquivo = {
+        "arquivo_base64": campos.pop("arquivo_base64", None),
+        "arquivo_nome": campos.pop("arquivo_nome", None),
+    }
+
+    for indice, turma_id in enumerate(turma_ids):
+        # Só a primeira chamada recebe o base64; as demais reaproveitam o
+        # arquivo já gravado.
+        if indice == 0:
+            resultado = criar_material(
+                professor_email=professor_email,
+                turma_id=turma_id,
+                **campos,
+                **campos_arquivo,
+            )
+            if resultado.get("sucesso"):
+                caminho_compartilhado = _caminho_do_material(resultado["material_id"])
+        else:
+            resultado = criar_material(
+                professor_email=professor_email,
+                turma_id=turma_id,
+                **campos,
+                arquivo_nome=campos_arquivo["arquivo_nome"],
+                _caminho_pronto=caminho_compartilhado,
+            )
+
+        if not resultado.get("sucesso"):
+            return {
+                "sucesso": False,
+                "mensagem": resultado.get("mensagem"),
+                "criados": criados,
+            }
+
+        criados.append(resultado["material_id"])
+
+    total = len(criados)
+    return {
+        "sucesso": True,
+        "mensagem": f"Material publicado em {total} turma{'s' if total > 1 else ''}!",
+        "material_ids": criados,
+        "material_id": criados[0],
+    }
+
+
+def _caminho_do_material(material_id: int):
+    conexao = conectar()
+    linha = conexao.execute(
+        "SELECT arquivo_caminho FROM materiais WHERE id = ?", (material_id,)
+    ).fetchone()
+    conexao.close()
+    return linha[0] if linha else None
 
 
 def listar_materiais(professor_email: str, turma_id: int | None = None) -> dict:
@@ -231,10 +328,21 @@ def excluir_material(material_id: int, professor_email: str) -> dict:
     # ficam órfãos no banco, acumulando a cada material excluído.
     cursor.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
     cursor.execute("DELETE FROM materiais WHERE id = ?", (material_id,))
+    # O arquivo pode estar compartilhado com o mesmo material publicado em
+    # outra turma (ver criar_material_em_turmas). Só sai do disco quando o
+    # último registro que aponta para ele é excluído.
+    caminho = material[2]
+    ainda_em_uso = 0
+    if caminho:
+        ainda_em_uso = cursor.execute(
+            "SELECT COUNT(*) FROM materiais WHERE arquivo_caminho = ?", (caminho,)
+        ).fetchone()[0]
+
     conexao.commit()
     conexao.close()
 
-    remover_arquivo(material[2])
+    if caminho and ainda_em_uso == 0:
+        remover_arquivo(caminho)
 
     return {"sucesso": True, "mensagem": "Material excluído."}
 

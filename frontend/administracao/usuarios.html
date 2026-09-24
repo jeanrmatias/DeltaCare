@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Usuários (Admin)</title>
-    <link rel="stylesheet" href="../style_dashboard.css?v=4">
+    <link rel="stylesheet" href="../style_dashboard.css?v=8">
 </head>
 <body>
     <div class="app">
@@ -62,9 +62,15 @@
                 </div>
 
                 <div class="topo-acoes">
+                    <div class="area-notificacoes">
+                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
+                        </button>
+                    </div>
                     <label class="busca">
                         <input type="search" id="campoBusca" placeholder="Buscar por e-mail...">
                     </label>
+                    <button type="button" class="acao" id="botaoImportarPlanilha">Importar planilha</button>
                     <button type="button" class="acao acao--primaria" id="botaoNovoUsuario">Nova conta</button>
                 </div>
             </header>
@@ -95,8 +101,8 @@
                 <form class="formulario" id="formularioUsuario">
                     <div class="formulario--linha">
                         <label class="campo campo--larga">
-                            <span>E-mail institucional</span>
-                            <input type="email" id="usuarioEmail" required placeholder="nome@instituicao.edu.br">
+                            <span>Nome completo</span>
+                            <input type="text" id="usuarioNome" required placeholder="Ex.: Ana Paula Ribeiro">
                         </label>
 
                         <label class="campo">
@@ -111,11 +117,41 @@
 
                     <div class="formulario--linha">
                         <label class="campo campo--larga">
-                            <span>Senha provisória</span>
-                            <input type="text" id="usuarioSenha" required minlength="6" placeholder="mínimo 6 caracteres">
-                            <span class="campo-dica">A pessoa deve trocar no primeiro acesso, pela opção "Esqueci minha senha".</span>
+                            <span>E-mail institucional</span>
+                            <input type="email" id="usuarioEmail" required placeholder="nome@instituicao.edu.br">
                         </label>
 
+                        <label class="campo">
+                            <span>Senha provisória</span>
+                            <input type="text" id="usuarioSenha" required minlength="6" placeholder="mínimo 6 caracteres">
+                        </label>
+                    </div>
+
+                    <!-- Campos que só valem para um perfil. Aparecem conforme a
+                         escolha acima, para o formulário não pedir matrícula de
+                         um administrador. -->
+                    <div class="formulario--linha" id="camposAluno">
+                        <label class="campo">
+                            <span>Matrícula</span>
+                            <input type="text" id="usuarioMatricula" placeholder="Ex.: 2026001234">
+                        </label>
+
+                        <label class="campo campo--larga">
+                            <span>Matricular já em uma turma</span>
+                            <select id="usuarioTurma">
+                                <option value="">Não matricular agora</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="formulario--linha" id="camposProfessor" hidden>
+                        <label class="campo campo--larga">
+                            <span>Disciplinas que leciona</span>
+                            <input type="text" id="usuarioDisciplinas" placeholder="Separe por ponto e vírgula: Cardiologia; Clínica Médica">
+                        </label>
+                    </div>
+
+                    <div class="formulario--linha">
                         <div class="campo campo--acoes">
                             <button type="submit" class="acao acao--primaria">Criar conta</button>
                             <button type="button" class="acao" id="botaoCancelar">Cancelar</button>
@@ -126,6 +162,47 @@
                 </form>
             </section>
 
+            <section class="cartao" id="cartaoImportacao" hidden>
+                <h2 class="cartao-titulo">Importar alunos de uma planilha</h2>
+                <p class="campo-dica">
+                    Aceita <strong>.csv</strong> e <strong>.xlsx</strong>. A planilha precisa ter
+                    uma coluna de nome e uma de e-mail; matrícula é opcional. O cabeçalho pode
+                    estar escrito de várias formas ("Nome Completo", "Aluno", "E-mail", "RA").
+                </p>
+
+                <form class="formulario" id="formularioImportacao">
+                    <div class="formulario--linha">
+                        <label class="campo campo--larga">
+                            <span>Planilha</span>
+                            <input type="file" id="importArquivo" accept=".csv,.xlsx,.xlsm" required>
+                        </label>
+
+                        <label class="campo">
+                            <span>Senha provisória</span>
+                            <input type="text" id="importSenha" required minlength="6" placeholder="mínimo 6 caracteres">
+                        </label>
+                    </div>
+
+                    <div class="formulario--linha">
+                        <label class="campo campo--larga">
+                            <span>Matricular todos na turma</span>
+                            <select id="importTurma">
+                                <option value="">Não matricular agora</option>
+                            </select>
+                        </label>
+
+                        <div class="campo campo--acoes">
+                            <button type="button" class="acao" id="botaoAnalisar">Conferir planilha</button>
+                            <button type="submit" class="acao acao--primaria" id="botaoImportar" disabled>Importar</button>
+                        </div>
+                    </div>
+
+                    <p class="formulario-mensagem" id="mensagemImportacao"></p>
+                </form>
+
+                <div id="relatorioImportacao" hidden></div>
+            </section>
+
             <p class="estado-vazio" id="estadoVazio" hidden></p>
 
             <section class="cartao" id="cartaoLista">
@@ -134,8 +211,10 @@
         </main>
     </div>
 
-    <script src="../config.js?v=4"></script>
-    <script src="../auth.js?v=4"></script>
-    <script src="usuarios.js?v=4"></script>
+    <script src="../config.js?v=8"></script>
+    <script src="../dialogo.js?v=8"></script>
+    <script src="../auth.js?v=8"></script>
+    <script src="../notificacoes.js?v=8"></script>
+    <script src="usuarios.js?v=8"></script>
 </body>
 </html>

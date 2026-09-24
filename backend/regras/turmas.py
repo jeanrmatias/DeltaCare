@@ -223,7 +223,7 @@ def listar_usuarios(admin_email: str) -> dict:
     cursor = conexao.cursor()
     cursor.execute(
         '''
-        SELECT u.id, u.email, u.tipo,
+        SELECT u.id, u.email, u.tipo, u.nome, u.disciplinas, u.matricula,
                (SELECT COUNT(*) FROM turmas t WHERE t.professor_id = u.id),
                (SELECT COUNT(*) FROM matriculas m WHERE m.aluno_id = u.id)
         FROM users u
@@ -240,8 +240,11 @@ def listar_usuarios(admin_email: str) -> dict:
             "id": linha[0],
             "email": linha[1],
             "tipo": linha[2],
-            "total_turmas": linha[3],
-            "total_matriculas": linha[4],
+            "nome": linha[3] or "",
+            "disciplinas": linha[4] or "",
+            "matricula": linha[5] or "",
+            "total_turmas": linha[6],
+            "total_matriculas": linha[7],
         }
         for linha in linhas
     ]

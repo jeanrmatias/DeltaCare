@@ -34,7 +34,7 @@ formulario.addEventListener("submit", async function (event) {
         if (dados.pagina && dados.token) {
             // O token é o que autentica as próximas requisições; sem ele, as
             // páginas de perfil mandam de volta para cá.
-            salvarUsuarioLogado({ email: dados.email, tipo: dados.tipo }, dados.token);
+            salvarUsuarioLogado({ email: dados.email, tipo: dados.tipo, nome: dados.nome || "" }, dados.token);
             window.location.href = dados.pagina;
             return;
         }
@@ -56,11 +56,12 @@ const esqueciSenha = document.querySelector("#esqueciSenha");
 esqueciSenha.addEventListener("click", async function (event) {
     event.preventDefault();
 
-    const email = prompt("Digite seu e-mail:");
+    const email = await perguntar(
+        { nome: "email", rotulo: "E-mail da conta", tipo: "email", placeholder: "nome@instituicao.edu.br" },
+        { titulo: "Recuperar senha", mensagem: "Enviaremos um código de recuperação para este e-mail.", rotulo: "Enviar código" }
+    );
 
-    if (!email) {
-        return;
-    }
+    if (!email) return;
 
     try {
         const resposta = await fetch(`${API_URL}/recuperar-senha`, {
@@ -72,34 +73,41 @@ esqueciSenha.addEventListener("click", async function (event) {
         });
 
         const dados = await resposta.json();
-        alert(dados.mensagem);
 
         if (!resposta.ok || !dados.mensagem || !dados.mensagem.startsWith("Enviamos")) {
+            await avisarErro(dados.mensagem || "Não foi possível iniciar a recuperação.");
             return;
         }
 
-        const token = prompt("Digite o código de recuperação que você recebeu:");
-        if (!token) {
-            return;
-        }
+        // Código e nova senha no mesmo diálogo: são dois campos do mesmo passo,
+        // e pedir um de cada vez fazia o usuário perder o código ao voltar.
+        const redefinicao = await perguntar(
+            [
+                { nome: "token", rotulo: "Código de recuperação" },
+                { nome: "senha", rotulo: "Nova senha", tipo: "password", minimo: 6, placeholder: "mínimo 6 caracteres" },
+            ],
+            { titulo: "Definir nova senha", mensagem: dados.mensagem, rotulo: "Redefinir" }
+        );
 
-        const novaSenha = prompt("Digite sua nova senha (mínimo 6 caracteres):");
-        if (!novaSenha) {
-            return;
-        }
+        if (!redefinicao) return;
 
         const respostaReset = await fetch(`${API_URL}/redefinir-senha`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ token: token, nova_senha: novaSenha })
+            body: JSON.stringify({ token: redefinicao.token, nova_senha: redefinicao.senha })
         });
 
         const dadosReset = await respostaReset.json();
-        alert(dadosReset.mensagem);
+
+        if (dadosReset.sucesso) {
+            await avisar(dadosReset.mensagem, "Senha redefinida");
+        } else {
+            await avisarErro(dadosReset.mensagem || "Não foi possível redefinir a senha.");
+        }
     } catch (erro) {
         console.error("Erro na recuperação de senha:", erro);
-        alert("Não foi possível conectar ao servidor. Tente novamente.");
+        await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
     }
 });

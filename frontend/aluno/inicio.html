@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Início</title>
-    <link rel="stylesheet" href="../style_dashboard.css?v=4">
-    <link rel="stylesheet" href="../style_aluno.css?v=4">
+    <link rel="stylesheet" href="../style_dashboard.css?v=8">
+    <link rel="stylesheet" href="../style_aluno.css?v=8">
 </head>
 <body>
     <div class="app">
@@ -57,6 +57,14 @@
                     <h1 id="saudacao">Olá</h1>
                     <p>Seu painel de estudos — turmas, materiais liberados e o assistente de dúvidas.</p>
                 </div>
+
+                <div class="topo-acoes">
+                    <div class="area-notificacoes">
+                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
+                        </button>
+                    </div>
+                </div>
             </header>
 
             <section class="stats">
@@ -77,6 +85,40 @@
             <p class="estado-vazio" id="semTurmas" hidden>
                 Você ainda não está matriculado em nenhuma turma. Fale com a administração.
             </p>
+
+            <section class="cartao cartao-progresso" id="cartaoProgresso" hidden>
+                <div class="progresso-topo">
+                    <div class="progresso-nivel">
+                        <span class="progresso-nivel-numero" id="progressoNivel">1</span>
+                        <span class="progresso-nivel-rotulo">Nível</span>
+                    </div>
+
+                    <div class="progresso-barra-area">
+                        <div class="progresso-barra-info">
+                            <strong id="progressoXp">0 XP</strong>
+                            <span id="progressoFaltam"></span>
+                        </div>
+                        <div class="progresso-barra">
+                            <div class="progresso-barra-preenchida" id="progressoBarra"></div>
+                        </div>
+                    </div>
+
+                    <div class="progresso-sequencia" id="progressoSequencia" hidden>
+                        <strong id="progressoSequenciaDias">0</strong>
+                        <span>dias seguidos</span>
+                    </div>
+                </div>
+
+                <div class="progresso-detalhe">
+                    <div class="progresso-composicao" id="progressoComposicao"></div>
+
+                    <div class="progresso-frequencia">
+                        <span class="progresso-frequencia-titulo">Últimos 14 dias</span>
+                        <div class="frequencia-grade" id="frequenciaGrade"></div>
+                        <span class="campo-dica" id="frequenciaResumo"></span>
+                    </div>
+                </div>
+            </section>
 
             <div class="painel" id="painelConteudo" hidden>
                 <div class="painel-coluna">
@@ -103,8 +145,10 @@
         </main>
     </div>
 
-    <script src="../config.js?v=4"></script>
-    <script src="../auth.js?v=4"></script>
-    <script src="inicio.js?v=4"></script>
+    <script src="../config.js?v=8"></script>
+    <script src="../dialogo.js?v=8"></script>
+    <script src="../auth.js?v=8"></script>
+    <script src="../notificacoes.js?v=8"></script>
+    <script src="inicio.js?v=8"></script>
 </body>
 </html>

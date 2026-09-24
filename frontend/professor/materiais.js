@@ -2,6 +2,9 @@ const usuario = exigirAcesso("professor");
 
 let turmas = [];
 let turmaSelecionadaId = null;
+// Guardadas ao carregar o seletor do topo; o formulário de publicação reusa a
+// mesma lista para montar os checkboxes, sem buscar de novo.
+let turmasDoProfessor = [];
 let editandoId = null;
 
 if (usuario) {
@@ -9,36 +12,25 @@ if (usuario) {
     document.querySelector("#botaoSair").addEventListener("click", sair);
 
     ligarPlaceholders();
+    ligarNotificacoes();
     ligarFormulario();
     carregarTurmas();
 }
 
 function montarRodapePerfil(usuario) {
-    const nome = nomeAPartirDoEmail(usuario.email);
-    document.querySelector("#avatarRodape").textContent = iniciais(nome);
+    const nome = nomeExibicao(usuario);
+    document.querySelector("#avatarRodape").textContent = iniciaisDe(nome);
     document.querySelector("#nomeRodape").textContent = `Prof. ${nome}`;
-}
-
-function nomeAPartirDoEmail(email) {
-    return email.split("@")[0]
-        .split(/[.\-_]/)
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ") || email;
-}
-
-function iniciais(nome) {
-    const partes = nome.trim().split(/\s+/);
-    const primeira = partes[0]?.[0] ?? "";
-    const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-    return (primeira + ultima).toUpperCase();
 }
 
 function ligarPlaceholders() {
     document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
-        elemento.addEventListener("click", (evento) => {
+        elemento.addEventListener("click", async (evento) => {
             evento.preventDefault();
-            alert(`${elemento.dataset.emBreve} ainda não está disponível — chega em uma próxima sprint.`);
+            avisar(
+                `${elemento.dataset.emBreve} ainda não faz parte desta versão.`,
+                "Módulo em construção"
+            );
         });
     });
 }
@@ -48,6 +40,7 @@ async function carregarTurmas() {
         const resposta = await api("/turmas");
         const dados = await resposta.json();
         turmas = dados.turmas || [];
+        turmasDoProfessor = turmas;
 
         const seletor = document.querySelector("#seletorTurma");
         const semTurmas = document.querySelector("#semTurmas");
@@ -90,6 +83,98 @@ async function carregarTurmas() {
 
 const RUTULOS_STATUS = { rascunho: "Rascunho", agendado: "Agendado", publicado: "Publicado" };
 const RUTULOS_TIPO = { pdf: "PDF", documento: "Documento", video: "Vídeo", link: "Link" };
+
+/** Ids das turmas marcadas no formulário de publicação. */
+function turmasMarcadas() {
+    return Array.from(document.querySelectorAll("#listaTurmasCheck input[data-turma]:checked"))
+        .map((entrada) => Number(entrada.dataset.turma));
+}
+
+/**
+ * Monta a lista de turmas com checkbox.
+ *
+ * `turmaPadrao` já vem marcada: quem abriu o formulário estando numa turma
+ * espera publicar nela, e ter que marcar de novo seria um passo a mais para o
+ * caso mais comum.
+ */
+function montarChecklistTurmas(turmas, turmaPadrao) {
+    const lista = document.querySelector("#listaTurmasCheck");
+    const dica = document.querySelector("#dicaTurmas");
+    if (!lista) return;
+
+    lista.innerHTML = "";
+
+    if (turmas.length === 0) {
+        dica.textContent = "Você ainda não tem turmas atribuídas.";
+        return;
+    }
+
+    // "Selecionar todas" só faz sentido com mais de uma turma.
+    if (turmas.length > 1) {
+        const rotuloTodas = document.createElement("label");
+        rotuloTodas.className = "turma-check turma-check--todas";
+
+        const todas = document.createElement("input");
+        todas.type = "checkbox";
+        todas.id = "turmasTodas";
+        todas.addEventListener("change", () => {
+            lista.querySelectorAll("input[data-turma]").forEach((entrada) => {
+                entrada.checked = todas.checked;
+            });
+            atualizarDicaTurmas();
+        });
+
+        const texto = document.createElement("span");
+        texto.textContent = "Selecionar todas";
+
+        rotuloTodas.appendChild(todas);
+        rotuloTodas.appendChild(texto);
+        lista.appendChild(rotuloTodas);
+    }
+
+    turmas.forEach((turma) => {
+        const rotulo = document.createElement("label");
+        rotulo.className = "turma-check";
+
+        const entrada = document.createElement("input");
+        entrada.type = "checkbox";
+        entrada.dataset.turma = turma.id;
+        entrada.checked = String(turma.id) === String(turmaPadrao);
+        entrada.addEventListener("change", atualizarDicaTurmas);
+
+        const texto = document.createElement("span");
+        texto.textContent = `${turma.nome} · ${turma.semestre}`;
+
+        rotulo.appendChild(entrada);
+        rotulo.appendChild(texto);
+        lista.appendChild(rotulo);
+    });
+
+    atualizarDicaTurmas();
+}
+
+function atualizarDicaTurmas() {
+    const dica = document.querySelector("#dicaTurmas");
+    const total = turmasMarcadas().length;
+
+    if (!dica) return;
+
+    if (total === 0) {
+        dica.textContent = "Nenhuma turma marcada.";
+    } else if (total === 1) {
+        dica.textContent = "O material vai para 1 turma.";
+    } else {
+        dica.textContent = `O material será publicado em ${total} turmas.`;
+    }
+
+    // Mantém o "selecionar todas" coerente com o que está marcado.
+    const todas = document.querySelector("#turmasTodas");
+    if (todas) {
+        const caixas = document.querySelectorAll("#listaTurmasCheck input[data-turma]");
+        todas.checked = total === caixas.length && total > 0;
+        todas.indeterminate = total > 0 && total < caixas.length;
+    }
+}
 
 async function carregarMateriais() {
     const lista = document.querySelector("#listaMateriais");
@@ -134,7 +219,8 @@ function criarLinhaMaterial(material) {
         // header Authorization, e colocar o token na URL o deixaria gravado no
         // histórico e nos logs do servidor. O clique busca o arquivo
         // autenticado e abre a partir de um blob local.
-        referencia = `<a href="#" data-arquivo-id="${material.id}">${material.arquivo_nome}</a>`;
+        referencia = `<a href="#" data-arquivo-id="${material.id}">${material.arquivo_nome}</a>` +
+            (podeVisualizar(material) ? ` · <a href="#" data-visualizar-id="${material.id}">visualizar</a>` : "");
     }
 
     linha.innerHTML = `
@@ -156,6 +242,14 @@ function criarLinhaMaterial(material) {
 
     linha.querySelector("[data-acao-editar]").addEventListener("click", () => abrirFormulario(material));
     linha.querySelector("[data-acao-excluir]").addEventListener("click", () => excluirMaterial(material));
+
+    const linkVisualizar = linha.querySelector("[data-visualizar-id]");
+    if (linkVisualizar) {
+        linkVisualizar.addEventListener("click", (evento) => {
+            evento.preventDefault();
+            abrirVisualizador(material, `/materiais/${material.id}/arquivo`);
+        });
+    }
 
     const linkArquivo = linha.querySelector("[data-arquivo-id]");
     if (linkArquivo) {
@@ -180,7 +274,7 @@ async function baixarArquivo(materialId, nomeArquivo) {
         const resposta = await api(`/materiais/${materialId}/arquivo`);
 
         if (!resposta.ok) {
-            alert("Não foi possível baixar o arquivo.");
+            await avisarErro("Não foi possível baixar o arquivo.");
             return;
         }
 
@@ -237,6 +331,14 @@ function abrirFormulario(material) {
 
     tipoSelect.disabled = Boolean(material);
     arquivoInput.disabled = Boolean(material);
+
+    // A escolha de turmas só existe ao criar: editar altera o registro daquela
+    // turma, e mover um material entre turmas seria outra operação.
+    const campoTurmas = document.querySelector("#campoTurmasPublicacao");
+    if (campoTurmas) {
+        campoTurmas.hidden = Boolean(material);
+        if (!material) montarChecklistTurmas(turmasDoProfessor, turmaSelecionadaId);
+    }
 
     if (material) {
         document.querySelector("#materialTitulo").value = material.titulo;
@@ -343,10 +445,17 @@ async function salvarMaterial(publicar) {
             arquivoNome = arquivo.name;
         }
 
+        const turmasEscolhidas = turmasMarcadas();
+
+        if (turmasEscolhidas.length === 0) {
+            mensagem.textContent = "Escolha pelo menos uma turma.";
+            return;
+        }
+
         const resposta = await api("/materiais", {
             method: "POST",
             body: JSON.stringify({
-                turma_id: Number(turmaSelecionadaId),
+                turma_ids: turmasEscolhidas,
                 titulo, descricao, tipo, assunto, topico, aula, semestre,
                 rascunho: !publicar,
                 data_liberacao: dataLiberacao,
@@ -372,7 +481,12 @@ async function salvarMaterial(publicar) {
 }
 
 async function excluirMaterial(material) {
-    if (!confirm(`Excluir "${material.titulo}"? Essa ação não pode ser desfeita.`)) return;
+    const confirmou = await confirmar(
+        `Excluir "${material.titulo}"?
+O arquivo e os trechos indexados para o assistente saem junto. Não há como desfazer.`,
+        { titulo: "Excluir material", rotulo: "Excluir", perigo: true }
+    );
+    if (!confirmou) return;
 
     try {
         const resposta = await api(`/materiais/${material.id}`, { method: "DELETE" });
@@ -382,10 +496,10 @@ async function excluirMaterial(material) {
             carregarMateriais();
             carregarTurmas();
         } else {
-            alert(dados.mensagem);
+            await avisarErro(dados.mensagem);
         }
     } catch (erro) {
         console.error("Erro ao excluir material:", erro);
-        alert("Não foi possível conectar ao servidor. Tente novamente.");
+        await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
     }
 }

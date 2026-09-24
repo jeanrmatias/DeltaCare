@@ -14,6 +14,7 @@ CSS aparece na tela; um erro de permissão, não.
 Usa `unittest`, da biblioteca padrão, para o projeto não ganhar dependência.
 """
 
+import base64
 import os
 import tempfile
 import unittest
@@ -30,11 +31,24 @@ from regras.autenticacao import cadastrar_usuario, criar_conta_staff, realizar_l
 from regras.aluno import (  # noqa: E402
     listar_materiais_do_aluno,
     obter_arquivo_material_do_aluno,
+    registrar_acesso_material,
     resumo_do_aluno,
 )
-from regras.materiais import atualizar_material, criar_material, excluir_material, listar_materiais  # noqa: E402
-from regras.matriculas import matricular_aluno  # noqa: E402
-from regras.turmas import criar_turma, excluir_turma  # noqa: E402
+from regras.importacao import analisar_planilha, importar_alunos  # noqa: E402
+from regras.materiais import (  # noqa: E402
+    atualizar_material,
+    criar_material,
+    criar_material_em_turmas,
+    excluir_material,
+    listar_materiais,
+)
+from regras.notificacoes import (  # noqa: E402
+    listar_notificacoes,
+    marcar_como_lida,
+    marcar_todas_como_lidas,
+)
+from regras.matriculas import listar_alunos_da_turma, matricular_aluno  # noqa: E402
+from regras.turmas import criar_turma, excluir_turma, listar_usuarios  # noqa: E402
 from infra.security import hash_senha, verificar_senha  # noqa: E402
 from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
 from regras import chat_ia  # noqa: E402
@@ -89,16 +103,16 @@ class BaseDelta(unittest.TestCase):
 
         conexao = sqlite3.connect(CAMINHO_DB)
         conexao.execute(
-            "INSERT INTO users (email, senha, tipo) VALUES (?, ?, ?)",
-            (ADMIN, hash_senha(SENHA), "adm"),
+            "INSERT INTO users (email, senha, tipo, nome) VALUES (?, ?, ?, ?)",
+            (ADMIN, hash_senha(SENHA), "adm", "Admin Teste"),
         )
         conexao.commit()
         conexao.close()
 
-        criar_conta_staff(ADMIN, PROFESSOR, SENHA, "professor")
-        criar_conta_staff(ADMIN, PROFESSOR2, SENHA, "professor")
-        cadastrar_usuario(ALUNO, SENHA, "aluno")
-        cadastrar_usuario(ALUNO_FORA, SENHA, "aluno")
+        criar_conta_staff(ADMIN, PROFESSOR, SENHA, "professor", nome="Professor Um")
+        criar_conta_staff(ADMIN, PROFESSOR2, SENHA, "professor", nome="Professor Dois")
+        cadastrar_usuario(ALUNO, SENHA, "aluno", nome="Aluno Um")
+        cadastrar_usuario(ALUNO_FORA, SENHA, "aluno", nome="Aluno Dois")
 
         self.turma_id = criar_turma(ADMIN, PROFESSOR, "Cardiologia", "2026.2")["turma"]["id"]
         matricular_aluno(ADMIN, ALUNO, self.turma_id)
@@ -148,21 +162,23 @@ class TestesContas(BaseDelta):
     def test_cadastro_publico_so_cria_aluno(self):
         """A rota pública não pode ser caminho para virar admin."""
         for tipo in ("adm", "professor"):
-            resultado = cadastrar_usuario(f"invasor_{tipo}@teste.com", SENHA, tipo)
+            resultado = cadastrar_usuario(f"invasor_{tipo}@teste.com", SENHA, tipo, nome="Invasor")
             self.assertFalse(resultado["sucesso"], f"cadastro público aceitou tipo {tipo}")
 
     def test_so_admin_cria_conta_de_staff(self):
-        resultado = criar_conta_staff(PROFESSOR, "novo@teste.com", SENHA, "professor")
+        resultado = criar_conta_staff(PROFESSOR, "novo@teste.com", SENHA, "professor", nome="Novo")
         self.assertFalse(resultado["sucesso"])
 
     def test_aluno_nao_cria_conta_de_staff(self):
-        resultado = criar_conta_staff(ALUNO, "novo@teste.com", SENHA, "adm")
+        resultado = criar_conta_staff(ALUNO, "novo@teste.com", SENHA, "adm", nome="Novo")
         self.assertFalse(resultado["sucesso"])
 
     def test_admin_cria_conta_de_qualquer_perfil(self):
         """A instituição precisa poder cadastrar aluno sem esperar ele se inscrever."""
         for tipo in ("aluno", "professor", "adm"):
-            resultado = criar_conta_staff(ADMIN, f"criado_{tipo}@teste.com", SENHA, tipo)
+            resultado = criar_conta_staff(
+                ADMIN, f"criado_{tipo}@teste.com", SENHA, tipo, nome=f"Criado {tipo}"
+            )
             self.assertTrue(resultado["sucesso"], f"admin não conseguiu criar {tipo}")
 
             login = realizar_login(f"criado_{tipo}@teste.com", SENHA)
@@ -170,7 +186,7 @@ class TestesContas(BaseDelta):
             self.assertEqual(login["tipo"], tipo)
 
     def test_conta_criada_pelo_admin_recusa_senha_curta(self):
-        resultado = criar_conta_staff(ADMIN, "curta@teste.com", "123", "professor")
+        resultado = criar_conta_staff(ADMIN, "curta@teste.com", "123", "professor", nome="Senha Curta")
         self.assertFalse(resultado["sucesso"])
 
     def test_login_correto_devolve_token(self):
@@ -455,6 +471,354 @@ class TestesExclusao(BaseDelta):
     def test_professor_nao_exclui_turma(self):
         self.assertFalse(excluir_turma(PROFESSOR, self.turma_id)["sucesso"])
         self.assertEqual(self._contar("turmas"), 1)
+
+
+# =========================================================================
+# Cadastro: nome e campos por perfil
+# =========================================================================
+
+class TestesCadastroCompleto(BaseDelta):
+
+    def test_nome_e_obrigatorio(self):
+        resultado = criar_conta_staff(ADMIN, "semnome@teste.com", SENHA, "aluno")
+        self.assertFalse(resultado["sucesso"])
+        self.assertIn("nome", resultado["mensagem"].lower())
+
+    def test_nome_aparece_no_login(self):
+        criar_conta_staff(ADMIN, "comnome@teste.com", SENHA, "professor", nome="Ana Ribeiro")
+        self.assertEqual(realizar_login("comnome@teste.com", SENHA)["nome"], "Ana Ribeiro")
+
+    def test_disciplinas_so_para_professor(self):
+        criar_conta_staff(ADMIN, "prof3@teste.com", SENHA, "professor",
+                          nome="Prof Tres", disciplinas="Neurologia")
+        criar_conta_staff(ADMIN, "aluno3@teste.com", SENHA, "aluno",
+                          nome="Aluno Tres", disciplinas="Neurologia")
+
+        por_email = {u["email"]: u for u in listar_usuarios(ADMIN)["usuarios"]}
+        self.assertEqual(por_email["prof3@teste.com"]["disciplinas"], "Neurologia")
+        self.assertEqual(por_email["aluno3@teste.com"]["disciplinas"], "")
+
+    def test_matricula_so_para_aluno(self):
+        criar_conta_staff(ADMIN, "aluno4@teste.com", SENHA, "aluno",
+                          nome="Aluno Quatro", matricula="2026999")
+        criar_conta_staff(ADMIN, "prof4@teste.com", SENHA, "professor",
+                          nome="Prof Quatro", matricula="2026999")
+
+        por_email = {u["email"]: u for u in listar_usuarios(ADMIN)["usuarios"]}
+        self.assertEqual(por_email["aluno4@teste.com"]["matricula"], "2026999")
+        self.assertEqual(por_email["prof4@teste.com"]["matricula"], "")
+
+    def test_criar_aluno_ja_matriculando_na_turma(self):
+        """Evita cadastrar a turma inteira e depois matricular um a um."""
+        resultado = criar_conta_staff(
+            ADMIN, "novo.aluno@teste.com", SENHA, "aluno",
+            nome="Novo Aluno", turma_id=self.turma_id,
+        )
+        self.assertTrue(resultado["sucesso"])
+
+        alunos = listar_alunos_da_turma(ADMIN, self.turma_id)["alunos"]
+        self.assertIn("novo.aluno@teste.com", alunos)
+
+
+# =========================================================================
+# Publicacao em varias turmas
+# =========================================================================
+
+class TestesMultiplasTurmas(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        self.turma2 = criar_turma(ADMIN, PROFESSOR, "Cardiologia II", "2026.2")["turma"]["id"]
+
+    def test_publica_nas_duas_turmas(self):
+        resultado = criar_material_em_turmas(
+            PROFESSOR, [self.turma_id, self.turma2],
+            titulo="Compartilhado", tipo="link",
+            link_url="https://exemplo.com", rascunho=False,
+        )
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(len(resultado["material_ids"]), 2)
+
+        for turma in (self.turma_id, self.turma2):
+            titulos = [m["titulo"] for m in listar_materiais(PROFESSOR, turma)["materiais"]]
+            self.assertIn("Compartilhado", titulos)
+
+    def test_turma_de_outro_professor_derruba_tudo(self):
+        """Valida antes de criar: publicacao parcial deixaria o professor sem
+        saber em quais turmas o material entrou."""
+        turma_alheia = criar_turma(ADMIN, PROFESSOR2, "De outro", "2026.2")["turma"]["id"]
+
+        resultado = criar_material_em_turmas(
+            PROFESSOR, [self.turma_id, turma_alheia],
+            titulo="Nao deve existir", tipo="link",
+            link_url="https://exemplo.com", rascunho=False,
+        )
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertEqual(len(listar_materiais(PROFESSOR, self.turma_id)["materiais"]), 0)
+
+    def test_lista_de_turmas_vazia(self):
+        resultado = criar_material_em_turmas(
+            PROFESSOR, [], titulo="Sem turma", tipo="link",
+            link_url="https://exemplo.com",
+        )
+        self.assertFalse(resultado["sucesso"])
+
+    def test_arquivo_compartilhado_sobrevive_a_exclusao_parcial(self):
+        """O arquivo e gravado uma vez e compartilhado; excluir de uma turma
+        nao pode apagar o arquivo que a outra ainda usa."""
+        import base64
+
+        conteudo = base64.b64encode(b"%PDF-1.4 conteudo de teste").decode()
+        resultado = criar_material_em_turmas(
+            PROFESSOR, [self.turma_id, self.turma2],
+            titulo="Com arquivo", tipo="documento", rascunho=False,
+            arquivo_base64=conteudo, arquivo_nome="doc.pdf",
+        )
+        self.assertTrue(resultado["sucesso"])
+
+        primeiro, segundo = resultado["material_ids"]
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        caminho = conexao.execute(
+            "SELECT arquivo_caminho FROM materiais WHERE id = ?", (segundo,)
+        ).fetchone()[0]
+        conexao.close()
+
+        self.assertTrue(os.path.exists(caminho), "arquivo nao foi gravado")
+
+        excluir_material(primeiro, PROFESSOR)
+        self.assertTrue(os.path.exists(caminho), "arquivo sumiu com a outra turma ainda usando")
+
+        excluir_material(segundo, PROFESSOR)
+        self.assertFalse(os.path.exists(caminho), "arquivo ficou orfao no disco")
+
+
+# =========================================================================
+# Notificacoes
+# =========================================================================
+
+class TestesNotificacoes(BaseDelta):
+
+    def test_matricula_avisa_o_professor(self):
+        antes = listar_notificacoes(PROFESSOR)["nao_lidas"]
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+        depois = listar_notificacoes(PROFESSOR)
+        self.assertEqual(depois["nao_lidas"], antes + 1)
+
+    def test_material_publicado_avisa_os_alunos(self):
+        self.criar_material_simples("Aula nova", rascunho=False)
+        self.assertGreaterEqual(listar_notificacoes(ALUNO)["nao_lidas"], 1)
+
+    def test_rascunho_nao_avisa_ninguem(self):
+        antes = listar_notificacoes(ALUNO)["nao_lidas"]
+        self.criar_material_simples("Rascunho silencioso", rascunho=True)
+        self.assertEqual(listar_notificacoes(ALUNO)["nao_lidas"], antes)
+
+    def test_aluno_de_outra_turma_nao_recebe(self):
+        self.criar_material_simples("So da turma 1", rascunho=False)
+        self.assertEqual(listar_notificacoes(ALUNO_FORA)["nao_lidas"], 0)
+
+    def test_marcar_como_lida(self):
+        self.criar_material_simples("Aula nova", rascunho=False)
+        notificacao = listar_notificacoes(ALUNO)["notificacoes"][0]
+
+        self.assertTrue(marcar_como_lida(ALUNO, notificacao["id"])["sucesso"])
+        self.assertEqual(listar_notificacoes(ALUNO)["nao_lidas"], 0)
+
+    def test_nao_marca_notificacao_de_outro(self):
+        """Sem o user_id no WHERE, bastaria saber o id para marcar a de outra
+        pessoa como lida."""
+        self.criar_material_simples("Aula nova", rascunho=False)
+        notificacao = listar_notificacoes(ALUNO)["notificacoes"][0]
+
+        self.assertFalse(marcar_como_lida(ALUNO_FORA, notificacao["id"])["sucesso"])
+        self.assertEqual(listar_notificacoes(ALUNO)["nao_lidas"], 1)
+
+    def test_marcar_todas(self):
+        self.criar_material_simples("Aula A", rascunho=False)
+        self.criar_material_simples("Aula B", rascunho=False)
+
+        self.assertGreaterEqual(listar_notificacoes(ALUNO)["nao_lidas"], 2)
+        marcar_todas_como_lidas(ALUNO)
+        self.assertEqual(listar_notificacoes(ALUNO)["nao_lidas"], 0)
+
+
+# =========================================================================
+# Progresso do aluno (XP e frequencia)
+# =========================================================================
+
+class TestesProgresso(BaseDelta):
+
+    def _id_aluno(self):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linha = conexao.execute("SELECT id FROM users WHERE email = ?", (ALUNO,)).fetchone()
+        conexao.close()
+        return linha[0]
+
+    def test_aluno_novo_comeca_zerado(self):
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        self.assertEqual(progresso["xp"], 0)
+        self.assertEqual(progresso["nivel"], 1)
+        self.assertEqual(progresso["sequencia"], 0)
+
+    def test_acesso_a_material_gera_xp(self):
+        material_id = self.criar_material_simples("Aula com arquivo")["material_id"]
+        registrar_acesso_material(ALUNO, material_id)
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        # 15 pelo material + 25 pelo dia de estudo
+        self.assertEqual(progresso["xp"], 40)
+        self.assertEqual(progresso["materiais_acessados"], 1)
+
+    def test_reabrir_o_mesmo_material_nao_conta_de_novo(self):
+        """Cinco aberturas do mesmo PDF nao sao cinco materiais estudados."""
+        material_id = self.criar_material_simples("Aula")["material_id"]
+
+        for _ in range(5):
+            registrar_acesso_material(ALUNO, material_id)
+
+        self.assertEqual(resumo_do_aluno(ALUNO)["progresso"]["materiais_acessados"], 1)
+
+    def test_composicao_bate_com_o_total(self):
+        material_id = self.criar_material_simples("Aula")["material_id"]
+        registrar_acesso_material(ALUNO, material_id)
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        soma = sum(item["xp"] for item in progresso["composicao"])
+        self.assertEqual(soma, progresso["xp"])
+
+    def test_acompanhamento_tem_a_janela_completa(self):
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        self.assertEqual(len(progresso["acompanhamento"]), 14)
+
+    def test_acesso_de_quem_nao_e_aluno_e_ignorado(self):
+        material_id = self.criar_material_simples("Aula")["material_id"]
+        registrar_acesso_material(PROFESSOR, material_id)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        total = conexao.execute("SELECT COUNT(*) FROM acessos_material").fetchone()[0]
+        conexao.close()
+        self.assertEqual(total, 0)
+
+
+# =========================================================================
+# Importacao em massa
+# =========================================================================
+
+class TestesImportacao(BaseDelta):
+
+    def _planilha(self, texto):
+        return base64.b64encode(texto.encode("utf-8")).decode()
+
+    def test_le_csv_com_ponto_e_virgula(self):
+        """Excel em portugues salva CSV com ponto e virgula."""
+        csv = "Nome;E-mail\nAna Costa;ana@teste.com\n"
+        resultado = analisar_planilha(self._planilha(csv), "alunos.csv")
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(len(resultado["validos"]), 1)
+        self.assertEqual(resultado["validos"][0]["nome"], "Ana Costa")
+
+    def test_le_csv_com_virgula(self):
+        csv = "Nome,E-mail\nAna Costa,ana@teste.com\n"
+        resultado = analisar_planilha(self._planilha(csv), "alunos.csv")
+        self.assertEqual(len(resultado["validos"]), 1)
+
+    def test_aceita_cabecalho_alternativo(self):
+        """A secretaria nao deveria ter que renomear as colunas."""
+        csv = "Aluno;Correio;RA\nBruno Dias;bruno@teste.com;2026\n"
+        resultado = analisar_planilha(self._planilha(csv), "alunos.csv")
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(resultado["validos"][0]["matricula"], "2026")
+
+    def test_rejeita_linha_sem_nome(self):
+        csv = "Nome;E-mail\n;semnome@teste.com\n"
+        resultado = analisar_planilha(self._planilha(csv), "alunos.csv")
+
+        self.assertEqual(len(resultado["validos"]), 0)
+        self.assertEqual(len(resultado["rejeitados"]), 1)
+        self.assertIn("nome", resultado["rejeitados"][0]["motivo"].lower())
+
+    def test_rejeita_email_invalido(self):
+        csv = "Nome;E-mail\nAna;nao-eh-email\n"
+        resultado = analisar_planilha(self._planilha(csv), "alunos.csv")
+        self.assertEqual(len(resultado["rejeitados"]), 1)
+
+    def test_rejeita_email_repetido_na_planilha(self):
+        csv = "Nome;E-mail\nAna;a@teste.com\nAna de novo;a@teste.com\n"
+        resultado = analisar_planilha(self._planilha(csv), "alunos.csv")
+
+        self.assertEqual(len(resultado["validos"]), 1)
+        self.assertEqual(len(resultado["rejeitados"]), 1)
+
+    def test_exige_colunas_obrigatorias(self):
+        csv = "Telefone;Cidade\n1199;Sao Paulo\n"
+        resultado = analisar_planilha(self._planilha(csv), "alunos.csv")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertIn("nome", resultado["mensagem"].lower())
+
+    def test_formato_nao_suportado(self):
+        resultado = analisar_planilha(self._planilha("qualquer"), "alunos.pdf")
+        self.assertFalse(resultado["sucesso"])
+
+    def test_analisar_nao_grava_nada(self):
+        """Conferir e importar sao etapas separadas de proposito."""
+        antes = len(listar_usuarios(ADMIN)["usuarios"])
+
+        csv = "Nome;E-mail\nAna Costa;ana@teste.com\n"
+        analisar_planilha(self._planilha(csv), "alunos.csv")
+
+        self.assertEqual(len(listar_usuarios(ADMIN)["usuarios"]), antes)
+
+    def test_importa_e_matricula_na_turma(self):
+        csv = "Nome;E-mail;Matricula\nAna Costa;ana@teste.com;2026\nBruno Dias;bruno@teste.com;2027\n"
+        resultado = importar_alunos(
+            ADMIN, self._planilha(csv), "alunos.csv",
+            turma_id=self.turma_id, senha_padrao=SENHA,
+        )
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(resultado["total_criados"], 2)
+
+        alunos = listar_alunos_da_turma(ADMIN, self.turma_id)["alunos"]
+        self.assertIn("ana@teste.com", alunos)
+        self.assertIn("bruno@teste.com", alunos)
+
+    def test_importado_consegue_entrar(self):
+        csv = "Nome;E-mail\nAna Costa;ana@teste.com\n"
+        importar_alunos(ADMIN, self._planilha(csv), "alunos.csv", senha_padrao=SENHA)
+
+        login = realizar_login("ana@teste.com", SENHA)
+        self.assertTrue(login["sucesso"])
+        self.assertEqual(login["nome"], "Ana Costa")
+
+    def test_linha_invalida_nao_impede_as_outras(self):
+        csv = "Nome;E-mail\nAna Costa;ana@teste.com\n;sem@teste.com\nBruno Dias;bruno@teste.com\n"
+        resultado = importar_alunos(ADMIN, self._planilha(csv), "alunos.csv", senha_padrao=SENHA)
+
+        self.assertEqual(resultado["total_criados"], 2)
+        self.assertEqual(resultado["total_rejeitados"], 1)
+
+    def test_reimportar_rejeita_duplicados(self):
+        csv = "Nome;E-mail\nAna Costa;ana@teste.com\n"
+        importar_alunos(ADMIN, self._planilha(csv), "alunos.csv", senha_padrao=SENHA)
+
+        segunda = importar_alunos(ADMIN, self._planilha(csv), "alunos.csv", senha_padrao=SENHA)
+        self.assertEqual(segunda["total_criados"], 0)
+        self.assertEqual(segunda["total_rejeitados"], 1)
+
+    def test_senha_curta_nao_importa(self):
+        csv = "Nome;E-mail\nAna Costa;ana@teste.com\n"
+        resultado = importar_alunos(ADMIN, self._planilha(csv), "alunos.csv", senha_padrao="123")
+        self.assertFalse(resultado["sucesso"])
+
+    def test_so_admin_importa(self):
+        csv = "Nome;E-mail\nAna Costa;ana@teste.com\n"
+        resultado = importar_alunos(PROFESSOR, self._planilha(csv), "alunos.csv", senha_padrao=SENHA)
+        self.assertEqual(resultado["total_criados"], 0)
 
 
 if __name__ == "__main__":

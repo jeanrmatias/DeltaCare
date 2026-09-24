@@ -14,7 +14,7 @@ não SaaS multi-tenant.
 backend/
   main.py                  - API FastAPI: rotas e dependências de autenticação
   seed_demo.py             - cria os dados de demonstração
-  testes.py                - 43 testes (rodam sem o Ollama)
+  testes.py                - 80 testes (rodam sem o Ollama)
 
   infra/                   - infraestrutura: o que o sistema USA
     database.py              schema e caminho único do banco
@@ -26,8 +26,10 @@ backend/
     autenticacao.py          login, cadastro, recuperação de senha
     turmas.py                turmas, professores, usuários
     materiais.py             materiais na visão do PROFESSOR
-    aluno.py                 materiais na visão do ALUNO
+    aluno.py                 materiais na visão do ALUNO, XP e acompanhamento
     matriculas.py            matrículas
+    notificacoes.py          avisos gerados por eventos reais
+    importacao.py            leitura de planilha CSV/XLSX (sem dependência)
     chat_ia.py               RAG: indexação, busca híbrida, resposta
 
 frontend/
@@ -37,8 +39,12 @@ frontend/
 
   config.js                 - endereço da API
   auth.js                   - token de sessão e helper api() autenticado
+  dialogo.js                - diálogos próprios (substituem alert/confirm/prompt)
   markdown.js               - renderiza a resposta da IA (sem innerHTML)
+  notificacoes.js           - sino e painel de notificações
+  visualizador.js           - abre material na plataforma, sem download
   modulos.js                - catálogo dos módulos ainda não construídos
+  testes.mjs                - testes do JavaScript (node testes.mjs)
 
   administracao/            - adm.html, adm-turmas.html, usuarios.html
   professor/                - prof.html, turmas.html, materiais.html
@@ -180,19 +186,33 @@ de outra pessoa apenas trocando esse campo.
 
 ```
 cd backend
-python testes.py
+python testes.py        # 80 testes das regras de negócio
+
+cd ../frontend
+node testes.mjs         # 27 testes do JavaScript
 ```
 
-43 testes das regras de negócio: permissões, visibilidade de material,
-sessão e integridade do banco. Rodam num banco temporário e **não precisam do
-Ollama ligado** — as funções que falam com o modelo entram como parâmetro, que
-é para isso que elas foram isoladas em `regras/chat_ia.py`.
+**Backend:** permissões, visibilidade de material, sessão, notificações,
+importação de planilha, progresso do aluno e integridade do banco ao excluir.
+Rodam num banco temporário e **não precisam do Ollama ligado** — as funções que
+falam com o modelo entram como parâmetro, que é para isso que elas foram
+isoladas em `regras/chat_ia.py`.
+
+**Frontend:** renderização de Markdown (incluindo que HTML vindo do modelo
+**não** é interpretado), nome de exibição, formatos que o visualizador aceita e
+consistência entre os links do menu e o catálogo de módulos. Usa um DOM mínimo
+escrito no próprio arquivo, em vez do jsdom — as funções testadas usam meia
+dúzia de métodos, e uma dependência de 3 MB para isso seria desproporcional.
+
+Requer Node 18+ (só para os testes; a aplicação não usa Node).
 
 ## Documentos relacionados
 
 - [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil:
   criar contas e turmas, publicar material com rascunho e agendamento, e como
   o aluno usa o assistente de estudos.
+- [`IMPLEMENTACAO.md`](IMPLEMENTACAO.md) — relatório das melhorias da última
+  rodada: o que mudou em cada item, arquivos envolvidos e como testar.
 - [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas de arquitetura, fluxo de
   autenticação, funcionamento do RAG, modelo de dados e matriz de permissões.
 - [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com

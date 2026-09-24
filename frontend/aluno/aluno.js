@@ -13,28 +13,14 @@ if (usuario) {
     carregarTurmas();
     ligarFormularioChat();
     ligarPlaceholders();
+    ligarNotificacoes();
     document.querySelector("#botaoSair").addEventListener("click", sair);
 }
 
 function montarRodapePerfil(usuario) {
-    const nome = nomeAPartirDoEmail(usuario.email);
-    document.querySelector("#avatarRodape").textContent = iniciais(nome);
+    const nome = nomeExibicao(usuario);
+    document.querySelector("#avatarRodape").textContent = iniciaisDe(nome);
     document.querySelector("#nomeRodape").textContent = nome;
-}
-
-function nomeAPartirDoEmail(email) {
-    return email.split("@")[0]
-        .split(/[.\-_]/)
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ") || email;
-}
-
-function iniciais(nome) {
-    const partes = nome.trim().split(/\s+/);
-    const primeira = partes[0]?.[0] ?? "";
-    const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-    return (primeira + ultima).toUpperCase();
 }
 
 async function carregarTurmas() {
@@ -169,10 +155,19 @@ function mostrarPensando() {
     };
 }
 
+// Controla a requisição em andamento para o botão "Parar" poder cancelá-la.
+// Sem isso, a única saída era recarregar a página.
+let geracaoEmAndamento = null;
+
 function ligarFormularioChat() {
     const formulario = document.querySelector("#chatFormulario");
     const entrada = document.querySelector("#chatEntrada");
     const botao = document.querySelector("#chatBotaoEnviar");
+    const botaoParar = document.querySelector("#chatBotaoParar");
+
+    botaoParar.addEventListener("click", () => {
+        if (geracaoEmAndamento) geracaoEmAndamento.abort();
+    });
 
     formulario.addEventListener("submit", async (evento) => {
         evento.preventDefault();
@@ -182,8 +177,9 @@ function ligarFormularioChat() {
 
         adicionarMensagem("user", pergunta);
         entrada.value = "";
-        botao.disabled = true;
-        botao.textContent = "Enviando...";
+
+        geracaoEmAndamento = new AbortController();
+        alternarModoGeracao(true, { botao, botaoParar, entrada });
 
         const removerPensando = mostrarPensando();
 
@@ -191,6 +187,7 @@ function ligarFormularioChat() {
             const resposta = await api("/chat/perguntar", {
                 method: "POST",
                 body: JSON.stringify({ turma_id: turmaAtual, pergunta: pergunta }),
+                signal: geracaoEmAndamento.signal,
             });
             const dados = await resposta.json();
 
@@ -202,21 +199,41 @@ function ligarFormularioChat() {
                 adicionarMensagem("assistant", dados.mensagem || "Não foi possível responder agora.");
             }
         } catch (erro) {
-            console.error("Erro ao perguntar:", erro);
             removerPensando();
-            adicionarMensagem("assistant", "Não foi possível conectar ao servidor. Tente novamente.");
-        }
 
-        botao.disabled = false;
-        botao.textContent = "Enviar";
+            // Cancelamento pedido pelo usuário não é erro: o navegador lança
+            // AbortError do mesmo jeito que lançaria uma falha de rede.
+            if (erro.name === "AbortError") {
+                adicionarMensagem("assistant", "_Resposta interrompida._");
+            } else {
+                console.error("Erro ao perguntar:", erro);
+                adicionarMensagem("assistant", "Não foi possível conectar ao servidor. Tente novamente.");
+            }
+        } finally {
+            geracaoEmAndamento = null;
+            alternarModoGeracao(false, { botao, botaoParar, entrada });
+        }
     });
+}
+
+/** Alterna a interface entre "pronto para perguntar" e "gerando resposta". */
+function alternarModoGeracao(gerando, { botao, botaoParar, entrada }) {
+    botao.hidden = gerando;
+    botao.disabled = gerando;
+    botaoParar.hidden = !gerando;
+    entrada.disabled = gerando;
+
+    if (!gerando) entrada.focus();
 }
 
 function ligarPlaceholders() {
     document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
-        elemento.addEventListener("click", (evento) => {
+        elemento.addEventListener("click", async (evento) => {
             evento.preventDefault();
-            alert(`${elemento.dataset.emBreve} ainda não está disponível — chega em uma próxima sprint.`);
+            avisar(
+                `${elemento.dataset.emBreve} ainda não faz parte desta versão.`,
+                "Módulo em construção"
+            );
         });
     });
 }

@@ -6,7 +6,8 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 - Raiz (`/`): arquivos globais — `index.html` (login), `script.js`, `auth.js`, `config.js`, `markdown.js`, `servir.py`, `tokens.css`, `style_index.css`, `style_dashboard.css`, `style_aluno.css`.
 - `professor/`: `prof.html` (dashboard), `materiais.html`, `turmas.html` (+ .js de cada).
 - `administracao/`: `adm.html`, `adm-turmas.html`, `usuarios.html` (+ .js de cada). **A pasta chama-se `administracao`, mas o valor de `tipo` no banco é `adm`** — os dois já estiveram trocados e quebraram o redirecionamento do login.
-- `aluno/`: `inicio.html` (tela inicial), `aluno.html` (chat de estudos), `materiais.html` (+ .js de cada).
+- `aluno/`: `inicio.html` (tela inicial com XP), `aluno.html` (chat de estudos), `materiais.html` (+ .js de cada).
+- Globais acrescentados: `dialogo.js` (diálogos no lugar de alert/confirm/prompt), `notificacoes.js` (sino), `visualizador.js` (abre material sem baixar), `modulos.js` (catálogo do que ainda não existe).
 - Páginas dentro de subpasta referenciam os arquivos globais com `../` (ex.: `../auth.js`).
 - Os `<script>` e `<link>` levam `?v=N`. Ao mexer em .js/.css compartilhado, subir esse número evita o navegador usar a versão antiga.
 
@@ -19,7 +20,7 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 - O primeiro admin nasce só pelo `seed_demo.py`, inserido direto no banco: o cadastro público só cria aluno e `criar_conta_staff` exige um admin já existente.
 
 ## Testes
-`python backend/testes.py` roda 43 testes num banco temporário (variável `DELTACARE_DB`), sem precisar do Ollama. O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de material, sessão e integridade do banco ao excluir. Interface e formatação ficam de fora — erro de CSS aparece na tela, erro de permissão não.
+`python backend/testes.py` roda 80 testes num banco temporário, e `node frontend/testes.mjs` roda 27 do JavaScript. Os de backend rodam num banco temporário (variável `DELTACARE_DB`), sem precisar do Ollama. O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de material, sessão e integridade do banco ao excluir. Interface e formatação ficam de fora — erro de CSS aparece na tela, erro de permissão não.
 
 ## Regras de permissão (todas validadas no backend, não só escondidas na UI)
 - Só **admin** cria/exclui turma e matricula/desmatricula aluno.
@@ -50,6 +51,16 @@ Medido com uma apostila de 18 trechos e fatos únicos por seção:
 ### Por que não dá pra tirar o julgamento do modelo
 Medimos os scores de similaridade: pergunta válida deu 0,70 e pergunta fora do material deu 0,65. A margem é estreita demais pra um corte por limiar — qualquer valor que barrasse a pergunta fora do material também barraria uma legítima. Quem decide se o material responde à pergunta é o modelo, e ele acertou em todos os testes. O que é **forma** (formato, validação, limpeza) fica no código; o que é **significado** fica com o modelo.
 
+## Decisões da rodada de melhorias (set/2026)
+Detalhamento completo em `IMPLEMENTACAO.md`. As que mais afetam quem for mexer no código:
+
+- **Notificações vêm de eventos reais**, não de contador fixo. Material agendado é avisado quando alguém abre o sino e a data já passou — evita uma tarefa periódica só para isso, e `materiais.notificado` impede repetir.
+- **Publicar em N turmas cria N registros**, porque `turma_id` está na linha do material. Mas o arquivo é gravado uma vez e o caminho compartilhado; por isso `excluir_material` conta referências antes de apagar do disco.
+- **XP vem só de atividade registrada** (perguntas, materiais distintos abertos, dias ativos). Nada é estimado — foi o que permitiu ter gamificação sem o módulo de Atividades existir. A tabela `acessos_material` foi criada para isso, e é alimentada só depois da checagem de permissão.
+- **O visualizador usa blob, não iframe com URL da API**: navegação de iframe não manda o header `Authorization`, e token na URL fica no histórico e nos logs.
+- **Importação de planilha sem dependência nova**: `.xlsx` é ZIP com XML, lido com `zipfile` + `ElementTree`. Conferir e importar são etapas separadas, para uma planilha meio errada não criar metade das contas.
+- **PDF na importação foi avaliado e recusado**: texto de PDF não tem estrutura de tabela, e adivinhar coluna por posição erra em silêncio — um aluno com a matrícula de outro é pior que pedir a planilha.
+
 ## O que falta pra virar produto de verdade (não só pitch)
 - Sem HTTPS: o token viaja em texto claro. Aceitável em rede local de demonstração, obrigatório antes de qualquer dado real.
 - Rate limiting no login/recuperação de senha.
@@ -58,7 +69,8 @@ Medimos os scores de similaridade: pergunta válida deu 0,70 e pergunta fora do 
 - Serviço de e-mail de verdade pra recuperação de senha (hoje só imprime no console).
 - Indexar outros tipos de material pro chat (vídeo precisa de transcrição; link precisa de scraping).
 - Contexto de 4096 tokens limita o `TOP_K` a 10 (ver abaixo). Para apostilas muito maiores, o caminho é aumentar o contexto — o que custa VRAM numa GPU já cheia — ou reordenar os trechos com um reranker.
-- Módulo de Atividades (Sprint 3 do backlog), chat professor↔aluno, notificações, favoritos e anotações.
+- Módulo de Atividades (Sprint 3 do backlog), chat professor↔aluno, favoritos e anotações.
+- Autosserviço de perfil (o próprio usuário editar seus dados) — marcado como futuro no documento de melhorias.
 - LGPD: política de privacidade e termo de uso.
 
 ## Serviço de IA em produção (se for além da demonstração)

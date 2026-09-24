@@ -16,28 +16,13 @@ if (usuario) {
     montarRodapePerfil(usuario);
     iniciar();
     ligarPlaceholders();
+    ligarNotificacoes();
     document.querySelector("#botaoSair").addEventListener("click", sair);
 }
 
-function nomeAPartirDoEmail(email) {
-    const apelido = (email || "").split("@")[0].replace(/[._-]+/g, " ");
-    return apelido
-        .split(" ")
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ");
-}
-
-function iniciais(nome) {
-    const partes = (nome || "").trim().split(/\s+/).filter(Boolean);
-    if (partes.length === 0) return "--";
-    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
-    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
-}
-
 function montarRodapePerfil(usuario) {
-    const nome = nomeAPartirDoEmail(usuario.email);
-    document.querySelector("#avatarRodape").textContent = iniciais(nome);
+    const nome = nomeExibicao(usuario);
+    document.querySelector("#avatarRodape").textContent = iniciaisDe(nome);
     document.querySelector("#nomeRodape").textContent = nome;
 }
 
@@ -60,6 +45,66 @@ async function iniciar() {
     await carregarMateriais();
 
     document.querySelector("#campoBusca").addEventListener("input", desenharLista);
+
+    ["#filtroAssunto", "#filtroTopico", "#filtroTipo", "#filtroPeriodo"].forEach((seletor) => {
+        document.querySelector(seletor).addEventListener("change", desenharLista);
+    });
+
+    document.querySelector("#botaoLimparFiltros").addEventListener("click", () => {
+        ["#filtroAssunto", "#filtroTopico", "#filtroTipo", "#filtroPeriodo"].forEach((seletor) => {
+            document.querySelector(seletor).value = "";
+        });
+        document.querySelector("#campoBusca").value = "";
+        desenharLista();
+    });
+}
+
+/**
+ * Preenche os seletores com os valores que existem nos materiais carregados.
+ *
+ * Uma lista fixa de assuntos ofereceria filtros que não retornam nada — e
+ * esconderia assuntos que o professor cadastrou.
+ */
+function montarOpcoesDeFiltro() {
+    const filtros = document.querySelector("#filtrosMateriais");
+    if (!filtros) return;
+
+    if (materiaisCarregados.length === 0) {
+        filtros.hidden = true;
+        return;
+    }
+
+    filtros.hidden = false;
+
+    const preencher = (seletor, valores, formatar) => {
+        const campo = document.querySelector(seletor);
+        const escolhido = campo.value;
+
+        campo.innerHTML = '<option value="">Todos</option>';
+
+        Array.from(valores)
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, "pt-BR"))
+            .forEach((valor) => {
+                const opcao = document.createElement("option");
+                opcao.value = valor;
+                opcao.textContent = formatar ? formatar(valor) : valor;
+                campo.appendChild(opcao);
+            });
+
+        // Mantém a escolha do usuário se ela ainda existir na lista nova.
+        if (escolhido && Array.from(valores).includes(escolhido)) {
+            campo.value = escolhido;
+        }
+    };
+
+    preencher("#filtroAssunto", new Set(materiaisCarregados.map((m) => m.assunto)));
+    preencher("#filtroTopico", new Set(materiaisCarregados.map((m) => m.topico)));
+    preencher(
+        "#filtroTipo",
+        new Set(materiaisCarregados.map((m) => m.tipo)),
+        (valor) => ROTULOS_TIPO[valor] || valor
+    );
 }
 
 async function carregarTurmas() {
@@ -118,6 +163,7 @@ async function carregarMateriais() {
         }
 
         materiaisCarregados = dados.materiais || [];
+        montarOpcoesDeFiltro();
         desenharLista();
     } catch (erro) {
         console.error("Erro ao carregar materiais:", erro);
@@ -134,8 +180,27 @@ function desenharLista() {
 
     const termo = document.querySelector("#campoBusca").value.trim().toLowerCase();
 
+    const assunto = document.querySelector("#filtroAssunto").value;
+    const topico = document.querySelector("#filtroTopico").value;
+    const tipo = document.querySelector("#filtroTipo").value;
+    const periodo = document.querySelector("#filtroPeriodo").value;
+
+    const limite = periodo
+        ? Date.now() - Number(periodo) * 24 * 60 * 60 * 1000
+        : null;
+
     const filtrados = materiaisCarregados.filter((material) => {
+        if (assunto && material.assunto !== assunto) return false;
+        if (topico && material.topico !== topico) return false;
+        if (tipo && material.tipo !== tipo) return false;
+
+        if (limite) {
+            const criado = new Date(material.criado_em).getTime();
+            if (Number.isNaN(criado) || criado < limite) return false;
+        }
+
         if (!termo) return true;
+
         const alvo = [material.titulo, material.assunto, material.topico, material.aula, material.descricao]
             .filter(Boolean)
             .join(" ")
@@ -223,9 +288,22 @@ function montarLinha(material) {
         link.textContent = "Abrir link";
         acoes.appendChild(link);
     } else if (material.arquivo_nome) {
+        // Visualizar vem antes de Baixar: ver na plataforma é o caminho
+        // esperado, e baixar passa a ser a alternativa.
+        if (podeVisualizar(material)) {
+            const ver = document.createElement("button");
+            ver.type = "button";
+            ver.className = "acao acao--primaria";
+            ver.textContent = "Visualizar";
+            ver.addEventListener("click", () =>
+                abrirVisualizador(material, `/aluno/materiais/${material.id}/arquivo`)
+            );
+            acoes.appendChild(ver);
+        }
+
         const botao = document.createElement("button");
         botao.type = "button";
-        botao.className = "acao acao--primaria";
+        botao.className = podeVisualizar(material) ? "acao" : "acao acao--primaria";
         botao.textContent = "Baixar";
         botao.addEventListener("click", () => baixarArquivo(botao, material));
         acoes.appendChild(botao);
@@ -252,7 +330,7 @@ async function baixarArquivo(botao, material) {
         const resposta = await api(`/aluno/materiais/${material.id}/arquivo`);
 
         if (!resposta.ok) {
-            alert("Não foi possível baixar este material.");
+            await avisarErro("Não foi possível baixar este material.");
             return;
         }
 
@@ -277,9 +355,12 @@ async function baixarArquivo(botao, material) {
 
 function ligarPlaceholders() {
     document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
-        elemento.addEventListener("click", (evento) => {
+        elemento.addEventListener("click", async (evento) => {
             evento.preventDefault();
-            alert(`${elemento.dataset.emBreve} ainda não está disponível nesta versão.`);
+            avisar(
+                `${elemento.dataset.emBreve} ainda não faz parte desta versão.`,
+                "Módulo em construção"
+            );
         });
     });
 }

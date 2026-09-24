@@ -32,12 +32,12 @@ def realizar_login(email: str, senha: str) -> dict:
 
     conexao = _conectar()
     cursor = conexao.cursor()
-    cursor.execute("SELECT id, senha, tipo FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT id, senha, tipo, nome FROM users WHERE email = ?", (email,))
     usuario = cursor.fetchone()
     conexao.close()
 
     if usuario and verificar_senha(senha, usuario[1]):
-        user_id, _, tipo = usuario
+        user_id, _, tipo, nome = usuario
         pagina = PAGINAS.get(tipo)
         if pagina:
             # O token é o que prova a identidade nas requisições seguintes —
@@ -50,13 +50,16 @@ def realizar_login(email: str, senha: str) -> dict:
                 "pagina": pagina,
                 "email": email,
                 "tipo": tipo,
+                # Contas anteriores à coluna `nome` não têm esse dado; o front
+                # cai no e-mail nesse caso.
+                "nome": nome or "",
                 "token": criar_sessao(user_id),
             }
 
     return {"sucesso": False, "mensagem": "E-mail ou senha incorretos."}
 
 
-def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:
+def cadastrar_usuario(email: str, senha: str, tipo: str, nome: str = "") -> dict:
     """Cadastro público. Só cria conta de aluno — professor e admin são
     contas de confiança e só podem ser criadas por um administrador
     (ver criar_conta_staff), senão qualquer pessoa poderia se cadastrar
@@ -64,12 +67,16 @@ def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:
     """
     email = email.strip().lower()
     tipo = tipo.strip().lower()
+    nome = (nome or "").strip()
 
     if tipo != "aluno":
         return {
             "sucesso": False,
             "mensagem": "O cadastro público é só para conta de aluno.",
         }
+
+    if not nome:
+        return {"sucesso": False, "mensagem": "Informe seu nome completo."}
 
     if len(senha) < 6:
         return {"sucesso": False, "mensagem": "A senha precisa ter pelo menos 6 caracteres."}
@@ -83,8 +90,8 @@ def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:
         return {"sucesso": False, "mensagem": "Já existe uma conta com esse e-mail."}
 
     cursor.execute(
-        "INSERT INTO users (email, senha, tipo) VALUES (?, ?, ?)",
-        (email, hash_senha(senha), tipo),
+        "INSERT INTO users (email, senha, tipo, nome) VALUES (?, ?, ?, ?)",
+        (email, hash_senha(senha), tipo, nome),
     )
     conexao.commit()
     conexao.close()
@@ -92,7 +99,16 @@ def cadastrar_usuario(email: str, senha: str, tipo: str) -> dict:
     return {"sucesso": True, "mensagem": "Conta criada com sucesso!"}
 
 
-def criar_conta_staff(admin_email: str, email: str, senha: str, tipo: str) -> dict:
+def criar_conta_staff(
+    admin_email: str,
+    email: str,
+    senha: str,
+    tipo: str,
+    nome: str = "",
+    disciplinas: str = "",
+    matricula: str = "",
+    turma_id: int | None = None,
+) -> dict:
     """Cria conta de qualquer perfil. Só um admin já existente pode chamar
     isso (mesmo padrão de permissão usado em regras/turmas.criar_turma).
 
@@ -101,13 +117,22 @@ def criar_conta_staff(admin_email: str, email: str, senha: str, tipo: str) -> di
     perfil, e por isso `cadastrar_usuario` só cria aluno. Aqui quem cria já é
     um administrador autenticado, e uma instituição precisa poder cadastrar a
     turma inteira sem depender de cada aluno se inscrever sozinho.
+
+    `disciplinas` só vale para professor e `matricula` só para aluno; cada um é
+    ignorado nos outros perfis em vez de dar erro, para o formulário poder
+    enviar sempre o mesmo corpo. `turma_id` matricula o aluno já na criação —
+    é o que evita cadastrar a turma inteira e depois matricular um a um.
     """
     admin_email = admin_email.strip().lower()
     email = email.strip().lower()
     tipo = tipo.strip().lower()
+    nome = (nome or "").strip()
 
     if tipo not in ("professor", "adm", "aluno"):
         return {"sucesso": False, "mensagem": "Tipo inválido. Use 'aluno', 'professor' ou 'adm'."}
+
+    if not nome:
+        return {"sucesso": False, "mensagem": "Informe o nome completo."}
 
     if len(senha) < 6:
         return {"sucesso": False, "mensagem": "A senha precisa ter pelo menos 6 caracteres."}
@@ -127,11 +152,29 @@ def criar_conta_staff(admin_email: str, email: str, senha: str, tipo: str) -> di
         return {"sucesso": False, "mensagem": "Já existe uma conta com esse e-mail."}
 
     cursor.execute(
-        "INSERT INTO users (email, senha, tipo) VALUES (?, ?, ?)",
-        (email, hash_senha(senha), tipo),
+        "INSERT INTO users (email, senha, tipo, nome, disciplinas, matricula) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            email,
+            hash_senha(senha),
+            tipo,
+            nome,
+            (disciplinas or "").strip() if tipo == "professor" else None,
+            (matricula or "").strip() if tipo == "aluno" else None,
+        ),
     )
     conexao.commit()
     conexao.close()
+
+    if tipo == "aluno" and turma_id:
+        from regras.matriculas import matricular_aluno
+
+        resultado = matricular_aluno(admin_email, email, turma_id)
+        if not resultado.get("sucesso"):
+            return {
+                "sucesso": True,
+                "mensagem": f"Conta criada, mas não foi possível matricular: {resultado.get('mensagem')}",
+            }
+        return {"sucesso": True, "mensagem": "Conta criada e aluno matriculado na turma!"}
 
     return {"sucesso": True, "mensagem": "Conta criada com sucesso!"}
 

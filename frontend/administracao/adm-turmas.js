@@ -5,28 +5,14 @@ if (usuario) {
     carregarProfessoresETurmas();
     ligarFormularioTurma();
     ligarPlaceholders();
+    ligarNotificacoes();
     document.querySelector("#botaoSair").addEventListener("click", sair);
 }
 
 function montarRodapePerfil(usuario) {
-    const nome = nomeAPartirDoEmail(usuario.email);
-    document.querySelector("#avatarRodape").textContent = iniciais(nome);
+    const nome = nomeExibicao(usuario);
+    document.querySelector("#avatarRodape").textContent = iniciaisDe(nome);
     document.querySelector("#nomeRodape").textContent = nome;
-}
-
-function nomeAPartirDoEmail(email) {
-    return email.split("@")[0]
-        .split(/[.\-_]/)
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ") || email;
-}
-
-function iniciais(nome) {
-    const partes = nome.trim().split(/\s+/);
-    const primeira = partes[0]?.[0] ?? "";
-    const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-    return (primeira + ultima).toUpperCase();
 }
 
 async function carregarProfessoresETurmas() {
@@ -155,9 +141,12 @@ function ligarFormularioTurma() {
 }
 
 async function excluirTurma(turma) {
-    if (!confirm(`Excluir a turma "${turma.nome} · ${turma.semestre}" de ${turma.professor_email}? Os materiais dela também serão excluídos.`)) {
-        return;
-    }
+    const confirmou = await confirmar(
+        `Excluir a turma "${turma.nome} · ${turma.semestre}" de ${turma.professor_email}?\nOs materiais dela, as matrículas e o histórico de conversa saem junto. Não há como desfazer.`,
+        { titulo: "Excluir turma", rotulo: "Excluir", perigo: true }
+    );
+
+    if (!confirmou) return;
 
     try {
         const resposta = await api(`/admin/turmas/${turma.id}`, { method: "DELETE" });
@@ -166,11 +155,11 @@ async function excluirTurma(turma) {
         if (dados.sucesso) {
             carregarTurmas();
         } else {
-            alert(dados.mensagem);
+            await avisarErro(dados.mensagem);
         }
     } catch (erro) {
         console.error("Erro ao excluir turma:", erro);
-        alert("Não foi possível conectar ao servidor. Tente novamente.");
+        await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
     }
 }
 
@@ -264,7 +253,11 @@ async function carregarAlunosDaTurma(turma, painel) {
 }
 
 async function desmatricular(turma, alunoEmail, painel) {
-    if (!confirm(`Remover ${alunoEmail} da turma "${turma.nome}"?`)) return;
+    const confirmou = await confirmar(
+        `Remover ${alunoEmail} da turma "${turma.nome}"?`,
+        { titulo: "Remover matrícula", rotulo: "Remover", perigo: true }
+    );
+    if (!confirmou) return;
 
     try {
         const resposta = await api("/admin/matriculas", {
@@ -276,19 +269,22 @@ async function desmatricular(turma, alunoEmail, painel) {
         if (dados.sucesso) {
             carregarAlunosDaTurma(turma, painel);
         } else {
-            alert(dados.mensagem);
+            await avisarErro(dados.mensagem);
         }
     } catch (erro) {
         console.error("Erro ao desmatricular aluno:", erro);
-        alert("Não foi possível conectar ao servidor. Tente novamente.");
+        await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
     }
 }
 
 function ligarPlaceholders() {
     document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
-        elemento.addEventListener("click", (evento) => {
+        elemento.addEventListener("click", async (evento) => {
             evento.preventDefault();
-            alert(`${elemento.dataset.emBreve} ainda não está disponível — chega em uma próxima sprint.`);
+            avisar(
+                `${elemento.dataset.emBreve} ainda não faz parte desta versão.`,
+                "Módulo em construção"
+            );
         });
     });
 }

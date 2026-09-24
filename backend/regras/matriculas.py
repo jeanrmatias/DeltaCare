@@ -42,7 +42,23 @@ def matricular_aluno(admin_email: str, aluno_email: str, turma_id: int) -> dict:
         (aluno[0], turma_id, agora),
     )
     conexao.commit()
+
+    turma = cursor.execute("SELECT nome FROM turmas WHERE id = ?", (turma_id,)).fetchone()
+    linha_nome = cursor.execute("SELECT nome FROM users WHERE id = ?", (aluno[0],)).fetchone()
     conexao.close()
+
+    # Import aqui dentro para evitar ciclo: notificacoes importa de turmas, que
+    # é de onde este módulo também importa.
+    from regras.notificacoes import notificar_professor_da_turma
+
+    nome_aluno = (linha_nome[0] if linha_nome and linha_nome[0] else aluno_email)
+    notificar_professor_da_turma(
+        turma_id,
+        "matricula",
+        "Novo aluno na turma",
+        f"{nome_aluno} foi matriculado em {turma[0] if turma else 'uma turma sua'}.",
+        "turmas.html",
+    )
 
     return {"sucesso": True, "mensagem": "Aluno matriculado com sucesso!"}
 

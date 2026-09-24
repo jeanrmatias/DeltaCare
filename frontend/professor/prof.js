@@ -14,6 +14,7 @@ const usuario = exigirAcesso("professor");
 if (usuario) {
     montarSaudacao(usuario);
     ligarMenuAvatar();
+    ligarNotificacoes();
     ligarPlaceholders();
     carregarResumoTurmas();
 
@@ -172,25 +173,8 @@ function montarMateriaisRecentes(materiais) {
     });
 }
 
-function nomeAPartirDoEmail(email) {
-    const usuarioParte = email.split("@")[0];
-    const nome = usuarioParte
-        .split(/[.\-_]/)
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ");
-    return nome || email;
-}
-
-function iniciais(nome) {
-    const partes = nome.trim().split(/\s+/);
-    const primeira = partes[0]?.[0] ?? "";
-    const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-    return (primeira + ultima).toUpperCase();
-}
-
 function montarSaudacao(usuario) {
-    const nome = nomeAPartirDoEmail(usuario.email);
+    const nome = nomeExibicao(usuario);
     const primeiroNome = nome.split(" ")[0];
 
     document.querySelector("#saudacao").textContent = `Olá, Prof. ${primeiroNome}`;
@@ -205,7 +189,7 @@ function montarSaudacao(usuario) {
     document.querySelector("#dataHoje").textContent =
         dataFormatada.charAt(0).toUpperCase() + dataFormatada.slice(1);
 
-    const sigla = iniciais(nome);
+    const sigla = iniciaisDe(nome);
     document.querySelector("#avatarRodape").textContent = sigla;
     document.querySelector("#nomeRodape").textContent = `Prof. ${nome}`;
     document.querySelector("#botaoAvatar").textContent = sigla;
@@ -236,6 +220,6 @@ function ligarPlaceholders() {
     });
 }
 
-function avisoEmBreve(nomeFuncionalidade) {
-    alert(`${nomeFuncionalidade} ainda não está disponível — chega em uma próxima sprint.`);
+async function avisoEmBreve(nomeFuncionalidade) {
+    await avisar(`${nomeFuncionalidade} ainda não faz parte desta versão.`, "Módulo em construção");
 }

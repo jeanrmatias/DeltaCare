@@ -4,28 +4,14 @@ if (usuario) {
     montarSaudacao(usuario);
     carregarResumo();
     ligarPlaceholders();
+    ligarNotificacoes();
     document.querySelector("#botaoSair").addEventListener("click", sair);
 }
 
-function nomeAPartirDoEmail(email) {
-    return email.split("@")[0]
-        .split(/[.\-_]/)
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ") || email;
-}
-
-function iniciais(nome) {
-    const partes = nome.trim().split(/\s+/);
-    const primeira = partes[0]?.[0] ?? "";
-    const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-    return (primeira + ultima).toUpperCase();
-}
-
 function montarSaudacao(usuario) {
-    const nome = nomeAPartirDoEmail(usuario.email);
+    const nome = nomeExibicao(usuario);
     document.querySelector("#saudacao").textContent = `Olá, ${nome}`;
-    document.querySelector("#avatarRodape").textContent = iniciais(nome);
+    document.querySelector("#avatarRodape").textContent = iniciaisDe(nome);
     document.querySelector("#nomeRodape").textContent = nome;
 }
 
@@ -51,9 +37,12 @@ async function carregarResumo() {
 
 function ligarPlaceholders() {
     document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
-        elemento.addEventListener("click", (evento) => {
+        elemento.addEventListener("click", async (evento) => {
             evento.preventDefault();
-            alert(`${elemento.dataset.emBreve} ainda não está disponível — chega em uma próxima sprint.`);
+            avisar(
+                `${elemento.dataset.emBreve} ainda não faz parte desta versão.`,
+                "Módulo em construção"
+            );
         });
     });
 }

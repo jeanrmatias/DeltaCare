@@ -12,29 +12,14 @@ if (usuario) {
     montarRodapePerfil(usuario);
     carregarResumo();
     ligarPlaceholders();
+    ligarNotificacoes();
     document.querySelector("#botaoSair").addEventListener("click", sair);
 }
 
-function nomeAPartirDoEmail(email) {
-    const apelido = (email || "").split("@")[0].replace(/[._-]+/g, " ");
-    return apelido
-        .split(" ")
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ");
-}
-
-function iniciais(nome) {
-    const partes = (nome || "").trim().split(/\s+/).filter(Boolean);
-    if (partes.length === 0) return "--";
-    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
-    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
-}
-
 function montarRodapePerfil(usuario) {
-    const nome = nomeAPartirDoEmail(usuario.email);
+    const nome = nomeExibicao(usuario);
     document.querySelector("#saudacao").textContent = `Olá, ${nome}`;
-    document.querySelector("#avatarRodape").textContent = iniciais(nome);
+    document.querySelector("#avatarRodape").textContent = iniciaisDe(nome);
     document.querySelector("#nomeRodape").textContent = nome;
 }
 
@@ -79,6 +64,7 @@ async function carregarResumo() {
         semTurmas.hidden = true;
         painel.hidden = false;
 
+        montarProgresso(dados.progresso);
         montarTurmas(dados.turmas || []);
         montarRecentes(dados.materiais_recentes || []);
     } catch (erro) {
@@ -86,6 +72,93 @@ async function carregarResumo() {
         semTurmas.hidden = false;
         semTurmas.textContent = "Não foi possível conectar ao servidor. Tente novamente.";
     }
+}
+
+/**
+ * Desenha o cartão de progresso.
+ *
+ * Todo número aqui vem do servidor, calculado sobre o que o aluno realmente
+ * fez (perguntas ao assistente, materiais abertos, dias com atividade). A
+ * composição fica visível de propósito: XP sem explicação de origem não
+ * engaja, irrita.
+ */
+function montarProgresso(progresso) {
+    const cartao = document.querySelector("#cartaoProgresso");
+    if (!cartao || !progresso) return;
+
+    cartao.hidden = false;
+
+    document.querySelector("#progressoNivel").textContent = progresso.nivel;
+    document.querySelector("#progressoXp").textContent = `${progresso.xp} XP`;
+
+    const faltam = progresso.xp_para_proximo_nivel - progresso.xp_no_nivel;
+    document.querySelector("#progressoFaltam").textContent =
+        `faltam ${faltam} XP para o nível ${progresso.nivel + 1}`;
+
+    const percentual = Math.round((progresso.xp_no_nivel / progresso.xp_para_proximo_nivel) * 100);
+    document.querySelector("#progressoBarra").style.width = `${percentual}%`;
+
+    // A sequência só aparece quando existe: "0 dias seguidos" é um lembrete
+    // de fracasso, não um incentivo.
+    const sequencia = document.querySelector("#progressoSequencia");
+    if (progresso.sequencia > 0) {
+        sequencia.hidden = false;
+        document.querySelector("#progressoSequenciaDias").textContent = progresso.sequencia;
+    } else {
+        sequencia.hidden = true;
+    }
+
+    montarComposicao(progresso.composicao || []);
+    montarFrequencia(progresso.acompanhamento || [], progresso.dias_ativos || 0);
+}
+
+function montarComposicao(itens) {
+    const area = document.querySelector("#progressoComposicao");
+    area.innerHTML = "";
+
+    itens.forEach((item) => {
+        const linha = document.createElement("div");
+        linha.className = "composicao-linha";
+
+        const rotulo = document.createElement("span");
+        rotulo.className = "composicao-rotulo";
+        rotulo.textContent = item.rotulo;
+
+        const valor = document.createElement("span");
+        valor.className = "composicao-valor";
+        valor.textContent = `${item.quantidade} · ${item.xp} XP`;
+
+        linha.appendChild(rotulo);
+        linha.appendChild(valor);
+        area.appendChild(linha);
+    });
+}
+
+function montarFrequencia(dias, totalDiasAtivos) {
+    const grade = document.querySelector("#frequenciaGrade");
+    const resumo = document.querySelector("#frequenciaResumo");
+
+    grade.innerHTML = "";
+
+    dias.forEach((entrada) => {
+        const quadrado = document.createElement("span");
+        quadrado.className = `frequencia-dia${entrada.ativo ? " frequencia-dia--ativo" : ""}`;
+
+        // title e aria-label: o quadradinho sozinho não diz que dia é.
+        const data = new Date(`${entrada.dia}T12:00:00`);
+        const rotulo = data.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+        const estado = entrada.ativo ? "com estudo" : "sem registro";
+
+        quadrado.title = `${rotulo} — ${estado}`;
+        quadrado.setAttribute("aria-label", `${rotulo}, ${estado}`);
+
+        grade.appendChild(quadrado);
+    });
+
+    const ativosNaJanela = dias.filter((d) => d.ativo).length;
+    resumo.textContent = ativosNaJanela === 0
+        ? "Nenhum estudo registrado nas últimas duas semanas."
+        : `${ativosNaJanela} de ${dias.length} dias com estudo · ${totalDiasAtivos} no total`;
 }
 
 function montarTurmas(turmas) {
@@ -163,9 +236,12 @@ function montarRecentes(materiais) {
 
 function ligarPlaceholders() {
     document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
-        elemento.addEventListener("click", (evento) => {
+        elemento.addEventListener("click", async (evento) => {
             evento.preventDefault();
-            alert(`${elemento.dataset.emBreve} ainda não está disponível nesta versão.`);
+            avisar(
+                `${elemento.dataset.emBreve} ainda não faz parte desta versão.`,
+                "Módulo em construção"
+            );
         });
     });
 }

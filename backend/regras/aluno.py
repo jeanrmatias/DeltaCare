@@ -12,7 +12,7 @@ Misturar as duas visões na mesma função convidaria a um erro de filtro que
 vazaria material não liberado. Aqui a regra do aluno fica isolada e explícita.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from regras.turmas import buscar_usuario, conectar
 
@@ -154,6 +154,134 @@ def obter_arquivo_material_do_aluno(aluno_email: str, material_id: int):
     return caminho, nome_original
 
 
+# Quanto vale cada ação no XP. Os pesos são pequenos e explicados na tela: um
+# número de "pontos" que o aluno não sabe de onde vem não engaja, irrita.
+XP_POR_PERGUNTA = 10
+XP_POR_MATERIAL_ACESSADO = 15
+XP_POR_DIA_ATIVO = 25
+
+# Quantos XP cada nível exige. Progressão linear de propósito: o módulo de
+# Atividades ainda não existe, e uma curva elaborada agora seria calibrada
+# sobre metade dos dados que o sistema vai ter depois.
+XP_POR_NIVEL = 150
+
+DIAS_ACOMPANHAMENTO = 14
+
+
+def registrar_acesso_material(aluno_email: str, material_id: int) -> None:
+    """Anota que o aluno abriu um material.
+
+    Silencioso de propósito: uma falha ao registrar estatística não pode
+    impedir o download que o aluno pediu.
+    """
+    try:
+        conexao = conectar()
+        aluno = _buscar_aluno(conexao, aluno_email)
+
+        if aluno:
+            conexao.execute(
+                "INSERT INTO acessos_material (aluno_id, material_id, criado_em) VALUES (?, ?, ?)",
+                (aluno[0], material_id, datetime.now(timezone.utc).isoformat()),
+            )
+            conexao.commit()
+
+        conexao.close()
+    except Exception:
+        pass
+
+
+def _dias_com_atividade(cursor, aluno_id: int) -> set:
+    """Dias (AAAA-MM-DD) em que o aluno perguntou ou abriu material."""
+    consulta = (
+        "SELECT DISTINCT substr(criado_em, 1, 10) FROM chat_mensagens "
+        "WHERE aluno_id = ? AND papel = 'user' "
+        "UNION "
+        "SELECT DISTINCT substr(criado_em, 1, 10) FROM acessos_material "
+        "WHERE aluno_id = ?"
+    )
+    return {linha[0] for linha in cursor.execute(consulta, (aluno_id, aluno_id)).fetchall()}
+
+
+def _calcular_progresso(aluno_id: int) -> dict:
+    """XP e frequência de estudo, a partir do que o sistema registrou de fato.
+
+    Nada aqui é estimado: perguntas vêm de `chat_mensagens` e materiais
+    consultados de `acessos_material`. Quando o módulo de Atividades existir,
+    entrega e nota entram nesta mesma conta.
+    """
+    conexao = conectar()
+    cursor = conexao.cursor()
+
+    perguntas = cursor.execute(
+        "SELECT COUNT(*) FROM chat_mensagens WHERE aluno_id = ? AND papel = 'user'",
+        (aluno_id,),
+    ).fetchone()[0]
+
+    # DISTINCT: reabrir o mesmo PDF cinco vezes não são cinco materiais
+    # estudados.
+    materiais_acessados = cursor.execute(
+        "SELECT COUNT(DISTINCT material_id) FROM acessos_material WHERE aluno_id = ?",
+        (aluno_id,),
+    ).fetchone()[0]
+
+    dias_ativos = _dias_com_atividade(cursor, aluno_id)
+    conexao.close()
+
+    xp = (
+        perguntas * XP_POR_PERGUNTA
+        + materiais_acessados * XP_POR_MATERIAL_ACESSADO
+        + len(dias_ativos) * XP_POR_DIA_ATIVO
+    )
+
+    hoje = datetime.now(timezone.utc).date()
+
+    # Últimos dias para o gráfico, do mais antigo para o mais recente.
+    acompanhamento = []
+    for recuo in range(DIAS_ACOMPANHAMENTO - 1, -1, -1):
+        dia = hoje - timedelta(days=recuo)
+        acompanhamento.append({"dia": dia.isoformat(), "ativo": dia.isoformat() in dias_ativos})
+
+    # Sequência de dias consecutivos. Começa de ontem quando hoje ainda não
+    # teve atividade, senão a sequência zeraria toda manhã.
+    sequencia = 0
+    referencia = hoje if hoje.isoformat() in dias_ativos else hoje - timedelta(days=1)
+
+    while referencia.isoformat() in dias_ativos:
+        sequencia += 1
+        referencia -= timedelta(days=1)
+
+    return {
+        "xp": xp,
+        "nivel": 1 + xp // XP_POR_NIVEL,
+        "xp_no_nivel": xp % XP_POR_NIVEL,
+        "xp_para_proximo_nivel": XP_POR_NIVEL,
+        "perguntas": perguntas,
+        "materiais_acessados": materiais_acessados,
+        "dias_ativos": len(dias_ativos),
+        "sequencia": sequencia,
+        "acompanhamento": acompanhamento,
+        # A composição vai para a tela: o aluno consegue ver de onde veio cada
+        # ponto, em vez de receber um total sem explicação.
+        "composicao": [
+            {
+                "rotulo": "Perguntas ao assistente",
+                "quantidade": perguntas,
+                "xp": perguntas * XP_POR_PERGUNTA,
+            },
+            {
+                "rotulo": "Materiais consultados",
+                "quantidade": materiais_acessados,
+                "xp": materiais_acessados * XP_POR_MATERIAL_ACESSADO,
+            },
+            {
+                "rotulo": "Dias de estudo",
+                "quantidade": len(dias_ativos),
+                "xp": len(dias_ativos) * XP_POR_DIA_ATIVO,
+            },
+        ],
+    }
+
+
 def resumo_do_aluno(aluno_email: str) -> dict:
     """Números e destaques da tela inicial do aluno.
 
@@ -196,4 +324,5 @@ def resumo_do_aluno(aluno_email: str) -> dict:
         "perguntas_feitas": perguntas_feitas,
         "turmas": turmas,
         "materiais_recentes": materiais[:5],
+        "progresso": _calcular_progresso(aluno_id),
     }

@@ -128,6 +128,8 @@ uma fonte nem grafar o título de outro jeito.
 ```mermaid
 erDiagram
     users ||--o{ sessoes : "tem"
+    users ||--o{ notificacoes : "recebe"
+    users ||--o{ acessos_material : "consulta"
     users ||--o{ turmas : "leciona"
     users ||--o{ materiais : "publica"
     users ||--o{ matriculas : "cursa"
@@ -136,12 +138,16 @@ erDiagram
     turmas ||--o{ matriculas : "reúne"
     turmas ||--o{ chat_mensagens : "contextualiza"
     materiais ||--o{ material_chunks : "indexado em"
+    materiais ||--o{ acessos_material : "registrado em"
 
     users {
         int id PK
         text email UK
         text senha "hash PBKDF2 + salt"
         text tipo "adm | professor | aluno"
+        text nome
+        text disciplinas "só professor"
+        text matricula "só aluno"
         text reset_token
         text reset_expira
     }
@@ -173,6 +179,7 @@ erDiagram
         text aula
         int rascunho
         text data_liberacao
+        int notificado "aviso de liberação já enviado"
     }
 
     matriculas {
@@ -198,7 +205,30 @@ erDiagram
         text fontes
         text criado_em
     }
+
+    notificacoes {
+        int id PK
+        int user_id FK
+        text tipo "matricula | material"
+        text titulo
+        text mensagem
+        text link
+        int lida
+        text criado_em
+    }
+
+    acessos_material {
+        int id PK
+        int aluno_id FK
+        int material_id FK
+        text criado_em
+    }
 ```
+
+**Sobre `acessos_material`:** existe para que o acompanhamento de estudo do
+aluno (XP, dias ativos) seja calculado sobre ação registrada, e não estimado.
+O registro acontece **depois** da checagem de permissão — material que o aluno
+não pode ver não entra no progresso dele.
 
 **Sobre o status do material:** não existe coluna `status`. Ele é calculado a
 partir de `rascunho` e `data_liberacao` no momento da consulta, porque depende
@@ -247,7 +277,7 @@ Todas essas regras são verificadas no servidor e cobertas pelos testes em
 backend/
   main.py                  - API FastAPI: rotas e dependências de autenticação
   seed_demo.py             - cria os dados de demonstração
-  testes.py                - 43 testes (rodam sem o Ollama)
+  testes.py                - 80 testes (rodam sem o Ollama)
 
   infra/                   - infraestrutura: o que o sistema USA
     database.py              schema e caminho único do banco
@@ -259,8 +289,10 @@ backend/
     autenticacao.py          login, cadastro, recuperação de senha
     turmas.py                turmas, professores, usuários
     materiais.py             materiais na visão do PROFESSOR
-    aluno.py                 materiais na visão do ALUNO
+    aluno.py                 materiais na visão do ALUNO, XP e acompanhamento
     matriculas.py            matrículas
+    notificacoes.py          avisos gerados por eventos reais
+    importacao.py            leitura de planilha CSV/XLSX (sem dependência)
     chat_ia.py               RAG: indexação, busca híbrida, resposta
 ```
 

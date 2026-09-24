@@ -1350,3 +1350,587 @@ body {
     background: var(--color-amber);
     color: #FFFFFF;
 }
+
+
+/* =========================
+   Diálogos (substituem alert/confirm/prompt) — ver dialogo.js
+   ========================= */
+
+.dialogo {
+    /* Centralização explícita nos dois eixos.
+       O <dialog> nativo centraliza na horizontal, mas na vertical o resultado
+       varia entre navegadores — e na tela de login, onde o body é flex, o
+       diálogo era tratado como item do flex. `inset: 0` + `margin: auto` com
+       altura definida resolve nos dois eixos, em qualquer navegador. */
+    position: fixed;
+    inset: 0;
+    margin: auto;
+
+    max-width: 440px;
+    width: calc(100% - 32px);
+
+    /* fit-content é o que permite ao margin:auto centralizar na vertical;
+       com height:auto o elemento esticaria até preencher o inset. */
+    height: fit-content;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+
+    padding: 0;
+
+    border: none;
+    border-radius: var(--radius-lg);
+
+    background: var(--color-surface);
+    color: var(--color-text);
+
+    font-family: var(--font-family);
+
+    box-shadow: 0 18px 48px rgba(13, 29, 58, 0.22);
+}
+
+.dialogo::backdrop {
+    background: rgba(13, 29, 58, 0.45);
+    backdrop-filter: blur(2px);
+}
+
+.dialogo-caixa {
+    padding: 26px 28px 22px;
+}
+
+.dialogo-titulo {
+    margin: 0 0 10px;
+
+    color: var(--color-navy-900);
+
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+/* Barra colorida no topo indica a natureza do diálogo sem depender de ícone. */
+.dialogo--erro .dialogo-caixa,
+.dialogo--perigo .dialogo-caixa {
+    border-top: 3px solid var(--color-danger);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.dialogo--erro .dialogo-titulo,
+.dialogo--perigo .dialogo-titulo {
+    color: var(--color-danger);
+}
+
+.dialogo-texto {
+    margin: 0 0 8px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.dialogo-texto:last-of-type {
+    margin-bottom: 0;
+}
+
+.dialogo-formulario {
+    margin-top: 18px;
+}
+
+.dialogo-formulario .campo {
+    margin-bottom: 14px;
+}
+
+.dialogo-acoes {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+
+    margin-top: 20px;
+}
+
+.dialogo-acoes .acao {
+    min-width: 104px;
+    justify-content: center;
+}
+
+/* Entrada suave: sem animação para quem pediu menos movimento no sistema. */
+@media (prefers-reduced-motion: no-preference) {
+    .dialogo[open] {
+        animation: dialogo-entrar 0.16s ease-out;
+    }
+
+    @keyframes dialogo-entrar {
+        from {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+        }
+    }
+}
+
+@media (max-width: 520px) {
+    .dialogo-acoes {
+        flex-direction: column-reverse;
+    }
+
+    .dialogo-acoes .acao {
+        width: 100%;
+    }
+}
+
+
+/* =========================
+   Painel de notificações (ver notificacoes.js)
+   ========================= */
+
+.painel-notificacoes {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 40;
+
+    width: 340px;
+    max-height: 420px;
+    overflow-y: auto;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+
+    box-shadow: 0 14px 36px rgba(13, 29, 58, 0.16);
+}
+
+.painel-notificacoes-topo {
+    position: sticky;
+    top: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 14px 16px;
+
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.painel-notificacoes-topo strong {
+    color: var(--color-navy-900);
+    font-size: 14px;
+}
+
+.painel-notificacoes-marcar {
+    padding: 0;
+
+    background: none;
+    border: none;
+
+    color: var(--color-primary);
+
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+.painel-notificacoes-marcar:hover {
+    text-decoration: underline;
+}
+
+.painel-notificacoes-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.notificacao {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.notificacao:last-child {
+    border-bottom: none;
+}
+
+.notificacao-conteudo {
+    display: block;
+
+    padding: 12px 16px;
+
+    color: inherit;
+    text-decoration: none;
+
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.notificacao-conteudo:hover {
+    background: var(--color-bg);
+}
+
+.notificacao-conteudo strong {
+    display: block;
+
+    color: var(--color-text);
+
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.notificacao-conteudo span {
+    display: block;
+    margin-top: 2px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.notificacao-quando {
+    display: block;
+    margin-top: 6px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 11.5px;
+    opacity: 0.8;
+}
+
+/* Marca discreta à esquerda distingue a não lida sem depender só de cor. */
+.notificacao--nova .notificacao-conteudo {
+    border-left: 3px solid var(--color-primary);
+    padding-left: 13px;
+
+    background: rgba(47, 112, 242, 0.04);
+}
+
+.painel-notificacoes-vazio {
+    padding: 26px 16px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    text-align: center;
+}
+
+@media (max-width: 520px) {
+    .painel-notificacoes {
+        width: calc(100vw - 32px);
+        right: -8px;
+    }
+}
+
+/* Âncora de posicionamento do painel de notificações. */
+.area-notificacoes {
+    position: relative;
+}
+
+
+/* =========================
+   Seleção múltipla de turmas na publicação de material
+   ========================= */
+
+.lista-turmas-check {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    max-height: 190px;
+    overflow-y: auto;
+
+    margin-top: 6px;
+    padding: 8px;
+
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.turma-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 7px 8px;
+
+    border-radius: var(--radius-sm);
+
+    font-size: 13.5px;
+
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.turma-check:hover {
+    background: var(--color-surface);
+}
+
+.turma-check input {
+    width: 16px;
+    height: 16px;
+
+    accent-color: var(--color-primary);
+
+    cursor: pointer;
+}
+
+/* "Selecionar todas" fica separada das turmas por uma linha, para não ser
+   confundida com mais uma turma da lista. */
+.turma-check--todas {
+    margin-bottom: 4px;
+    padding-bottom: 10px;
+
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0;
+
+    font-weight: 600;
+}
+
+.turma-check--todas:hover {
+    background: transparent;
+}
+
+
+/* =========================
+   Visualizador de material (ver visualizador.js)
+   ========================= */
+
+.visualizador {
+    /* Mesma razão do .dialogo: centralização explícita, sem depender do
+       padrão do navegador. */
+    position: fixed;
+    inset: 0;
+    margin: auto;
+
+    width: min(1040px, calc(100vw - 48px));
+    height: min(88vh, 900px);
+    max-width: none;
+    max-height: none;
+
+    padding: 0;
+
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    border: none;
+    border-radius: var(--radius-lg);
+
+    background: var(--color-surface);
+
+    box-shadow: 0 22px 60px rgba(13, 29, 58, 0.28);
+}
+
+.visualizador::backdrop {
+    background: rgba(13, 29, 58, 0.55);
+}
+
+.visualizador-cabecalho {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+
+    padding: 16px 20px;
+    flex-shrink: 0;
+
+    border-bottom: 1px solid var(--color-border);
+}
+
+.visualizador-titulo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    min-width: 0;
+}
+
+.visualizador-titulo strong {
+    color: var(--color-navy-900);
+
+    font-size: 15px;
+    line-height: 1.3;
+
+    /* Título longo não pode empurrar o botão Fechar para fora. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.visualizador-titulo span {
+    color: var(--color-text-secondary);
+    font-size: 12.5px;
+}
+
+.visualizador-acoes {
+    flex-shrink: 0;
+}
+
+.visualizador-corpo {
+    flex: 1;
+    min-height: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--color-bg);
+}
+
+.visualizador-quadro {
+    width: 100%;
+    height: 100%;
+
+    border: none;
+}
+
+.visualizador-imagem,
+.visualizador-video {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.visualizador-audio {
+    width: min(520px, 90%);
+}
+
+.visualizador-carregando {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+@media (max-width: 640px) {
+    .visualizador {
+        width: calc(100vw - 16px);
+        height: 92vh;
+    }
+}
+
+
+/* Barra de filtros combinados da lista de materiais. */
+.filtros-materiais {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+
+    margin-bottom: 18px;
+    padding: 14px 16px;
+
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.campo--filtro {
+    min-width: 150px;
+    flex: 1 1 150px;
+    margin: 0;
+}
+
+.campo--filtro span {
+    display: block;
+    margin-bottom: 5px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.filtros-materiais .acao {
+    flex: 0 0 auto;
+    height: 38px;
+}
+
+@media (max-width: 720px) {
+    .campo--filtro {
+        flex-basis: 100%;
+    }
+
+    .filtros-materiais .acao {
+        width: 100%;
+    }
+}
+
+
+/* =========================
+   Relatório da importação em massa
+   ========================= */
+
+.importacao-resumo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    margin-top: 18px;
+}
+
+.importacao-contagem {
+    padding: 6px 12px;
+
+    border-radius: var(--radius-sm);
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.importacao-contagem--ok {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.importacao-contagem--erro {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+.importacao-titulo {
+    margin: 20px 0 8px;
+
+    color: var(--color-navy-900);
+
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.importacao-rejeitados {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    max-height: 240px;
+    overflow-y: auto;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.importacao-rejeitados li {
+    display: flex;
+    gap: 10px;
+
+    padding: 9px 12px;
+
+    border-bottom: 1px solid var(--color-border);
+
+    font-size: 13px;
+}
+
+.importacao-rejeitados li:last-child {
+    border-bottom: none;
+}
+
+.importacao-rejeitados strong {
+    flex-shrink: 0;
+
+    color: var(--color-danger);
+
+    font-size: 12.5px;
+}
+
+.importacao-rejeitados span {
+    color: var(--color-text-secondary);
+}
