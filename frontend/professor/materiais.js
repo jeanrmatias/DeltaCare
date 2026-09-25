@@ -9,7 +9,7 @@ let editandoId = null;
 
 if (usuario) {
     montarRodapePerfil(usuario);
-    document.querySelector("#botaoSair").addEventListener("click", sair);
+    ligarRodapePerfil();
 
     ligarPlaceholders();
     ligarNotificacoes();

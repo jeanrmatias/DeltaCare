@@ -61,6 +61,8 @@ Detalhamento completo em `IMPLEMENTACAO.md`. As que mais afetam quem for mexer n
 - **Importação de planilha sem dependência nova**: `.xlsx` é ZIP com XML, lido com `zipfile` + `ElementTree`. Conferir e importar são etapas separadas, para uma planilha meio errada não criar metade das contas.
 - **PDF na importação foi avaliado e recusado**: texto de PDF não tem estrutura de tabela, e adivinhar coluna por posição erra em silêncio — um aluno com a matrícula de outro é pior que pedir a planilha.
 
+- **O módulo de denúncias tinha só um lado.** O backlog descrevia a gestão (receber, acompanhar, agir) e nenhum card descrevia o ato de denunciar. Corrigido no catálogo: as áreas de aluno e professor ganharam o módulo de reportar, e os dois se referenciam. Vale conferir se outros módulos têm a mesma assimetria antes de implementá-los.
+
 ## O que falta pra virar produto de verdade (não só pitch)
 - Sem HTTPS: o token viaja em texto claro. Aceitável em rede local de demonstração, obrigatório antes de qualquer dado real.
 - Rate limiting no login/recuperação de senha.

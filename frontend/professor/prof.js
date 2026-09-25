@@ -17,8 +17,7 @@ if (usuario) {
     ligarNotificacoes();
     ligarPlaceholders();
     carregarResumoTurmas();
-
-    document.querySelector("#botaoSair").addEventListener("click", sair);
+    ligarRodapePerfil();
 }
 
 const ROTULOS_TIPO = {

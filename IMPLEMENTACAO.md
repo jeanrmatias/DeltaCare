@@ -243,6 +243,30 @@ rotas) · `frontend/administracao/usuarios.html` e `.js`.
 
 ---
 
+## 8.1 Lacuna encontrada no próprio roadmap
+
+Ao revisar o catálogo de módulos, apareceu uma incoerência que não era de
+implementação, e sim de planejamento: **o módulo de denúncias existia só do
+lado de quem trata**.
+
+A administração tinha "receber e listar denúncias", "acompanhar o status" e
+"registrar a ação tomada". Mas não havia, em lugar nenhum, como uma denúncia
+ser criada — nem pelo aluno, nem pelo professor. Uma caixa de entrada sem
+porta de entrada.
+
+A lacuna vinha do backlog original: os cards do Trello descrevem a gestão das
+denúncias e nenhum descreve o ato de denunciar.
+
+**Correção:** o catálogo ganhou o módulo "Denúncias" nas áreas do aluno e do
+professor, descrevendo o lado de quem reporta, e os dois módulos passaram a se
+referenciar explicitamente — cada tela diz que depende da outra e que as duas
+fazem parte da mesma entrega. O item entrou no menu dos dois perfis, para não
+virar uma página que ninguém alcança.
+
+O teste de contagem de módulos (`length === 9`) foi substituído por duas
+verificações de coerência: que os dois lados da denúncia existem, e que módulos
+dependentes apontam para a contraparte.
+
 ## 9. Autosserviço de perfil
 
 Não implementado, conforme o próprio documento

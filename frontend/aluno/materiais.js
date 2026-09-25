@@ -17,7 +17,7 @@ if (usuario) {
     iniciar();
     ligarPlaceholders();
     ligarNotificacoes();
-    document.querySelector("#botaoSair").addEventListener("click", sair);
+    ligarRodapePerfil();
 }
 
 function montarRodapePerfil(usuario) {

@@ -208,6 +208,9 @@ Requer Node 18+ (só para os testes; a aplicação não usa Node).
 
 ## Documentos relacionados
 
+- [`SPRINT_3.md`](SPRINT_3.md) — entrega da Sprint 3 da disciplina Software &
+  Total Experience Design: objetivo, sprint backlog com as user stories e seus
+  critérios de aceite, decisões de experiência, incremento e retrospectiva.
 - [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil:
   criar contas e turmas, publicar material com rascunho e agendamento, e como
   o aluno usa o assistente de estudos.

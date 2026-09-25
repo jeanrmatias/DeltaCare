@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Materiais</title>
-    <link rel="stylesheet" href="../style_dashboard.css?v=8">
-    <link rel="stylesheet" href="../style_aluno.css?v=8">
+    <link rel="stylesheet" href="../style_dashboard.css?v=11">
+    <link rel="stylesheet" href="../style_aluno.css?v=11">
 </head>
 <body>
     <div class="app">
@@ -40,13 +40,20 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>
                     Desempenho
                 </a>
+                <a href="em-breve.html?modulo=denunciar-conteudo" class="sidebar-link">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"/><path d="M10.3 4.3 2.8 17a1.7 1.7 0 0 0 1.5 2.5h15.4a1.7 1.7 0 0 0 1.5-2.5L13.7 4.3a1.7 1.7 0 0 0-3 0Z"/></svg>
+                    Denúncias
+                </a>
             </nav>
 
             <div class="sidebar-perfil">
                 <span class="avatar" id="avatarRodape">--</span>
                 <div class="sidebar-perfil-texto">
-                    <strong id="nomeRodape">Aluno</strong>
-                    <button type="button" id="botaoSair" class="sidebar-perfil-sair">Sair</button>
+                    <strong id="nomeRodape">--</strong>
+                    <div class="sidebar-perfil-acoes">
+                        <button type="button" id="botaoPerfil" class="sidebar-perfil-link">Ver perfil</button>
+                        <button type="button" id="botaoSair" class="sidebar-perfil-link">Sair</button>
+                    </div>
                 </div>
             </div>
         </aside>
@@ -113,11 +120,12 @@
         </main>
     </div>
 
-    <script src="../config.js?v=8"></script>
-    <script src="../dialogo.js?v=8"></script>
-    <script src="../visualizador.js?v=8"></script>
-    <script src="../auth.js?v=8"></script>
-    <script src="../notificacoes.js?v=8"></script>
-    <script src="materiais.js?v=8"></script>
+    <script src="../config.js?v=11"></script>
+    <script src="../dialogo.js?v=11"></script>
+    <script src="../visualizador.js?v=11"></script>
+    <script src="../auth.js?v=11"></script>
+    <script src="../perfil.js?v=11"></script>
+    <script src="../notificacoes.js?v=11"></script>
+    <script src="materiais.js?v=11"></script>
 </body>
 </html>

@@ -23,7 +23,7 @@ if (usuario) {
     ligarImportacao();
     ligarPlaceholders();
     ligarNotificacoes();
-    document.querySelector("#botaoSair").addEventListener("click", sair);
+    ligarRodapePerfil();
     document.querySelector("#campoBusca").addEventListener("input", desenharLista);
 }
 

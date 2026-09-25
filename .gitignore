@@ -17,7 +17,10 @@ env/
 
 # Arquivos enviados pelos professores (PDFs dos materiais).
 # Em produção isso vai para storage em nuvem; em desenvolvimento fica só local.
-backend/uploads/
+# Sem prefixo de pasta de propósito: o caminho de upload é relativo ao diretório
+# de onde o backend foi iniciado, então rodar o seed da raiz cria `uploads/` na
+# raiz, e rodar de dentro de backend/ cria `backend/uploads/`. As duas ficam fora.
+uploads/
 
 # Variáveis de ambiente / segredos (OLLAMA_URL, chaves de API no futuro)
 .env

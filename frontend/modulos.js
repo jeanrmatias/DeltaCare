@@ -76,15 +76,29 @@ const MODULOS = {
             "Visão agregada e por aluno",
         ],
     },
+    "denunciar-conteudo": {
+        titulo: "Denúncias",
+        resumo: "Reportar conteúdo inadequado e acompanhar o que você reportou.",
+        sprint: "Sprint 8",
+        itens: [
+            "Reportar um material direto da tela em que ele aparece",
+            "Escolher o motivo e descrever o problema",
+            "Acompanhar o andamento do que você reportou",
+            "Ser avisado quando a administração concluir a análise",
+        ],
+        nota: "Este é o lado de quem reporta. Quem recebe e trata as denúncias é a administração, no módulo de mesmo nome — os dois fazem parte da mesma entrega.",
+    },
     "denuncias-admin": {
         titulo: "Denúncias",
-        resumo: "Registro e tratamento de conteúdo reportado.",
+        resumo: "Registro e tratamento do conteúdo reportado por alunos e professores.",
         sprint: "Sprint 8",
         itens: [
             "Receber e listar denúncias abertas",
             "Acompanhar o status de cada uma",
             "Registrar a ação tomada",
+            "Devolver o resultado a quem reportou",
         ],
+        nota: "As denúncias chegam do módulo de mesmo nome nas áreas do aluno e do professor, onde o conteúdo é reportado. Sem aquele lado, esta tela não teria o que listar.",
     },
     "conteudo-admin": {
         titulo: "Supervisão de conteúdo",

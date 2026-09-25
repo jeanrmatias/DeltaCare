@@ -6,7 +6,7 @@ if (usuario) {
     ligarFormularioTurma();
     ligarPlaceholders();
     ligarNotificacoes();
-    document.querySelector("#botaoSair").addEventListener("click", sair);
+    ligarRodapePerfil();
 }
 
 function montarRodapePerfil(usuario) {

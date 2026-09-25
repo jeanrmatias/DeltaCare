@@ -33,6 +33,7 @@ from regras.turmas import (
     listar_turmas,
     listar_turmas_admin,
     listar_usuarios,
+    perfil_do_usuario,
 )
 from regras.matriculas import (
     desmatricular_aluno,
@@ -260,8 +261,8 @@ def marcar_todas_lidas_rota(usuario: dict = Depends(usuario_logado)):
 
 @app.get("/eu")
 def usuario_atual_rota(usuario: dict = Depends(usuario_logado)):
-    """Quem sou eu, segundo o token. O front usa para validar a sessão."""
-    return {"sucesso": True, "email": usuario["email"], "tipo": usuario["tipo"]}
+    """Dados da própria conta: usado para validar a sessão e pela tela de perfil."""
+    return perfil_do_usuario(usuario["email"])
 
 
 # ---------------------------- administração ----------------------------

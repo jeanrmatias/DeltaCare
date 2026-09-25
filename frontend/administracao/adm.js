@@ -5,7 +5,7 @@ if (usuario) {
     carregarResumo();
     ligarPlaceholders();
     ligarNotificacoes();
-    document.querySelector("#botaoSair").addEventListener("click", sair);
+    ligarRodapePerfil();
 }
 
 function montarSaudacao(usuario) {

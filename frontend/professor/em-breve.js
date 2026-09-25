@@ -8,7 +8,7 @@ const usuario = exigirAcesso("professor");
 if (usuario) {
     montarRodapePerfil(usuario);
     montarPaginaDeModulo();
-    document.querySelector("#botaoSair").addEventListener("click", sair);
+    ligarRodapePerfil();
 }
 
 function montarRodapePerfil(usuario) {

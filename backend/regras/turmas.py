@@ -252,6 +252,61 @@ def listar_usuarios(admin_email: str) -> dict:
     return {"sucesso": True, "usuarios": usuarios}
 
 
+def perfil_do_usuario(email: str) -> dict:
+    """Dados da própria conta, para a tela de perfil.
+
+    Só leitura. Editar o próprio cadastro (autosserviço) é item de escopo
+    futuro — aqui apenas mostramos o que já está registrado, para o menu do
+    rodapé não ser um texto morto.
+    """
+    conexao = conectar()
+    cursor = conexao.cursor()
+
+    linha = cursor.execute(
+        """
+        SELECT id, email, tipo, nome, disciplinas, matricula
+        FROM users WHERE email = ?
+        """,
+        (email.strip().lower(),),
+    ).fetchone()
+
+    if not linha:
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Usuário não encontrado."}
+
+    user_id, email, tipo, nome, disciplinas, matricula = linha
+
+    # As turmas vinculadas dependem do perfil: o professor leciona, o aluno cursa.
+    if tipo == "professor":
+        turmas = cursor.execute(
+            "SELECT nome, semestre FROM turmas WHERE professor_id = ? ORDER BY nome",
+            (user_id,),
+        ).fetchall()
+    elif tipo == "aluno":
+        turmas = cursor.execute(
+            """
+            SELECT t.nome, t.semestre
+            FROM matriculas m JOIN turmas t ON t.id = m.turma_id
+            WHERE m.aluno_id = ? ORDER BY t.nome
+            """,
+            (user_id,),
+        ).fetchall()
+    else:
+        turmas = []
+
+    conexao.close()
+
+    return {
+        "sucesso": True,
+        "email": email,
+        "tipo": tipo,
+        "nome": nome or "",
+        "disciplinas": disciplinas or "",
+        "matricula": matricula or "",
+        "turmas": [{"nome": t[0], "semestre": t[1]} for t in turmas],
+    }
+
+
 def turma_pertence_ao_professor(turma_id: int, professor_email: str) -> bool:
     conexao = conectar()
     professor = buscar_usuario(conexao, professor_email)

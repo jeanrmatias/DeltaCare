@@ -285,8 +285,19 @@ test("markdown lida com null sem quebrar", () => {
 });
 
 // ---------------------------------------------------------------- módulos
-test("catálogo tem os nove módulos planejados", () => {
-    assert.equal(Object.keys(MODULOS).length, 9);
+test("catálogo cobre os dois lados da denúncia", () => {
+    // O roadmap descrevia quem *gerencia* denúncias e esquecia quem as *faz*:
+    // uma caixa de entrada sem porta de entrada. Os dois lados precisam existir.
+    assert.ok(MODULOS["denuncias-admin"], "falta o lado de quem trata");
+    assert.ok(MODULOS["denunciar-conteudo"], "falta o lado de quem reporta");
+});
+
+test("módulos que dependem de outro apontam para ele", () => {
+    // Um módulo que só faz sentido junto de outro deve dizer isso na tela, em
+    // vez de deixar a banca notar a lacuna antes da gente.
+    for (const chave of ["denuncias-admin", "denunciar-conteudo"]) {
+        assert.ok(MODULOS[chave].nota, `${chave} não explica a contraparte`);
+    }
 });
 
 test("todo módulo tem título, resumo, sprint e itens", () => {
