@@ -6,11 +6,14 @@ let turmaSelecionadaId = null;
 // mesma lista para montar os checkboxes, sem buscar de novo.
 let turmasDoProfessor = [];
 let editandoId = null;
+// Seletor de data proprio, no lugar do <input type="datetime-local">.
+let seletorLiberacao = null;
 
 if (usuario) {
     montarRodapePerfil(usuario);
     ligarRodapePerfil();
 
+    seletorLiberacao = criarSeletorDataHora(document.querySelector("#materialDataLiberacao"));
     ligarPlaceholders();
     ligarNotificacoes();
     ligarFormulario();
@@ -325,6 +328,7 @@ function abrirFormulario(material) {
 
     mensagem.textContent = "";
     document.querySelector("#formularioMaterial").reset();
+    if (seletorLiberacao) seletorLiberacao.limpar();
 
     editandoId = material ? material.id : null;
     titulo.textContent = material ? "Editar material" : "Novo material";
@@ -349,7 +353,7 @@ function abrirFormulario(material) {
         document.querySelector("#materialTopico").value = material.topico || "";
         document.querySelector("#materialAula").value = material.aula || "";
         document.querySelector("#materialSemestre").value = material.semestre || "";
-        document.querySelector("#materialDataLiberacao").value = paraDatetimeLocal(material.data_liberacao);
+        seletorLiberacao.definir(material.data_liberacao);
 
         document.querySelector("#campoArquivo").hidden = material.tipo === "link";
         document.querySelector("#campoLink").hidden = material.tipo !== "link";
@@ -365,16 +369,8 @@ function abrirFormulario(material) {
 function fecharFormulario() {
     document.querySelector("#formularioMaterialCartao").hidden = true;
     document.querySelector("#formularioMaterial").reset();
+    if (seletorLiberacao) seletorLiberacao.limpar();
     editandoId = null;
-}
-
-function paraDatetimeLocal(isoString) {
-    if (!isoString) return "";
-    const data = new Date(isoString);
-    if (Number.isNaN(data.getTime())) return "";
-    const deslocamento = data.getTimezoneOffset();
-    const local = new Date(data.getTime() - deslocamento * 60000);
-    return local.toISOString().slice(0, 16);
 }
 
 function lerArquivoComoBase64(arquivo) {
@@ -399,8 +395,7 @@ async function salvarMaterial(publicar) {
     const topico = document.querySelector("#materialTopico").value.trim();
     const aula = document.querySelector("#materialAula").value.trim();
     const semestre = document.querySelector("#materialSemestre").value.trim();
-    const dataLiberacaoCampo = document.querySelector("#materialDataLiberacao").value;
-    const dataLiberacao = dataLiberacaoCampo ? new Date(dataLiberacaoCampo).toISOString() : null;
+    const dataLiberacao = seletorLiberacao.valor();
     const arquivoInput = document.querySelector("#materialArquivo");
 
     try {

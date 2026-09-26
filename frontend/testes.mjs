@@ -404,3 +404,111 @@ test("botão cancelar não é primário", () => {
     assert.ok(cancelar, "botão Cancelar não encontrado");
     assert.ok(!cancelar.className.includes("acao--primaria"), "Cancelar está como primário");
 });
+
+// ---------------------------------------------------------------- calendário
+/**
+ * O seletor de data aceita o que as pessoas digitam de verdade, e não só o
+ * formato "certo". O risco de errar aqui é silencioso: uma data mal
+ * interpretada vira prazo errado, e ninguém percebe até o aluno reclamar que
+ * a atividade fechou antes da hora.
+ */
+// Carregado por vm, como os outros arquivos do front: este é um módulo ES e
+// não tem `require`. As funções de leitura de data não tocam no DOM, então o
+// contexto mínimo basta.
+const calendarioCtx = { console, Date, Number, String, Boolean, Math, RegExp };
+calendarioCtx.globalThis = calendarioCtx;
+vm.createContext(calendarioCtx);
+vm.runInContext(fs.readFileSync("calendario.js", "utf-8"), calendarioCtx, {
+    filename: "calendario.js",
+});
+
+const calendario = {
+    interpretarDataDigitada: vm.runInContext("interpretarDataDigitada", calendarioCtx),
+    formatarParaCampo: vm.runInContext("formatarParaCampo", calendarioCtx),
+};
+
+function data(texto) {
+    return calendario.interpretarDataDigitada(texto);
+}
+
+test("calendário aceita o formato completo", () => {
+    const d = data("05/03/2026");
+    assert.equal(d.getDate(), 5);
+    assert.equal(d.getMonth(), 2);
+    assert.equal(d.getFullYear(), 2026);
+});
+
+test("calendário aceita dia e mês sem zero à esquerda", () => {
+    const d = data("5/3/2026");
+    assert.equal(d.getDate(), 5);
+    assert.equal(d.getMonth(), 2);
+});
+
+test("calendário aceita separadores diferentes", () => {
+    for (const texto of ["05/03/2026", "05-03-2026", "05.03.2026", "05 03 2026"]) {
+        const d = data(texto);
+        assert.ok(d, `recusou ${texto}`);
+        assert.equal(d.getDate(), 5);
+        assert.equal(d.getMonth(), 2);
+    }
+});
+
+test("calendário entende ano de dois dígitos", () => {
+    assert.equal(data("05/03/26").getFullYear(), 2026);
+});
+
+test("calendário usa o ano corrente quando não informado", () => {
+    assert.equal(data("05/03").getFullYear(), new Date().getFullYear());
+});
+
+test("calendário lê a hora junto da data", () => {
+    const d = data("05/03/2026 14:30");
+    assert.equal(d.getHours(), 14);
+    assert.equal(d.getMinutes(), 30);
+});
+
+test("calendário assume meia-noite quando não há hora", () => {
+    const d = data("05/03/2026");
+    assert.equal(d.getHours(), 0);
+    assert.equal(d.getMinutes(), 0);
+});
+
+test("calendário recusa dia que não existe no mês", () => {
+    // Sem esta checagem o JavaScript transforma 31/02 em 2 ou 3 de março, e o
+    // professor agendaria para um dia que não foi o que ele digitou.
+    assert.equal(data("31/02/2026"), null);
+    assert.equal(data("31/04/2026"), null);
+});
+
+test("calendário aceita 29/02 em ano bissexto e recusa fora dele", () => {
+    assert.ok(data("29/02/2028"), "recusou data válida de ano bissexto");
+    assert.equal(data("29/02/2026"), null);
+});
+
+test("calendário recusa mês e hora impossíveis", () => {
+    assert.equal(data("05/13/2026"), null);
+    assert.equal(data("05/03/2026 25:00"), null);
+    assert.equal(data("05/03/2026 10:75"), null);
+});
+
+test("calendário recusa texto que não é data", () => {
+    for (const texto of ["", "   ", "abc", "5", "//", "amanhã"]) {
+        assert.equal(data(texto), null, `aceitou ${JSON.stringify(texto)}`);
+    }
+});
+
+test("calendário formata de volta no padrão brasileiro", () => {
+    const d = data("5/3/2026 9:07");
+    assert.equal(calendario.formatarParaCampo(d), "05/03/2026 09:07");
+});
+
+test("o que foi digitado volta igual depois de formatar e reler", () => {
+    // Ida e volta: digitar, formatar para o campo e reler tem que dar a mesma
+    // data. Se a formatação e a leitura discordarem, o valor muda sozinho a
+    // cada vez que o formulário é reaberto.
+    for (const texto of ["05/03/2026 14:30", "1/1/2027 00:00", "31/12/2026 23:59"]) {
+        const primeira = data(texto);
+        const segunda = data(calendario.formatarParaCampo(primeira));
+        assert.equal(segunda.getTime(), primeira.getTime(), `ida e volta mudou ${texto}`);
+    }
+});

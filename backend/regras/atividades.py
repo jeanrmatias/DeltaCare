@@ -419,6 +419,23 @@ def listar_entregas(atividade_id: int, professor_email: str) -> dict:
 
     prazo = atividade[5]
 
+    # O gabarito vai junto **aqui** de propósito: esta é rota de professor, e
+    # sem ele a tela mostraria "marcou a alternativa 2" sem dizer se 2 estava
+    # certa. Na rota do aluno, `correta` nem sai do banco.
+    questoes = [
+        {
+            "ordem": linha[0],
+            "enunciado": linha[1],
+            "alternativas": json.loads(linha[2]),
+            "correta": linha[3],
+        }
+        for linha in conexao.execute(
+            "SELECT ordem, enunciado, alternativas, correta FROM questoes"
+            "  WHERE atividade_id = ? ORDER BY ordem",
+            (int(atividade_id),),
+        ).fetchall()
+    ]
+
     # Parte dos alunos matriculados, não das entregas: quem não entregou
     # também precisa aparecer, senão o professor não vê a pendência.
     linhas = conexao.execute(
@@ -461,6 +478,7 @@ def listar_entregas(atividade_id: int, professor_email: str) -> dict:
             "pontos": atividade[4],
             "prazo": prazo,
         },
+        "questoes": questoes,
         "entregas": entregas,
     }
 

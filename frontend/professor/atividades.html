@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Materiais</title>
+    <title>Delta Care | Atividades</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=15">
 </head>
 <body>
@@ -23,11 +23,11 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
                     Início
                 </a>
-                <a href="materiais.html" class="sidebar-link ativo">
+                <a href="materiais.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2Z"/><path d="M12 6.5v13"/></svg>
                     Materiais
                 </a>
-                <a href="atividades.html" class="sidebar-link">
+                <a href="atividades.html" class="sidebar-link ativo">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg>
                     Atividades
                 </a>
@@ -68,101 +68,92 @@
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1>Materiais</h1>
-                    <p>Publique e organize PDFs, vídeos, documentos e links para suas turmas.</p>
+                    <h1>Atividades</h1>
+                    <p>Proponha exercicios e trabalhos, acompanhe as entregas e corrija.</p>
                 </div>
 
                 <div class="topo-acoes">
                     <div class="area-notificacoes">
-                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
+                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificacoes">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
                         </button>
                     </div>
                     <label class="campo campo--seletor" id="seletorTurmaCampo">
                         <select id="seletorTurma"></select>
                     </label>
-                    <button type="button" class="acao acao--primaria" id="botaoNovoMaterial">
+                    <button type="button" class="acao acao--primaria" id="botaoNova">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Novo material
+                        Nova atividade
                     </button>
                 </div>
             </header>
 
             <p class="estado-vazio" id="semTurmas" hidden>
-                Você ainda não tem nenhuma turma. <a href="turmas.html">Crie uma turma primeiro</a> para poder publicar materiais.
+                Voce ainda nao tem nenhuma turma. <a href="turmas.html">Crie uma turma primeiro</a> para poder propor atividades.
             </p>
 
-            <section class="cartao" id="formularioMaterialCartao" hidden>
-                <h2 class="cartao-titulo" id="formularioMaterialTitulo">Novo material</h2>
-                <form id="formularioMaterial" class="formulario">
+            <section class="cartao" id="formularioCartao" hidden>
+                <h2 class="cartao-titulo" id="formularioTitulo">Nova atividade</h2>
+                <form id="formulario" class="formulario">
                     <div class="formulario--linha">
                         <div class="campo campo--larga">
-                            <label for="materialTitulo">Título</label>
-                            <input type="text" id="materialTitulo" placeholder="ex.: Protocolo de atendimento — Arritmias" required>
+                            <label for="campoTitulo">Titulo</label>
+                            <input type="text" id="campoTitulo" placeholder="ex.: Quiz - Insuficiencia cardiaca aguda" required>
                         </div>
                     </div>
 
-                    <!-- Publicar em várias turmas de uma vez evita repetir o mesmo
-                         envio turma a turma. Some ao editar: a edição vale só para
-                         o registro daquela turma. -->
                     <div class="campo campo--larga" id="campoTurmasPublicacao">
-                        <label>Publicar nas turmas</label>
+                        <label>Propor nas turmas</label>
                         <div class="lista-turmas-check" id="listaTurmasCheck"></div>
                         <span class="campo-dica" id="dicaTurmas"></span>
                     </div>
 
-                    <div class="campo">
-                        <label for="materialDescricao">Descrição (opcional)</label>
-                        <textarea id="materialDescricao" placeholder="Alguma observação sobre o material"></textarea>
-                    </div>
-
                     <div class="formulario--linha">
                         <div class="campo">
-                            <label for="materialTipo">Tipo</label>
-                            <select id="materialTipo">
-                                <option value="pdf">PDF</option>
-                                <option value="documento">Documento</option>
-                                <option value="video">Vídeo</option>
-                                <option value="link">Link</option>
+                            <label for="campoTipo">Tipo</label>
+                            <select id="campoTipo">
+                                <option value="objetiva">Objetiva (corrigida na hora)</option>
+                                <option value="dissertativa">Dissertativa (voce corrige)</option>
                             </select>
                         </div>
-
-                        <div class="campo" id="campoArquivo">
-                            <label for="materialArquivo">Arquivo</label>
-                            <input type="file" id="materialArquivo">
-                            <span class="campo-dica">Até 15MB. PDF, DOC(X), TXT, ODT, MP4, MOV, WEBM ou MKV, conforme o tipo.</span>
+                        <div class="campo">
+                            <label for="campoPontos">Vale quantos pontos</label>
+                            <input type="number" id="campoPontos" min="1" max="1000" value="10">
                         </div>
-
-                        <div class="campo" id="campoLink" hidden>
-                            <label for="materialLink">Link</label>
-                            <input type="url" id="materialLink" placeholder="https://...">
+                        <div class="campo">
+                            <label for="campoAssunto">Assunto</label>
+                            <input type="text" id="campoAssunto" placeholder="ex.: Cardiologia">
+                        </div>
+                        <div class="campo">
+                            <label for="campoTopico">Topico</label>
+                            <input type="text" id="campoTopico" placeholder="ex.: Arritmias">
                         </div>
                     </div>
 
-                    <div class="formulario--linha">
-                        <div class="campo">
-                            <label for="materialAssunto">Assunto</label>
-                            <input type="text" id="materialAssunto" placeholder="ex.: Matemática">
-                        </div>
-                        <div class="campo">
-                            <label for="materialTopico">Tópico</label>
-                            <input type="text" id="materialTopico" placeholder="ex.: Frações">
-                        </div>
-                        <div class="campo">
-                            <label for="materialAula">Aula</label>
-                            <input type="text" id="materialAula" placeholder="ex.: Aula 3">
-                        </div>
-                        <div class="campo">
-                            <label for="materialSemestre">Semestre</label>
-                            <input type="text" id="materialSemestre" placeholder="ex.: 2026/2">
-                        </div>
+                    <div class="campo campo--larga">
+                        <label for="campoEnunciado">Enunciado</label>
+                        <textarea id="campoEnunciado" placeholder="O que o aluno precisa fazer"></textarea>
+                    </div>
+
+                    <!-- So aparece na atividade objetiva. Cada questao tem o
+                         enunciado, as alternativas e a marcacao da correta. -->
+                    <div class="campo campo--larga" id="blocoQuestoes">
+                        <label>Questoes</label>
+                        <div id="listaQuestoes"></div>
+                        <button type="button" class="acao" id="botaoAddQuestao">+ Adicionar questao</button>
+                        <span class="campo-dica">Marque a alternativa correta de cada questao. O gabarito nao vai para o aluno.</span>
                     </div>
 
                     <div class="formulario--linha">
                         <div class="campo">
                             <label>Agendar liberação (opcional)</label>
-                            <div id="materialDataLiberacao"></div>
-                            <span class="campo-dica">Deixe em branco para liberar assim que publicar.</span>
+                            <div id="campoLiberacao"></div>
+                            <span class="campo-dica">Digite a data ou escolha no calendário. Em branco libera assim que publicar.</span>
+                        </div>
+                        <div class="campo">
+                            <label>Prazo de entrega (opcional)</label>
+                            <div id="campoPrazo"></div>
+                            <span class="campo-dica">Depois do prazo a entrega continua aceita, marcada como atrasada.</span>
                         </div>
                     </div>
 
@@ -170,17 +161,30 @@
                         <div class="campo campo--acoes">
                             <button type="submit" class="acao acao--primaria" data-acao="publicar">Publicar</button>
                             <button type="submit" class="acao" data-acao="rascunho">Salvar rascunho</button>
-                            <button type="button" class="acao" id="botaoCancelarMaterial">Cancelar</button>
+                            <button type="button" class="acao" id="botaoCancelar">Cancelar</button>
                         </div>
                     </div>
                 </form>
-                <p class="formulario-mensagem" id="materialMensagem"></p>
+                <p class="formulario-mensagem" id="mensagem"></p>
             </section>
 
-            <section class="lista-materiais" id="listaMateriais"></section>
-            <p class="estado-vazio" id="materiaisVazio" hidden>
-                Nenhum material nesta turma ainda. Clique em "Novo material" para publicar o primeiro.
+            <section class="lista-materiais" id="lista"></section>
+            <p class="estado-vazio" id="vazio" hidden>
+                Nenhuma atividade nesta turma ainda. Clique em "Nova atividade" para propor a primeira.
             </p>
+
+            <dialog class="visualizador" id="painelEntregas">
+                <div class="visualizador-cabecalho">
+                    <div>
+                        <h2 class="visualizador-titulo" id="entregasTitulo">Entregas</h2>
+                        <p class="visualizador-detalhe" id="entregasDetalhe"></p>
+                    </div>
+                    <div class="visualizador-acoes">
+                        <button type="button" class="acao" id="fecharEntregas">Fechar</button>
+                    </div>
+                </div>
+                <div class="visualizador-corpo visualizador-corpo--texto" id="entregasCorpo"></div>
+            </dialog>
         </main>
     </div>
 
@@ -191,6 +195,6 @@
     <script src="../auth.js?v=15"></script>
     <script src="../perfil.js?v=15"></script>
     <script src="../notificacoes.js?v=15"></script>
-    <script src="materiais.js?v=15"></script>
+    <script src="atividades.js?v=15"></script>
 </body>
 </html>

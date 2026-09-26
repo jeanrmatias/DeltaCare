@@ -11,18 +11,6 @@
  */
 
 const MODULOS = {
-    "atividades-aluno": {
-        titulo: "Atividades",
-        resumo: "Exercícios, trabalhos e desafios propostos pelo professor.",
-        sprint: "Sprint 3",
-        itens: [
-            "Resolver exercícios separados por tema",
-            "Salvar o progresso e retomar de onde parou",
-            "Enviar resumo ou trabalho, com aviso quando passar do prazo",
-            "Ver a nota e a devolutiva do professor",
-        ],
-        nota: "As regras já existem no servidor: questões objetivas são corrigidas na hora, o progresso salvo é retomado e a entrega fora do prazo é aceita e sinalizada — quem decide o que fazer com o atraso é o professor. O que falta é esta tela.",
-    },
     "desempenho-aluno": {
         titulo: "Desempenho",
         resumo: "Seu progresso na disciplina, com pontos e histórico de acertos.",
@@ -33,19 +21,6 @@ const MODULOS = {
             "Tópicos em que você mais erra, para orientar a revisão",
             "Posição no ranking da turma, se você optar por aparecer",
         ],
-    },
-    "atividades-professor": {
-        titulo: "Atividades",
-        resumo: "Criação e correção das atividades da turma.",
-        sprint: "Sprint 3",
-        itens: [
-            "Criar exercícios objetivos e trabalhos dissertativos",
-            "Publicar na turma, em várias de uma vez, com rascunho e agendamento",
-            "Definir data de liberação e prazo de entrega",
-            "Acompanhar quem entregou, quem atrasou e quem está pendente",
-            "Corrigir e escrever devolutiva para o aluno",
-        ],
-        nota: "O servidor já faz tudo isto; falta a tela. A entrega atrasada não é bloqueada de propósito: a plataforma marca o atraso e o professor decide se aceita.",
     },
     "calendario-professor": {
         titulo: "Calendário",

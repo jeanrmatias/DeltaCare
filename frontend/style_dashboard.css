@@ -833,10 +833,13 @@ body {
     gap: 16px;
 }
 
+/* Faltava o `display: flex` aqui: `flex-direction` e `flex-wrap` num elemento
+   block não fazem nada, então os campos sempre empilharam, mesmo no desktop.
+   Mobile first — empilhado é a base, lado a lado a partir de 721px. */
 .formulario--linha {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .campo {
@@ -1672,6 +1675,15 @@ body {
     box-shadow: 0 22px 60px rgba(13, 29, 58, 0.28);
 }
 
+/* O `display: flex` acima vence o `display: none` que o navegador aplica a um
+   <dialog> fechado. O visualizador de material nunca sofreu com isso porque
+   nasce por JavaScript e abre no mesmo instante; um <dialog> escrito no HTML,
+   como os painéis de atividades, apareceria aberto e vazio ao carregar a
+   página. */
+dialog.visualizador:not([open]) {
+    display: none;
+}
+
 .visualizador::backdrop {
     background: rgba(13, 29, 58, 0.55);
 }
@@ -1726,6 +1738,16 @@ body {
     justify-content: center;
 
     background: var(--color-bg);
+}
+
+/* O corpo acima centraliza **um** elemento de mídia — PDF, imagem, vídeo. Os
+   painéis de atividade têm texto corrido e vários blocos empilhados; no flex
+   em linha eles ficariam lado a lado. Daí a variante. */
+.visualizador-corpo--texto {
+    display: block;
+    overflow-y: auto;
+
+    padding: 20px 24px;
 }
 
 .visualizador-quadro {
@@ -1998,6 +2020,571 @@ body {
     line-height: 1.5;
 }
 
+
+/* =========================
+   Atividades
+   ========================= */
+
+.atividade-acompanhamento {
+    margin: 8px 0 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+.atividade-acompanhamento strong {
+    color: var(--color-text);
+}
+
+/* Atraso e pendência de correção usam o âmbar do sistema: é aviso, não erro.
+   Vermelho aqui faria o aluno achar que perdeu a atividade, quando na verdade
+   ele ainda pode entregar. */
+.atividade-pendencia {
+    margin: 6px 0 0;
+
+    color: var(--color-amber);
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.atividade-nota {
+    margin: 8px 0 0;
+
+    color: var(--color-text);
+
+    font-size: 14px;
+}
+
+.atividade-nota strong {
+    color: var(--color-success);
+
+    font-size: 16px;
+}
+
+.atividade-enunciado {
+    margin: 0 0 18px;
+
+    color: var(--color-text);
+
+    font-size: 15px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.atividade-resposta {
+    width: 100%;
+    min-height: 180px;
+    padding: 12px 14px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+    line-height: 1.6;
+
+    resize: vertical;
+}
+
+.atividade-resposta:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.atividade-resultado {
+    margin-top: 20px;
+    padding: 16px 18px;
+
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+}
+
+.atividade-resultado p {
+    margin: 0 0 6px;
+
+    font-size: 14px;
+}
+
+.atividade-resultado p:last-child {
+    margin-bottom: 0;
+}
+
+
+/* ---- editor de questões (professor) ---- */
+
+.questao-editor {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.questao-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    margin-bottom: 10px;
+}
+
+.questao-topo strong {
+    font-size: 13px;
+}
+
+.questao-enunciado {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 9px 12px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+}
+
+.questao-alternativas {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    margin-bottom: 10px;
+}
+
+.questao-alternativa {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.questao-alternativa input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+}
+
+.questao-alternativa input[type="radio"] {
+    flex: none;
+    width: 18px;
+    height: 18px;
+
+    accent-color: var(--color-success);
+
+    cursor: pointer;
+}
+
+.questao-alternativa .acao {
+    flex: none;
+    padding: 6px 10px;
+}
+
+
+/* ---- questões na tela do aluno ---- */
+
+.questao-aluno {
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+
+    border-bottom: 1px solid var(--color-border);
+}
+
+.questao-aluno:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+
+    border-bottom: 0;
+}
+
+.questao-pergunta {
+    margin: 0 0 12px;
+
+    color: var(--color-text);
+
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.questao-opcoes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* A alternativa inteira é clicável, não só o círculo: num celular, acertar um
+   radio de 18px com o polegar é pedir erro de marcação. */
+.questao-opcao {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    padding: 10px 12px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-size: 14px;
+    line-height: 1.45;
+
+    cursor: pointer;
+}
+
+.questao-opcao:hover {
+    border-color: var(--color-primary);
+}
+
+.questao-opcao input {
+    flex: none;
+    margin-top: 2px;
+
+    accent-color: var(--color-primary);
+
+    cursor: pointer;
+}
+
+.questao-opcao input:disabled {
+    cursor: default;
+}
+
+.questao-opcao:has(input:disabled) {
+    cursor: default;
+}
+
+.questao-opcao:has(input:checked) {
+    border-color: var(--color-primary);
+    background: var(--color-accent-suave, #EAF1FE);
+}
+
+
+/* ---- lista de entregas (professor) ---- */
+
+.entrega-linha {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+
+    padding: 14px 0;
+
+    border-bottom: 1px solid var(--color-border);
+}
+
+.entrega-linha:last-child {
+    border-bottom: 0;
+}
+
+.entrega-resposta {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text);
+
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+/* ---- o que o aluno marcou na objetiva ---- */
+
+.gabarito-lista {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.gabarito-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+
+    padding: 9px 12px;
+
+    border-radius: var(--radius-sm);
+
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+.gabarito-item--certo {
+    background: var(--color-success-bg);
+}
+
+.gabarito-item--errado {
+    background: var(--color-danger-bg);
+}
+
+.gabarito-marca {
+    flex: none;
+
+    font-weight: 700;
+}
+
+.gabarito-item--certo .gabarito-marca {
+    color: var(--color-success);
+}
+
+.gabarito-item--errado .gabarito-marca {
+    color: var(--color-danger);
+}
+
+.gabarito-texto {
+    min-width: 0;
+}
+
+.gabarito-marcada,
+.gabarito-certo {
+    display: block;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+}
+
+.gabarito-certo {
+    color: var(--color-success);
+
+    font-weight: 600;
+}
+
+.entrega-devolutiva {
+    margin: 8px 0 0;
+    padding-left: 12px;
+
+    border-left: 3px solid var(--color-success);
+
+    color: var(--color-text-secondary);
+
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+
+/* ---- painel (reaproveita a moldura do visualizador) ---- */
+
+.visualizador-detalhe {
+    margin: 4px 0 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+}
+
+.visualizador-rodape {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    padding: 14px 20px;
+
+    border-top: 1px solid var(--color-border);
+}
+
+.visualizador-rodape .formulario-mensagem {
+    margin: 0;
+}
+
+
+/* =========================
+   Seletor de data e hora
+   ========================= */
+
+.seletor-data {
+    position: relative;
+}
+
+.seletor-data-campo {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    overflow: hidden;
+}
+
+.seletor-data-campo:focus-within {
+    border-color: var(--color-primary);
+}
+
+.seletor-data-entrada {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+
+    background: transparent;
+    border: none;
+
+    color: var(--color-text);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+}
+
+.seletor-data-entrada:focus {
+    outline: none;
+}
+
+/* Só fica vermelho depois que a pessoa escreveu o bastante para a data ser
+   reconhecível — reclamar no segundo dígito seria implicância. */
+.seletor-data-entrada--invalida {
+    color: var(--color-danger);
+}
+
+.seletor-data-botao {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 40px;
+    flex: none;
+
+    background: var(--color-bg);
+    border: none;
+    border-left: 1px solid var(--color-border);
+
+    color: var(--color-text-secondary);
+
+    cursor: pointer;
+}
+
+.seletor-data-botao:hover {
+    background: var(--color-accent-suave, #EAF1FE);
+    color: var(--color-primary);
+}
+
+.seletor-data-painel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+
+    /* Base é a tela pequena: o painel acompanha a largura do campo em vez de
+       estourar a tela. A largura fixa entra a partir de 421px. */
+    width: 100%;
+    min-width: 250px;
+    padding: 14px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 10px);
+
+    box-shadow: 0 16px 40px rgba(13, 29, 58, 0.18);
+}
+
+.seletor-data-painel .calendario-dia {
+    padding: 6px 0;
+
+    background: transparent;
+    border: 1px solid transparent;
+
+    font-family: var(--font-family);
+
+    cursor: pointer;
+}
+
+.seletor-data-painel .calendario-dia:hover {
+    background: var(--color-bg);
+}
+
+.seletor-data-painel .calendario-dia--vazio {
+    cursor: default;
+}
+
+.seletor-data-painel .calendario-dia--vazio:hover {
+    background: transparent;
+}
+
+.seletor-data-hora {
+    margin-top: 12px;
+    padding-top: 12px;
+
+    border-top: 1px solid var(--color-border);
+}
+
+.seletor-data-hora label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.seletor-data-relogio {
+    flex: 1;
+    padding: 7px 10px;
+
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text);
+
+    font-family: var(--font-family);
+    font-size: 13px;
+}
+
+.seletor-data-atalhos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    margin-top: 12px;
+}
+
+.seletor-data-atalhos button {
+    padding: 6px 10px;
+
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 100px;
+
+    color: var(--color-text-secondary);
+
+    font-family: var(--font-family);
+    font-size: 12px;
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+.seletor-data-atalhos button:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+
+
 /* =======================================================================
    Mobile first
    O estilo acima e o do celular: barra lateral virando faixa horizontal no
@@ -2008,6 +2595,12 @@ body {
 @media (min-width: 421px) {
     .stats {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Fora do celular o calendário tem largura própria: acompanhar a do campo
+       deixaria o painel largo demais num formulário de página inteira. */
+    .seletor-data-painel {
+        width: 290px;
     }
 }
 
@@ -2037,6 +2630,14 @@ body {
     /* Tablet e acima: a barra lateral volta a ser coluna, com rotulo. */
     .app {
         flex-direction: row;
+    }
+
+    /* Campos do formulário lado a lado; cada .campo tem min-width 180px e
+       quebra a linha sozinho quando não couber. */
+    .formulario--linha {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-end;
     }
 
     .sidebar {
