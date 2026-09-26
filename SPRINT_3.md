@@ -382,10 +382,10 @@ Números: 34 rotas de API, 9 tabelas, 14 páginas, cerca de 13,7 mil linhas.
 python backend/testes.py            # 80 testes (não precisa do Ollama)
 python frontend/testar_html.py      # 14 páginas
 
-cd frontend && node testes.mjs      # 34 testes (roda dentro de frontend/)
+cd frontend && node testes.mjs      # 49 testes (roda dentro de frontend/)
 ```
 
-Tudo verde na entrega: 80, 34 e 14 sem nenhuma falha. Eram 43 testes de backend antes da sprint e nenhum de
+Tudo verde na entrega: 80, 49 e 14 sem nenhuma falha. Eram 43 testes de backend antes da sprint e nenhum de
 JavaScript.
 
 **O que os testes cobrem, e por quê.** O foco é o que dá prejuízo se quebrar em

@@ -17,7 +17,7 @@ formulario.addEventListener("submit", async function (event) {
     botao.textContent = "Entrando...";
 
     try {
-        const resposta = await fetch(`${API_URL}/login`, {
+        const resposta = await apiPublica("/login", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -64,7 +64,7 @@ esqueciSenha.addEventListener("click", async function (event) {
     if (!email) return;
 
     try {
-        const resposta = await fetch(`${API_URL}/recuperar-senha`, {
+        const resposta = await apiPublica("/recuperar-senha", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -91,7 +91,7 @@ esqueciSenha.addEventListener("click", async function (event) {
 
         if (!redefinicao) return;
 
-        const respostaReset = await fetch(`${API_URL}/redefinir-senha`, {
+        const respostaReset = await apiPublica("/redefinir-senha", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

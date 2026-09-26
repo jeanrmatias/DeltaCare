@@ -404,3 +404,236 @@ test("botão cancelar não é primário", () => {
     assert.ok(cancelar, "botão Cancelar não encontrado");
     assert.ok(!cancelar.className.includes("acao--primaria"), "Cancelar está como primário");
 });
+
+// ---------------------------------------------------------------- modo demonstração
+/**
+ * O adaptador de `demo.js` carrega regra de permissão dentro (aluno não vê
+ * rascunho, professor não publica em turma alheia). Numa demonstração isso é
+ * de fachada — o código roda no navegador de quem usa — mas uma demonstração
+ * que mostra o aluno enxergando rascunho não demonstra o produto.
+ */
+function montarDemo() {
+    const dadosBrutos = fs.readFileSync("dados-demo.json", "utf-8");
+
+    const noDoScript = { getAttribute: () => "demo.js?v=12" };
+
+    const contexto = {
+        document: {
+            querySelector: (seletor) => (seletor.includes("demo.js") ? noDoScript : null),
+            createElement: (tag) => new No(tag),
+            createTextNode: (texto) => {
+                const no = new No("#text");
+                no._texto = String(texto);
+                return no;
+            },
+            addEventListener: () => {},
+            head: new No("head"),
+            body: new No("body"),
+        },
+        window: { location: { reload: () => {} } },
+        console,
+        fetch: async () => ({ ok: true, json: async () => JSON.parse(dadosBrutos) }),
+        localStorage: {
+            _dados: {},
+            getItem(chave) { return this._dados[chave] ?? null; },
+            setItem(chave, valor) { this._dados[chave] = String(valor); },
+            removeItem(chave) { delete this._dados[chave]; },
+        },
+        Response, Blob, Uint8Array, URLSearchParams, Set, Map, Promise, Date, Math,
+        JSON, String, Number, Array, Object, Boolean, RegExp, Error,
+        atob, btoa, escape, unescape, decodeURIComponent, encodeURIComponent,
+    };
+
+    contexto.globalThis = contexto;
+    vm.createContext(contexto);
+    vm.runInContext(fs.readFileSync("demo.js", "utf-8"), contexto, { filename: "demo.js" });
+
+    return vm.runInContext("Demo", contexto);
+}
+
+const demo = montarDemo();
+
+async function pedir(caminho, opcoes = {}, token = "") {
+    const cabecalhos = token ? { Authorization: "Bearer " + token } : {};
+    const resposta = await demo.responder(caminho, Object.assign({ headers: cabecalhos }, opcoes));
+    return { status: resposta.status, dados: await resposta.json() };
+}
+
+async function entrar(email) {
+    const { dados } = await pedir("/login", {
+        method: "POST",
+        body: JSON.stringify({ email: email, senha: "demo123" }),
+    });
+    return dados.token;
+}
+
+test("demo: senha errada não entra", async () => {
+    const { dados } = await pedir("/login", {
+        method: "POST",
+        body: JSON.stringify({ email: "aluno@deltacare.com", senha: "errada" }),
+    });
+    assert.equal(dados.sucesso, false);
+    assert.ok(!dados.token);
+});
+
+test("demo: login devolve token e a página do perfil", async () => {
+    const { dados } = await pedir("/login", {
+        method: "POST",
+        body: JSON.stringify({ email: "professor@deltacare.com", senha: "demo123" }),
+    });
+    assert.equal(dados.sucesso, true);
+    assert.ok(dados.token);
+    assert.equal(dados.pagina, "professor/prof.html");
+});
+
+test("demo: rota protegida sem token responde 401", async () => {
+    const { status } = await pedir("/eu");
+    assert.equal(status, 401);
+});
+
+test("demo: perfil errado responde 403", async () => {
+    const token = await entrar("aluno@deltacare.com");
+    const { status } = await pedir("/admin/usuarios", {}, token);
+    assert.equal(status, 403);
+});
+
+test("demo: aluno não recebe rascunho nem material agendado", async () => {
+    const token = await entrar("aluno@deltacare.com");
+    const { dados } = await pedir("/aluno/materiais", {}, token);
+
+    const titulos = dados.materiais.map((m) => m.titulo);
+    assert.ok(!titulos.some((t) => t.includes("Roteiro de estudo")), "rascunho vazou para o aluno");
+    assert.ok(!titulos.some((t) => t.includes("Valvopatias")), "agendado vazou para o aluno");
+    assert.ok(titulos.length > 0, "o aluno não recebeu material nenhum");
+});
+
+test("demo: professor vê rascunho e agendado, com o status certo", async () => {
+    const token = await entrar("professor@deltacare.com");
+    const { dados } = await pedir("/materiais", {}, token);
+
+    const porTitulo = (parte) => dados.materiais.find((m) => m.titulo.includes(parte));
+    assert.equal(porTitulo("Roteiro de estudo").status, "rascunho");
+    assert.equal(porTitulo("Valvopatias").status, "agendado");
+    assert.equal(porTitulo("Insuficiencia").status, "publicado");
+});
+
+test("demo: professor não publica em turma que não é dele", async () => {
+    const token = await entrar("professor@deltacare.com");
+
+    const antes = (await pedir("/materiais", {}, token)).dados.materiais.length;
+    const { status } = await pedir(
+        "/materiais",
+        {
+            method: "POST",
+            body: JSON.stringify({ turma_ids: [1, 3], titulo: "Tentativa", tipo: "link" }),
+        },
+        token
+    );
+    const depois = (await pedir("/materiais", {}, token)).dados.materiais.length;
+
+    assert.equal(status, 403);
+    // A turma 1 é dele e a 3 não é: nenhuma das duas pode receber o material,
+    // senão o professor não saberia onde a publicação entrou.
+    assert.equal(depois, antes, "publicação parcial aconteceu");
+});
+
+test("demo: ninguém marca como lida a notificação de outro", async () => {
+    const tokenAluno = await entrar("aluno@deltacare.com");
+    const tokenProfessor = await entrar("professor@deltacare.com");
+
+    const doProfessor = (await pedir("/notificacoes", {}, tokenProfessor)).dados.notificacoes;
+    const alvo = doProfessor.find((n) => !n.lida);
+
+    await pedir("/notificacoes/" + alvo.id + "/lida", { method: "POST" }, tokenAluno);
+
+    const depois = (await pedir("/notificacoes", {}, tokenProfessor)).dados.notificacoes;
+    assert.equal(depois.find((n) => n.id === alvo.id).lida, false);
+});
+
+test("demo: assistente responde com a fonte do material", async () => {
+    const token = await entrar("aluno@deltacare.com");
+    const { dados } = await pedir(
+        "/chat/perguntar",
+        { method: "POST", body: JSON.stringify({ turma_id: 1, pergunta: "Qual a dose de Cardiolex?" }) },
+        token
+    );
+
+    assert.equal(dados.sucesso, true);
+    assert.ok(dados.fontes.length > 0, "respondeu sem citar fonte");
+    assert.ok(dados.resposta.includes("5 mg"));
+});
+
+test("demo: pergunta fora do material é recusada, sem fonte", async () => {
+    const token = await entrar("aluno@deltacare.com");
+    const { dados } = await pedir(
+        "/chat/perguntar",
+        { method: "POST", body: JSON.stringify({ turma_id: 1, pergunta: "Qual o escore XYZ-99?" }) },
+        token
+    );
+
+    assert.deepEqual(dados.fontes, []);
+    assert.ok(dados.resposta.includes("Nao encontrei") || dados.resposta.includes("Não encontrei"));
+});
+
+test("demo: fonte de outra turma não é citada", async () => {
+    // A regra HE-3 está em Clínica Médica II (turma 2). Perguntada na turma 1,
+    // não pode ser respondida: o assistente responde pelo material daquela turma.
+    const token = await entrar("aluno@deltacare.com");
+    const { dados } = await pedir(
+        "/chat/perguntar",
+        { method: "POST", body: JSON.stringify({ turma_id: 1, pergunta: "O que é a regra HE-3?" }) },
+        token
+    );
+
+    assert.deepEqual(dados.fontes, []);
+});
+
+test("demo: XP segue a mesma conta do backend", async () => {
+    const token = await entrar("aluno@deltacare.com");
+    const { dados } = await pedir("/aluno/resumo", {}, token);
+    const p = dados.progresso;
+
+    assert.equal(p.xp, p.perguntas * 10 + p.materiais_acessados * 15 + p.dias_ativos * 25);
+    assert.equal(p.nivel, Math.floor(p.xp / 150) + 1);
+    assert.equal(p.acompanhamento.length, 14);
+});
+
+test("demo: abrir o mesmo material duas vezes conta uma", async () => {
+    const token = await entrar("aluno@deltacare.com");
+    const cabecalho = { headers: { Authorization: "Bearer " + token } };
+    const antes = (await pedir("/aluno/resumo", {}, token)).dados.progresso.materiais_acessados;
+
+    await demo.responder("/aluno/materiais/1/arquivo", cabecalho);
+    await demo.responder("/aluno/materiais/1/arquivo", cabecalho);
+
+    const depois = (await pedir("/aluno/resumo", {}, token)).dados.progresso.materiais_acessados;
+    assert.equal(depois, antes, "reabrir o mesmo material contou de novo");
+});
+
+test("demo: o PDF gerado é um PDF de verdade", async () => {
+    const blob = demo._gerarPdf("Linha um\nLinha dois");
+    const inicio = new Uint8Array(await blob.arrayBuffer()).slice(0, 5);
+    assert.equal(Buffer.from(inicio).toString(), "%PDF-");
+    assert.equal(blob.type, "application/pdf");
+});
+
+test("demo: planilha recusa a linha inválida e aceita as demais", () => {
+    const csv = [
+        "Nome;E-mail;Matricula",
+        "Ana Souza;ana.souza@escola.edu;2026100",
+        ";sem.nome@escola.edu;2026101",
+        "Bruno Lima;email-quebrado;2026102",
+        "Carla Dias;carla.dias@escola.edu;2026103",
+    ].join("\n");
+
+    const relatorio = demo._analisarPlanilha({
+        arquivo_nome: "alunos.csv",
+        arquivo_base64: Buffer.from(csv, "utf-8").toString("base64"),
+    });
+
+    assert.equal(relatorio.sucesso, true);
+    assert.equal(relatorio.validos.length, 2);
+    assert.equal(relatorio.recusados.length, 2);
+    assert.ok(relatorio.recusados[0].motivo.includes("Nome"));
+    assert.ok(relatorio.recusados[1].motivo.includes("mail"));
+});

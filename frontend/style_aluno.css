@@ -319,6 +319,7 @@
     display: flex;
     align-items: center;
     gap: 22px;
+    flex-wrap: wrap;
 }
 
 .progresso-nivel {
@@ -424,7 +425,7 @@
 
 .progresso-detalhe {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 24px;
 
     margin-top: 22px;
@@ -488,12 +489,16 @@
     border-color: var(--color-primary);
 }
 
-@media (max-width: 860px) {
+/* =======================================================================
+   Mobile first
+   ======================================================================= */
+
+@media (min-width: 861px) {
     .progresso-detalhe {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
     }
 
     .progresso-topo {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
     }
 }

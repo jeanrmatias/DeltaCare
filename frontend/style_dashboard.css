@@ -39,6 +39,7 @@ body {
 .app {
     display: flex;
     min-height: 100vh;
+    flex-direction: column;
 }
 
 
@@ -50,7 +51,7 @@ body {
     display: flex;
     flex-direction: column;
 
-    width: 232px;
+    width: 100%;
     flex-shrink: 0;
 
     padding: 20px 16px;
@@ -88,10 +89,11 @@ body {
 
 .sidebar-nav {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 2px;
 
     flex: 1;
+    flex-wrap: wrap;
 }
 
 .sidebar-link {
@@ -217,7 +219,7 @@ body {
     flex: 1;
     min-width: 0;
 
-    padding: 28px 36px 48px;
+    padding: 20px;
 }
 
 
@@ -294,7 +296,7 @@ body {
     border: none;
     outline: none;
 
-    width: 140px;
+    width: 90px;
 
     font-family: var(--font-family);
     font-size: 13px;
@@ -435,7 +437,7 @@ body {
 
 .stats {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: 1fr;
     gap: 16px;
 
     margin-bottom: 20px;
@@ -479,7 +481,7 @@ body {
 
 .painel {
     display: grid;
-    grid-template-columns: 1fr 380px;
+    grid-template-columns: 1fr;
     gap: 20px;
 
     align-items: start;
@@ -1135,43 +1137,6 @@ body {
    Responsividade
    ========================= */
 
-@media (max-width: 1100px) {
-    .painel {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 720px) {
-    .app {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-    }
-
-    .sidebar-nav {
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-
-    .sidebar-link span {
-        display: none;
-    }
-
-    .conteudo {
-        padding: 20px;
-    }
-
-    .stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .busca input {
-        width: 90px;
-    }
-}
-
 
 /* =========================
    Blocos compartilhados entre os painéis de aluno e professor
@@ -1446,11 +1411,13 @@ body {
     gap: 10px;
 
     margin-top: 20px;
+    flex-direction: column-reverse;
 }
 
 .dialogo-acoes .acao {
     min-width: 104px;
     justify-content: center;
+    width: 100%;
 }
 
 /* Entrada suave: sem animação para quem pediu menos movimento no sistema. */
@@ -1467,16 +1434,6 @@ body {
     }
 }
 
-@media (max-width: 520px) {
-    .dialogo-acoes {
-        flex-direction: column-reverse;
-    }
-
-    .dialogo-acoes .acao {
-        width: 100%;
-    }
-}
-
 
 /* =========================
    Painel de notificações (ver notificacoes.js)
@@ -1485,10 +1442,10 @@ body {
 .painel-notificacoes {
     position: absolute;
     top: calc(100% + 10px);
-    right: 0;
+    right: -8px;
     z-index: 40;
 
-    width: 340px;
+    width: calc(100vw - 32px);
     max-height: 420px;
     overflow-y: auto;
 
@@ -1614,13 +1571,6 @@ body {
     text-align: center;
 }
 
-@media (max-width: 520px) {
-    .painel-notificacoes {
-        width: calc(100vw - 32px);
-        right: -8px;
-    }
-}
-
 /* Âncora de posicionamento do painel de notificações. */
 .area-notificacoes {
     position: relative;
@@ -1703,8 +1653,8 @@ body {
     inset: 0;
     margin: auto;
 
-    width: min(1040px, calc(100vw - 48px));
-    height: min(88vh, 900px);
+    width: calc(100vw - 16px);
+    height: 92vh;
     max-width: none;
     max-height: none;
 
@@ -1800,13 +1750,6 @@ body {
     font-size: 14px;
 }
 
-@media (max-width: 640px) {
-    .visualizador {
-        width: calc(100vw - 16px);
-        height: 92vh;
-    }
-}
-
 
 /* Barra de filtros combinados da lista de materiais. */
 .filtros-materiais {
@@ -1824,7 +1767,7 @@ body {
 
 .campo--filtro {
     min-width: 150px;
-    flex: 1 1 150px;
+    flex: 1 1 100%;
     margin: 0;
 }
 
@@ -1843,16 +1786,7 @@ body {
 .filtros-materiais .acao {
     flex: 0 0 auto;
     height: 38px;
-}
-
-@media (max-width: 720px) {
-    .campo--filtro {
-        flex-basis: 100%;
-    }
-
-    .filtros-materiais .acao {
-        width: 100%;
-    }
+    width: 100%;
 }
 
 
@@ -2062,4 +1996,82 @@ body {
 
     font-size: 12.5px;
     line-height: 1.5;
+}
+
+/* =======================================================================
+   Mobile first
+   O estilo acima e o do celular: barra lateral virando faixa horizontal no
+   topo, so com icones, conteudo em uma coluna. Daqui para baixo o layout
+   cresce ate o desktop.
+   ======================================================================= */
+
+@media (min-width: 421px) {
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 521px) {
+    .painel-notificacoes {
+        width: 340px;
+        right: 0;
+    }
+
+    .dialogo-acoes {
+        flex-direction: row;
+    }
+
+    .dialogo-acoes .acao {
+        width: auto;
+    }
+}
+
+@media (min-width: 641px) {
+    .visualizador {
+        width: min(1040px, calc(100vw - 48px));
+        height: min(88vh, 900px);
+    }
+}
+
+@media (min-width: 721px) {
+    /* Tablet e acima: a barra lateral volta a ser coluna, com rotulo. */
+    .app {
+        flex-direction: row;
+    }
+
+    .sidebar {
+        width: 232px;
+    }
+
+    .sidebar-nav {
+        flex-direction: column;
+        flex-wrap: nowrap;
+    }
+
+    .conteudo {
+        padding: 28px 36px 48px;
+    }
+
+    .stats {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .busca input {
+        width: 140px;
+    }
+
+    .campo--filtro {
+        flex: 1 1 150px;
+    }
+
+    .filtros-materiais .acao {
+        width: auto;
+    }
+}
+
+@media (min-width: 1101px) {
+    /* So no desktop largo o painel ganha a coluna lateral de 380px. */
+    .painel {
+        grid-template-columns: 1fr 380px;
+    }
 }

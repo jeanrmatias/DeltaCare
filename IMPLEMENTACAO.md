@@ -304,7 +304,7 @@ cd backend
 python testes.py          # 80 testes, não precisa do Ollama
 
 cd ../frontend
-node testes.mjs           # 27 testes do JavaScript
+node testes.mjs           # 49 testes do JavaScript
 ```
 
 Os testes de front cobrem a lógica pura: renderização de Markdown (incluindo

@@ -20,7 +20,7 @@ Resumo do que foi decidido até aqui, pra continuar em outra ferramenta sem perd
 - O primeiro admin nasce só pelo `seed_demo.py`, inserido direto no banco: o cadastro público só cria aluno e `criar_conta_staff` exige um admin já existente.
 
 ## Testes
-`python backend/testes.py` roda 80 testes num banco temporário, e `node frontend/testes.mjs` roda 27 do JavaScript. Os de backend rodam num banco temporário (variável `DELTACARE_DB`), sem precisar do Ollama. O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de material, sessão e integridade do banco ao excluir. Interface e formatação ficam de fora — erro de CSS aparece na tela, erro de permissão não.
+`python backend/testes.py` roda 80 testes num banco temporário, e `node frontend/testes.mjs` roda 49 do JavaScript. Os de backend rodam num banco temporário (variável `DELTACARE_DB`), sem precisar do Ollama. O foco é o que dá prejuízo se quebrar em silêncio: permissão, visibilidade de material, sessão e integridade do banco ao excluir. Interface e formatação ficam de fora — erro de CSS aparece na tela, erro de permissão não.
 
 ## Regras de permissão (todas validadas no backend, não só escondidas na UI)
 - Só **admin** cria/exclui turma e matricula/desmatricula aluno.
@@ -60,6 +60,31 @@ Detalhamento completo em `IMPLEMENTACAO.md`. As que mais afetam quem for mexer n
 - **O visualizador usa blob, não iframe com URL da API**: navegação de iframe não manda o header `Authorization`, e token na URL fica no histórico e nos logs.
 - **Importação de planilha sem dependência nova**: `.xlsx` é ZIP com XML, lido com `zipfile` + `ElementTree`. Conferir e importar são etapas separadas, para uma planilha meio errada não criar metade das contas.
 - **PDF na importação foi avaliado e recusado**: texto de PDF não tem estrutura de tabela, e adivinhar coluna por posição erra em silêncio — um aluno com a matrícula de outro é pior que pedir a planilha.
+
+- **Modo demonstração (`frontend/demo.js`).** O Challenge exige deploy na
+  Vercel, e o backend (FastAPI + SQLite + Ollama) não roda lá. Em vez de
+  publicar uma casca que não funciona, `api()` em `auth.js` cai no adaptador
+  quando a requisição falha **por rede** — 401/403/500 não caem, senão erro do
+  backend viraria "modo demonstração" e esconderia o problema. O adaptador
+  responde os mesmos caminhos no mesmo formato, então nenhuma tela foi
+  reescrita. Dados iniciais em `dados-demo.json` (fictícios, versionados);
+  progresso do visitante em `localStorage`.
+  - As formas de resposta não foram deduzidas: foram capturadas do backend
+    rodando, rota por rota, e copiadas.
+  - O gerador de PDF de `seed_demo.py` foi portado para JavaScript, senão o
+    visualizador abriria `.txt` onde o produto mostra `.pdf`.
+  - A regra de visibilidade (aluno não vê rascunho nem agendado) vale também no
+    modo demonstração, com teste. Mas ali ela é **de fachada** — o código roda
+    no navegador de quem usa. A garantia é a do backend.
+
+- **CSS é mobile first.** Eram 9 media queries `max-width` desfazendo o layout
+  do desktop; agora a base é a tela pequena e 8 `min-width` constroem o resto.
+  Os pontos de corte são os mesmos de antes (480→481, 720→721…), então o
+  comportamento em cada largura não mudou — menos os cartões de estatística,
+  que agora empilham abaixo de 421px. Verificado por captura em 390, 800 e
+  1440px, com e sem backend.
+  - `.sidebar-link span` foi removido: o rótulo do menu nunca esteve dentro de
+    um `<span>`, então a regra era CSS morto desde antes.
 
 - **O módulo de denúncias tinha só um lado.** O backlog descrevia a gestão (receber, acompanhar, agir) e nenhum card descrevia o ato de denunciar. Corrigido no catálogo: as áreas de aluno e professor ganharam o módulo de reportar, e os dois se referenciam. Vale conferir se outros módulos têm a mesma assimetria antes de implementá-los.
 

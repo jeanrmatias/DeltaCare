@@ -26,7 +26,7 @@ body {
     align-items: center;
     justify-content: center;
 
-    padding: 24px;
+    padding: 16px;
 
     background: var(--color-bg);
     color: var(--color-text);
@@ -45,7 +45,7 @@ form {
 
     background: var(--color-surface);
 
-    padding: 40px;
+    padding: 28px 24px;
 
     border-radius: var(--radius-lg);
 
@@ -62,7 +62,7 @@ h1 {
 
     color: var(--color-navy-900);
 
-    font-size: 30px;
+    font-size: 26px;
     font-weight: 700;
 
     text-align: center;
@@ -213,21 +213,6 @@ form button:disabled {
 /* =========================
    Responsividade
    ========================= */
-
-@media (max-width: 480px) {
-
-    body {
-        padding: 16px;
-    }
-
-    form {
-        padding: 28px 24px;
-    }
-
-    h1 {
-        font-size: 26px;
-    }
-}
 #esqueciSenha {
     display: block;
 
@@ -368,11 +353,13 @@ form button:disabled {
     gap: 10px;
 
     margin-top: 20px;
+    flex-direction: column-reverse;
 }
 
 .dialogo-acoes .acao {
     min-width: 104px;
     justify-content: center;
+    width: 100%;
 }
 
 /* Entrada suave: sem animação para quem pediu menos movimento no sistema. */
@@ -386,16 +373,6 @@ form button:disabled {
             opacity: 0;
             transform: translateY(-8px) scale(0.98);
         }
-    }
-}
-
-@media (max-width: 520px) {
-    .dialogo-acoes {
-        flex-direction: column-reverse;
-    }
-
-    .dialogo-acoes .acao {
-        width: 100%;
     }
 }
 
@@ -450,4 +427,35 @@ form button:disabled {
 .acao--perigo:hover {
     background: var(--color-danger-bg);
     border-color: var(--color-danger);
+}
+
+/* =======================================================================
+   Mobile first
+   O estilo acima e o da tela pequena. Daqui para baixo, o layout cresce.
+   ======================================================================= */
+
+@media (min-width: 481px) {
+    body {
+        padding: 24px;
+    }
+
+    form {
+        padding: 40px;
+    }
+
+    h1 {
+        font-size: 30px;
+    }
+}
+
+@media (min-width: 521px) {
+    /* Em telas estreitas os botoes do dialogo viram uma coluna, com o
+       confirmar embaixo (column-reverse), que e onde o polegar alcanca. */
+    .dialogo-acoes {
+        flex-direction: row;
+    }
+
+    .dialogo-acoes .acao {
+        width: auto;
+    }
 }

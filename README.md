@@ -8,6 +8,100 @@ externo do modelo).
 Projeto acadêmico, pensado como demonstrativo — um deploy por instituição,
 não SaaS multi-tenant.
 
+---
+
+## Entrega — Challenge Hospital Moinhos de Vento · Sprint 3
+
+**FIAP · 1º Engenharia de Software · Semi Presencial — Porto Alegre**
+
+| Integrante | RM |
+|---|---|
+| Arthur Veiga Demétrio | RM570056 |
+| Jean Rodrigues Matias | RM571284 |
+| Matheus Marques De Souza | RM573203 |
+
+- **Repositório:** https://github.com/jeanrmatias/DeltaCare
+
+### Contas para teste
+
+A solução tem autenticação. Todas as contas usam a mesma senha:
+
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Administração | `adm@deltacare.com` | `demo123` |
+| Professor | `professor@deltacare.com` | `demo123` |
+| Aluno | `aluno@deltacare.com` | `demo123` |
+
+No deploy da Vercel elas funcionam direto, sem instalar nada — ver
+**Modo demonstração** abaixo.
+
+### Tecnologias utilizadas
+
+| Camada | O que é usado |
+|---|---|
+| Interface | HTML5 semântico, CSS3 (Flexbox, CSS Grid, variáveis CSS, mobile first com media queries), JavaScript ES6+ sem framework |
+| Componentização | Módulos JS próprios: diálogos, notificações, visualizador de material, renderizador de Markdown, perfil, catálogo de módulos |
+| Persistência no navegador | `localStorage` (progresso e preferências) e `sessionStorage` (token da sessão) |
+| API | Python 3 com FastAPI |
+| Banco | SQLite |
+| IA do produto | Ollama local: `gpt-oss:20b` (chat) e `nomic-embed-text` (embeddings) |
+| Testes | `unittest` no backend, `node:test` no front, validador de HTML próprio |
+| Deploy | Vercel (interface) |
+
+Nenhuma dependência de front-end é baixada: não há Bootstrap, jQuery nem build
+step. O `requirements.txt` do backend tem três pacotes.
+
+### Onde e como usamos Inteligência Artificial no desenvolvimento
+
+Usamos o **Claude Code (Anthropic)** como par de programação durante as Sprints
+2 e 3. A IA foi usada para: implementar os itens do relatório de melhorias a
+partir da descrição do problema, escrever a suíte de testes automatizados,
+portar o gerador de PDF do Python para JavaScript, montar o modo demonstração e
+revisar a documentação. Em todos os casos o fluxo foi o mesmo: a equipe
+descreveu o problema e o critério de aceite, a IA propôs a implementação, e a
+equipe revisou, testou e decidiu o que entrava — inclusive recusando sugestões
+(por exemplo, importar planilha a partir de PDF foi avaliado e descartado, e a
+troca de `sessionStorage` por `localStorage` para o token de sessão foi
+rejeitada por ser pior em segurança). Erros introduzidos pela IA aconteceram e
+estão registrados na retrospectiva do `SPRINT_3.md`; foi por causa de um deles
+que passamos a validar o HTML com parser em vez de expressão regular.
+
+Isso é distinto da IA **dentro do produto**: o assistente de estudos do aluno
+roda em Ollama local e responde apenas a partir do material publicado pelo
+professor.
+
+---
+
+## Modo demonstração (deploy sem servidor)
+
+O backend é FastAPI + SQLite + Ollama local. Nada disso roda num deploy
+estático, e a Vercel não tem GPU para um modelo de 20 bilhões de parâmetros.
+
+Em vez de publicar uma casca que não funciona, o front **detecta que a API não
+respondeu e passa a responder a si mesmo**, com dados fictícios. É o que
+permite abrir o link da Vercel e navegar pelos três perfis sem instalar nada.
+
+- `frontend/dados-demo.json` — o conjunto inicial: usuários, turmas, materiais,
+  notificações e as respostas do assistente. Fictício, versionado.
+- `frontend/demo.js` — responde aos mesmos caminhos da API, no mesmo formato.
+  Quem chama (`api()` em `auth.js`) não sabe a diferença, e por isso nenhuma
+  tela precisou ser reescrita.
+- `localStorage` — guarda o que o visitante fizer: material criado, notificação
+  lida, pergunta ao assistente, XP ganho. Sobrevive ao recarregar a página.
+
+Um aviso fixo no topo diz que o modo está ativo, e o botão **Reiniciar
+demonstração** apaga o progresso e volta ao estado inicial.
+
+Duas coisas continuam valendo no modo demonstração, porque sem elas a
+demonstração não demonstraria o produto: **o aluno não enxerga rascunho nem
+material agendado**, e **o assistente recusa pergunta que o material da turma
+não cobre**. Há testes cobrindo os dois casos. O que não vale é a *garantia*:
+no modo demonstração ela é de fachada, já que o código roda no navegador de
+quem usa. A garantia real é a do backend, em `backend/main.py`.
+
+Com o backend rodando em `127.0.0.1:8000`, nada disso é acionado — o modo
+demonstração só entra quando a requisição falha por rede.
+
 ## Estrutura
 
 ```
@@ -38,6 +132,8 @@ frontend/
   servir.py                 - servidor estático de desenvolvimento (no-store)
 
   config.js                 - endereço da API
+  demo.js                   - modo demonstração: responde no lugar da API
+  dados-demo.json           - dados fictícios do modo demonstração
   auth.js                   - token de sessão e helper api() autenticado
   dialogo.js                - diálogos próprios (substituem alert/confirm/prompt)
   markdown.js               - renderiza a resposta da IA (sem innerHTML)
@@ -189,7 +285,7 @@ cd backend
 python testes.py        # 80 testes das regras de negócio
 
 cd ../frontend
-node testes.mjs         # 27 testes do JavaScript
+node testes.mjs         # 49 testes do JavaScript
 ```
 
 **Backend:** permissões, visibilidade de material, sessão, notificações,
