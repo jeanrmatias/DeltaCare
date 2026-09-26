@@ -192,11 +192,16 @@ arquivos globais com `../` (ex.: `../auth.js`), e os `<script>`/`<link>` levam
 
    ```
    cd backend
-   uvicorn main:app --reload
+   uvicorn main:app
    ```
 
    Na primeira execução, `configurar_banco()` cria o `deltacare.db` (SQLite)
    na pasta `backend/` automaticamente — não precisa criar nada à mão.
+
+   **Sem `--reload`, de propósito:** o reloader do uvicorn já deixou aqui um
+   worker órfão segurando a porta 8000 e servindo código antigo, com os
+   restarts falhando em silêncio. Para reiniciar, encerre o processo e suba de
+   novo.
 
    Teste em <http://127.0.0.1:8000> — deve responder
    `{"mensagem": "Backend funcionando :)"}`.
