@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,6 +47,19 @@ from regras.aluno import (
     obter_arquivo_material_do_aluno,
     registrar_acesso_material,
     resumo_do_aluno,
+)
+from regras.atividades import (
+    atualizar_atividade,
+    corrigir_entrega,
+    criar_atividade_em_turmas,
+    enviar_entrega,
+    excluir_atividade,
+    listar_atividades,
+    listar_atividades_do_aluno,
+    listar_entregas,
+    obter_atividade,
+    obter_atividade_do_aluno,
+    salvar_progresso,
 )
 from regras.importacao import analisar_planilha, importar_alunos
 from regras.notificacoes import (
@@ -199,6 +212,53 @@ class MatriculaRequest(BaseModel):
 class PerguntaRequest(BaseModel):
     turma_id: int
     pergunta: str
+
+
+class QuestaoRequest(BaseModel):
+    enunciado: str
+    alternativas: list[str]
+    # Índice da alternativa certa. Só trafega do professor para o servidor;
+    # nunca no sentido contrário para o aluno (regras/atividades.py).
+    correta: int
+
+
+class AtividadeRequest(BaseModel):
+    # Mesmo par turma_id/turma_ids dos materiais: o segundo publica em várias
+    # turmas de uma vez, o primeiro fica para não quebrar quem já integra.
+    turma_id: Optional[int] = None
+    turma_ids: Optional[list[int]] = None
+    titulo: str
+    tipo: str
+    enunciado: str = ""
+    assunto: str = ""
+    topico: str = ""
+    pontos: int = 10
+    rascunho: bool = True
+    data_liberacao: Optional[str] = None
+    prazo: Optional[str] = None
+    questoes: Optional[list[QuestaoRequest]] = None
+
+
+class AtividadeAtualizacaoRequest(BaseModel):
+    titulo: Optional[str] = None
+    enunciado: Optional[str] = None
+    assunto: Optional[str] = None
+    topico: Optional[str] = None
+    pontos: Optional[int] = None
+    rascunho: Optional[bool] = None
+    data_liberacao: Optional[str] = None
+    prazo: Optional[str] = None
+
+
+class CorrecaoRequest(BaseModel):
+    nota: float
+    devolutiva: str = ""
+
+
+class RespostaRequest(BaseModel):
+    # Objetiva manda uma lista de índices escolhidos; dissertativa manda texto.
+    # O tipo é validado em regras/atividades.py, que sabe qual é a atividade.
+    respostas: Any = None
 
 
 @app.get("/")
@@ -468,6 +528,106 @@ def baixar_arquivo_material_aluno(material_id: int, aluno: dict = Depends(usuari
 
     caminho, nome_original = resultado
     return FileResponse(caminho, filename=nome_original)
+
+
+# ---------------------------- atividades ----------------------------
+# Dois lados: o professor cria e corrige; o aluno resolve e entrega. A visão
+# do aluno mora em funções separadas (regras/atividades.py) pelo mesmo motivo
+# dos materiais — lá rascunho e agendado nunca aparecem, e o gabarito nunca sai
+# do servidor.
+
+@app.post("/atividades")
+def criar_atividade_rota(dados: AtividadeRequest, professor: dict = Depends(usuario_professor)):
+    turmas = dados.turma_ids or ([dados.turma_id] if dados.turma_id else [])
+
+    return criar_atividade_em_turmas(
+        professor["email"],
+        turmas,
+        titulo=dados.titulo,
+        enunciado=dados.enunciado,
+        tipo=dados.tipo,
+        assunto=dados.assunto,
+        topico=dados.topico,
+        pontos=dados.pontos,
+        rascunho=dados.rascunho,
+        data_liberacao=dados.data_liberacao,
+        prazo=dados.prazo,
+        questoes=[q.model_dump() for q in (dados.questoes or [])],
+    )
+
+
+@app.get("/atividades")
+def listar_atividades_rota(
+    turma_id: Optional[int] = None,
+    professor: dict = Depends(usuario_professor),
+):
+    return listar_atividades(professor["email"], turma_id)
+
+
+@app.get("/atividades/{atividade_id}")
+def obter_atividade_rota(atividade_id: int, professor: dict = Depends(usuario_professor)):
+    """Inclui o gabarito — por isso é rota de professor, nunca de aluno."""
+    return obter_atividade(atividade_id, professor["email"])
+
+
+@app.put("/atividades/{atividade_id}")
+def atualizar_atividade_rota(
+    atividade_id: int,
+    dados: AtividadeAtualizacaoRequest,
+    professor: dict = Depends(usuario_professor),
+):
+    return atualizar_atividade(atividade_id, professor["email"], **dados.model_dump(exclude_none=True))
+
+
+@app.delete("/atividades/{atividade_id}")
+def excluir_atividade_rota(atividade_id: int, professor: dict = Depends(usuario_professor)):
+    return excluir_atividade(atividade_id, professor["email"])
+
+
+@app.get("/atividades/{atividade_id}/entregas")
+def listar_entregas_rota(atividade_id: int, professor: dict = Depends(usuario_professor)):
+    return listar_entregas(atividade_id, professor["email"])
+
+
+@app.post("/entregas/{entrega_id}/correcao")
+def corrigir_entrega_rota(
+    entrega_id: int,
+    dados: CorrecaoRequest,
+    professor: dict = Depends(usuario_professor),
+):
+    return corrigir_entrega(entrega_id, professor["email"], dados.nota, dados.devolutiva)
+
+
+@app.get("/aluno/atividades")
+def listar_atividades_do_aluno_rota(
+    turma_id: Optional[int] = None,
+    aluno: dict = Depends(usuario_aluno),
+):
+    return listar_atividades_do_aluno(aluno["email"], turma_id)
+
+
+@app.get("/aluno/atividades/{atividade_id}")
+def obter_atividade_do_aluno_rota(atividade_id: int, aluno: dict = Depends(usuario_aluno)):
+    return obter_atividade_do_aluno(aluno["email"], atividade_id)
+
+
+@app.post("/aluno/atividades/{atividade_id}/progresso")
+def salvar_progresso_rota(
+    atividade_id: int,
+    dados: RespostaRequest,
+    aluno: dict = Depends(usuario_aluno),
+):
+    """Salva sem entregar, para o aluno retomar de onde parou."""
+    return salvar_progresso(aluno["email"], atividade_id, dados.respostas)
+
+
+@app.post("/aluno/atividades/{atividade_id}/entrega")
+def enviar_entrega_rota(
+    atividade_id: int,
+    dados: RespostaRequest,
+    aluno: dict = Depends(usuario_aluno),
+):
+    return enviar_entrega(aluno["email"], atividade_id, dados.respostas)
 
 
 @app.post("/chat/perguntar")

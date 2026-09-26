@@ -136,7 +136,8 @@ não pedido em texto.
 **"Isso escala para a faculdade inteira?"**
 A arquitetura sim, com trabalho conhecido: trocar Ollama por vLLM (que atende
 várias requisições em paralelo), SQLite por Postgres e o disco local por
-storage em nuvem. O `CONTEXTO.md` tem o levantamento completo.
+storage em nuvem. O README tem o levantamento completo, em "Limitações
+conhecidas".
 
 **"Por que demora alguns segundos?"**
 Porque o modelo roda numa GPU de desenvolvimento que não comporta ele inteiro.

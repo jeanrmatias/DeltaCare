@@ -32,8 +32,8 @@ A solução tem autenticação. Todas as contas usam a mesma senha:
 | Professor | `professor@deltacare.com` | `demo123` |
 | Aluno | `aluno@deltacare.com` | `demo123` |
 
-No deploy da Vercel elas funcionam direto, sem instalar nada — ver
-**Modo demonstração** abaixo.
+As contas são criadas pelo `backend/seed_demo.py`, que grava no banco de
+verdade — não são dados de fachada no navegador.
 
 ### Tecnologias utilizadas
 
@@ -56,8 +56,8 @@ step. O `requirements.txt` do backend tem três pacotes.
 Usamos o **Claude Code (Anthropic)** como par de programação durante as Sprints
 2 e 3. A IA foi usada para: implementar os itens do relatório de melhorias a
 partir da descrição do problema, escrever a suíte de testes automatizados,
-portar o gerador de PDF do Python para JavaScript, montar o modo demonstração e
-revisar a documentação. Em todos os casos o fluxo foi o mesmo: a equipe
+construir o módulo de atividades e revisar a documentação. Em todos os casos o
+fluxo foi o mesmo: a equipe
 descreveu o problema e o critério de aceite, a IA propôs a implementação, e a
 equipe revisou, testou e decidiu o que entrava — inclusive recusando sugestões
 (por exemplo, importar planilha a partir de PDF foi avaliado e descartado, e a
@@ -72,35 +72,18 @@ professor.
 
 ---
 
-## Modo demonstração (deploy sem servidor)
+## O sistema exige o backend no ar
 
-O backend é FastAPI + SQLite + Ollama local. Nada disso roda num deploy
-estático, e a Vercel não tem GPU para um modelo de 20 bilhões de parâmetros.
+O front não tem modo de contingência: se a API não responder, a tela diz que
+não conseguiu falar com o servidor e para por aí.
 
-Em vez de publicar uma casca que não funciona, o front **detecta que a API não
-respondeu e passa a responder a si mesmo**, com dados fictícios. É o que
-permite abrir o link da Vercel e navegar pelos três perfis sem instalar nada.
+Isso é decisão de produto, não limitação. O Delta Care é usado por uma
+instituição de ensino — mostrar turma, material ou nota fictícios quando o
+servidor cai seria pior do que não mostrar nada, porque quem está na tela não
+teria como saber que está olhando para algo que não existe.
 
-- `frontend/dados-demo.json` — o conjunto inicial: usuários, turmas, materiais,
-  notificações e as respostas do assistente. Fictício, versionado.
-- `frontend/demo.js` — responde aos mesmos caminhos da API, no mesmo formato.
-  Quem chama (`api()` em `auth.js`) não sabe a diferença, e por isso nenhuma
-  tela precisou ser reescrita.
-- `localStorage` — guarda o que o visitante fizer: material criado, notificação
-  lida, pergunta ao assistente, XP ganho. Sobrevive ao recarregar a página.
-
-Um aviso fixo no topo diz que o modo está ativo, e o botão **Reiniciar
-demonstração** apaga o progresso e volta ao estado inicial.
-
-Duas coisas continuam valendo no modo demonstração, porque sem elas a
-demonstração não demonstraria o produto: **o aluno não enxerga rascunho nem
-material agendado**, e **o assistente recusa pergunta que o material da turma
-não cobre**. Há testes cobrindo os dois casos. O que não vale é a *garantia*:
-no modo demonstração ela é de fachada, já que o código roda no navegador de
-quem usa. A garantia real é a do backend, em `backend/main.py`.
-
-Com o backend rodando em `127.0.0.1:8000`, nada disso é acionado — o modo
-demonstração só entra quando a requisição falha por rede.
+Para rodar: suba o backend (ver **Configuração**) e sirva o front com
+`python frontend/servir.py`.
 
 ## Estrutura
 
@@ -132,8 +115,6 @@ frontend/
   servir.py                 - servidor estático de desenvolvimento (no-store)
 
   config.js                 - endereço da API
-  demo.js                   - modo demonstração: responde no lugar da API
-  dados-demo.json           - dados fictícios do modo demonstração
   auth.js                   - token de sessão e helper api() autenticado
   dialogo.js                - diálogos próprios (substituem alert/confirm/prompt)
   markdown.js               - renderiza a resposta da IA (sem innerHTML)
@@ -271,7 +252,7 @@ chamando é sempre deduzido do token, pelas dependências `usuario_logado` e
 backend acreditava no e-mail enviado pelo front, o que permitia agir em nome
 de outra pessoa apenas trocando esse campo.
 
-## Limitações conhecidas (ver `CONTEXTO.md`)
+## Limitações conhecidas
 
 - Sem HTTPS: o token viaja em texto claro. Em rede local de demonstração é
   aceitável; para uso real é obrigatório antes de qualquer dado de aluno.
@@ -315,12 +296,8 @@ Requer Node 18+ (só para os testes; a aplicação não usa Node).
 - [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil:
   criar contas e turmas, publicar material com rascunho e agendamento, e como
   o aluno usa o assistente de estudos.
-- [`IMPLEMENTACAO.md`](IMPLEMENTACAO.md) — relatório das melhorias da última
-  rodada: o que mudou em cada item, arquivos envolvidos e como testar.
 - [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas de arquitetura, fluxo de
   autenticação, funcionamento do RAG, modelo de dados e matriz de permissões.
 - [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com
   as perguntas a fazer no chat, respostas para as dúvidas mais prováveis e
   plano B se algum serviço cair.
-- [`CONTEXTO.md`](CONTEXTO.md) — histórico de decisões, o que falta para
-  virar produto e as armadilhas já encontradas (para não repetir).

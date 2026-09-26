@@ -15,9 +15,11 @@ Usa `unittest`, da biblioteca padrão, para o projeto não ganhar dependência.
 """
 
 import base64
+import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 
 # Precisa vir antes de qualquer import do projeto: os módulos leem o caminho
 # do banco no momento em que são importados.
@@ -29,10 +31,24 @@ import sqlite3  # noqa: E402
 from infra.database import CAMINHO_DB, configurar_banco  # noqa: E402
 from regras.autenticacao import cadastrar_usuario, criar_conta_staff, realizar_login  # noqa: E402
 from regras.aluno import (  # noqa: E402
+    MAX_PERGUNTAS_QUE_PONTUAM_POR_DIA,
+    XP_POR_ATIVIDADE_ENTREGUE,
     listar_materiais_do_aluno,
     obter_arquivo_material_do_aluno,
     registrar_acesso_material,
     resumo_do_aluno,
+)
+from regras.atividades import (  # noqa: E402
+    corrigir_entrega,
+    criar_atividade_em_turmas,
+    enviar_entrega,
+    excluir_atividade,
+    listar_atividades,
+    listar_atividades_do_aluno,
+    listar_entregas,
+    obter_atividade,
+    obter_atividade_do_aluno,
+    salvar_progresso,
 )
 from regras.importacao import analisar_planilha, importar_alunos  # noqa: E402
 from regras.materiais import (  # noqa: E402
@@ -820,6 +836,392 @@ class TestesImportacao(BaseDelta):
         resultado = importar_alunos(PROFESSOR, self._planilha(csv), "alunos.csv", senha_padrao=SENHA)
         self.assertEqual(resultado["total_criados"], 0)
 
+
+
+# =========================================================================
+# Atividades — professor
+# =========================================================================
+
+class BaseAtividades(BaseDelta):
+    """Base com atalhos para montar atividades nos testes."""
+
+    QUESTOES = [
+        {"enunciado": "Qual a dose inicial?", "alternativas": ["2 mg", "5 mg", "8 mg"], "correta": 1},
+        {"enunciado": "Quantas fases tem o protocolo?", "alternativas": ["2", "3"], "correta": 1},
+    ]
+
+    def criar_objetiva(self, titulo="Quiz", rascunho=False, data_liberacao=None,
+                       prazo=None, professor=PROFESSOR, turma_id=None, pontos=10):
+        return criar_atividade_em_turmas(
+            professor,
+            [turma_id if turma_id is not None else self.turma_id],
+            titulo=titulo,
+            tipo="objetiva",
+            pontos=pontos,
+            rascunho=rascunho,
+            data_liberacao=data_liberacao,
+            prazo=prazo,
+            questoes=[dict(q) for q in self.QUESTOES],
+        )
+
+    def criar_dissertativa(self, titulo="Resumo", rascunho=False, prazo=None, pontos=10):
+        return criar_atividade_em_turmas(
+            PROFESSOR,
+            [self.turma_id],
+            titulo=titulo,
+            tipo="dissertativa",
+            enunciado="Escreva um resumo da aula.",
+            pontos=pontos,
+            rascunho=rascunho,
+            prazo=prazo,
+        )
+
+    def id_aluno(self):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linha = conexao.execute("SELECT id FROM users WHERE email = ?", (ALUNO,)).fetchone()
+        conexao.close()
+        return linha[0]
+
+
+class TestesAtividadeProfessor(BaseAtividades):
+
+    def test_cria_objetiva_com_questoes(self):
+        resultado = self.criar_objetiva()
+        self.assertTrue(resultado["sucesso"])
+
+        atividade_id = resultado["atividade_ids"][0]
+        detalhe = obter_atividade(atividade_id, PROFESSOR)
+        self.assertEqual(len(detalhe["questoes"]), 2)
+        self.assertEqual(detalhe["questoes"][0]["correta"], 1)
+
+    def test_objetiva_sem_questao_e_recusada(self):
+        resultado = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Vazia", tipo="objetiva", questoes=[]
+        )
+        self.assertFalse(resultado["sucesso"])
+
+    def test_questao_sem_gabarito_e_recusada(self):
+        resultado = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Torta", tipo="objetiva",
+            questoes=[{"enunciado": "E?", "alternativas": ["a", "b"], "correta": None}],
+        )
+        self.assertFalse(resultado["sucesso"])
+
+    def test_tipo_invalido_e_recusado(self):
+        resultado = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="X", tipo="adivinhacao"
+        )
+        self.assertFalse(resultado["sucesso"])
+
+    def test_professor_nao_cria_em_turma_alheia(self):
+        """E, como nos materiais, publicacao parcial nao pode acontecer."""
+        outra = criar_turma(ADMIN, PROFESSOR2, "Clinica", "2026.2")["turma"]["id"]
+
+        resultado = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id, outra], titulo="Invasao", tipo="dissertativa"
+        )
+
+        self.assertFalse(resultado["sucesso"])
+        conexao = sqlite3.connect(CAMINHO_DB)
+        total = conexao.execute("SELECT COUNT(*) FROM atividades").fetchone()[0]
+        conexao.close()
+        self.assertEqual(total, 0, "criou atividade mesmo com turma invalida")
+
+    def test_status_reflete_rascunho_e_agendamento(self):
+        self.criar_objetiva(titulo="Publicada")
+        self.criar_objetiva(titulo="Rascunho", rascunho=True)
+        futuro = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        self.criar_objetiva(titulo="Agendada", data_liberacao=futuro)
+
+        por_titulo = {
+            a["titulo"]: a["status"]
+            for a in listar_atividades(PROFESSOR)["atividades"]
+        }
+
+        self.assertEqual(por_titulo["Publicada"], "publicado")
+        self.assertEqual(por_titulo["Rascunho"], "rascunho")
+        self.assertEqual(por_titulo["Agendada"], "agendado")
+
+    def test_excluir_leva_questoes_e_entregas_junto(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 1])
+
+        excluir_atividade(atividade_id, PROFESSOR)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        questoes = conexao.execute(
+            "SELECT COUNT(*) FROM questoes WHERE atividade_id = ?", (atividade_id,)
+        ).fetchone()[0]
+        entregas = conexao.execute(
+            "SELECT COUNT(*) FROM entregas WHERE atividade_id = ?", (atividade_id,)
+        ).fetchone()[0]
+        conexao.close()
+
+        self.assertEqual(questoes, 0, "sobraram questoes orfas")
+        self.assertEqual(entregas, 0, "sobraram entregas orfas")
+
+    def test_outro_professor_nao_exclui(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        self.assertFalse(excluir_atividade(atividade_id, PROFESSOR2)["sucesso"])
+
+    def test_listagem_mostra_entregues_e_pendentes(self):
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "meu resumo")
+
+        atividade = listar_atividades(PROFESSOR)["atividades"][0]
+        self.assertEqual(atividade["entregues"], 1)
+        self.assertEqual(atividade["a_corrigir"], 1)
+        self.assertEqual(atividade["pendentes"], 0)
+
+
+class TestesCorrecao(BaseAtividades):
+
+    def _entrega_id(self, atividade_id):
+        return listar_entregas(atividade_id, PROFESSOR)["entregas"][0]["entrega_id"]
+
+    def test_professor_corrige_e_o_aluno_ve_a_nota(self):
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "resposta do aluno")
+
+        entrega_id = self._entrega_id(atividade_id)
+        self.assertTrue(corrigir_entrega(entrega_id, PROFESSOR, 8, "Bom, mas faltou citar o protocolo.")["sucesso"])
+
+        atividade = listar_atividades_do_aluno(ALUNO)["atividades"][0]
+        self.assertEqual(atividade["nota"], 8)
+        self.assertEqual(atividade["situacao"], "corrigida")
+        self.assertIn("protocolo", atividade["devolutiva"])
+
+    def test_nota_acima_do_maximo_e_recusada(self):
+        atividade_id = self.criar_dissertativa(pontos=10)["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "resposta")
+        entrega_id = self._entrega_id(atividade_id)
+
+        self.assertFalse(corrigir_entrega(entrega_id, PROFESSOR, 50)["sucesso"])
+
+    def test_outro_professor_nao_corrige(self):
+        """Sem o JOIN com atividades, bastaria conhecer o id da entrega."""
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "resposta")
+        entrega_id = self._entrega_id(atividade_id)
+
+        self.assertFalse(corrigir_entrega(entrega_id, PROFESSOR2, 10)["sucesso"])
+
+    def test_correcao_avisa_o_aluno(self):
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "resposta")
+        corrigir_entrega(self._entrega_id(atividade_id), PROFESSOR, 9)
+
+        tipos = [n["tipo"] for n in listar_notificacoes(ALUNO)["notificacoes"]]
+        self.assertIn("correcao", tipos)
+
+
+# =========================================================================
+# Atividades — aluno
+# =========================================================================
+
+class TestesAtividadeAluno(BaseAtividades):
+
+    def test_aluno_nao_ve_rascunho_nem_agendada(self):
+        self.criar_objetiva(titulo="Liberada")
+        self.criar_objetiva(titulo="Rascunho", rascunho=True)
+        futuro = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
+        self.criar_objetiva(titulo="Agendada", data_liberacao=futuro)
+
+        titulos = [a["titulo"] for a in listar_atividades_do_aluno(ALUNO)["atividades"]]
+
+        self.assertIn("Liberada", titulos)
+        self.assertNotIn("Rascunho", titulos)
+        self.assertNotIn("Agendada", titulos)
+
+    def test_aluno_de_fora_da_turma_nao_ve(self):
+        self.criar_objetiva()
+        self.assertEqual(listar_atividades_do_aluno(ALUNO_FORA)["atividades"], [])
+
+    def test_gabarito_nao_vai_para_o_aluno(self):
+        """Esconder na interface nao adianta: estaria no DevTools."""
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+
+        visao = obter_atividade_do_aluno(ALUNO, atividade_id)
+
+        for questao in visao["questoes"]:
+            self.assertNotIn("correta", questao)
+
+    def test_aluno_de_fora_nao_abre_a_atividade(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        self.assertFalse(obter_atividade_do_aluno(ALUNO_FORA, atividade_id)["sucesso"])
+
+    def test_progresso_salvo_e_retomado(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+
+        salvar_progresso(ALUNO, atividade_id, [1, None])
+        visao = obter_atividade_do_aluno(ALUNO, atividade_id)
+
+        self.assertEqual(visao["entrega"]["respostas"], [1, None])
+        self.assertIsNone(visao["entrega"]["enviado_em"], "progresso salvo virou entrega")
+        self.assertEqual(
+            listar_atividades_do_aluno(ALUNO)["atividades"][0]["situacao"],
+            "em andamento",
+        )
+
+    def test_objetiva_e_corrigida_na_hora(self):
+        atividade_id = self.criar_objetiva(pontos=10)["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade_id, [1, 1])
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(resultado["acertos"], 2)
+        self.assertEqual(resultado["nota"], 10)
+
+    def test_objetiva_com_metade_certa_da_metade_da_nota(self):
+        atividade_id = self.criar_objetiva(pontos=10)["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade_id, [1, 0])
+
+        self.assertEqual(resultado["acertos"], 1)
+        self.assertEqual(resultado["nota"], 5.0)
+
+    def test_nao_entrega_duas_vezes(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 1])
+
+        segunda = enviar_entrega(ALUNO, atividade_id, [0, 0])
+        self.assertFalse(segunda["sucesso"])
+
+    def test_nao_salva_progresso_depois_de_entregar(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 1])
+
+        self.assertFalse(salvar_progresso(ALUNO, atividade_id, [0, 0])["sucesso"])
+
+    def test_dissertativa_vazia_e_recusada(self):
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        self.assertFalse(enviar_entrega(ALUNO, atividade_id, "   ")["sucesso"])
+
+    def test_entrega_atrasada_e_aceita_e_marcada(self):
+        """Recusar jogaria fora o trabalho; marcar deixa o professor decidir."""
+        passado = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        atividade_id = self.criar_dissertativa(prazo=passado)["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade_id, "entreguei atrasado")
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertTrue(resultado["atrasada"])
+        self.assertTrue(listar_atividades_do_aluno(ALUNO)["atividades"][0]["atrasada"])
+
+
+# =========================================================================
+# XP: o que pontua e o que nao pontua
+# =========================================================================
+
+class TestesXPNaoFarmavel(BaseAtividades):
+    """O XP de pergunta era farmavel: qualquer texto no chat dava 10 pontos."""
+
+    def _perguntar(self, texto, com_fonte=True, dia=None):
+        """Simula uma ida ao chat, sem precisar do modelo ligado."""
+        quando = dia or datetime.now(timezone.utc).isoformat()
+        aluno_id = self.id_aluno()
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute(
+            "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, criado_em)"
+            " VALUES (?, ?, 'user', ?, NULL, ?)",
+            (aluno_id, self.turma_id, texto, quando),
+        )
+        conexao.execute(
+            "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, criado_em)"
+            " VALUES (?, ?, 'assistant', ?, ?, ?)",
+            (
+                aluno_id,
+                self.turma_id,
+                "resposta",
+                json.dumps(["Aula 3"]) if com_fonte else None,
+                quando,
+            ),
+        )
+        conexao.commit()
+        conexao.close()
+
+    def test_pergunta_respondida_pelo_material_pontua(self):
+        self._perguntar("Qual a dose inicial do Cardiolex?")
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        self.assertEqual(progresso["perguntas"], 1)
+
+    def test_pergunta_recusada_nao_pontua(self):
+        """Sem fonte, o assistente disse que o material nao cobre. Nao e estudo."""
+        self._perguntar("Qual o escore XYZ-99?", com_fonte=False)
+        self.assertEqual(resumo_do_aluno(ALUNO)["progresso"]["perguntas"], 0)
+
+    def test_lixo_repetido_nao_vira_xp(self):
+        """Era este o buraco: 'aaa' cinquenta vezes valia 500 XP."""
+        for _ in range(50):
+            self._perguntar("aaa", com_fonte=False)
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        self.assertEqual(progresso["perguntas"], 0)
+
+    def test_mesma_pergunta_repetida_conta_uma_vez(self):
+        for _ in range(10):
+            self._perguntar("Qual a dose inicial?")
+
+        self.assertEqual(resumo_do_aluno(ALUNO)["progresso"]["perguntas"], 1)
+
+    def test_variacao_de_caixa_e_pontuacao_nao_burla(self):
+        self._perguntar("Qual a dose inicial?")
+        self._perguntar("QUAL A DOSE INICIAL")
+        self._perguntar("qual   a dose inicial!!!")
+
+        self.assertEqual(resumo_do_aluno(ALUNO)["progresso"]["perguntas"], 1)
+
+    def test_teto_diario_de_perguntas(self):
+        for numero in range(12):
+            self._perguntar(f"Pergunta distinta numero {numero}")
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        self.assertEqual(progresso["perguntas"], MAX_PERGUNTAS_QUE_PONTUAM_POR_DIA)
+
+    def test_teto_e_por_dia_nao_total(self):
+        ontem = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+
+        for numero in range(8):
+            self._perguntar(f"Hoje {numero}")
+        for numero in range(8):
+            self._perguntar(f"Ontem {numero}", dia=ontem)
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        self.assertEqual(progresso["perguntas"], MAX_PERGUNTAS_QUE_PONTUAM_POR_DIA * 2)
+
+    def test_entrega_e_nota_viram_xp(self):
+        atividade_id = self.criar_objetiva(pontos=10)["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 1])
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+
+        self.assertEqual(progresso["atividades_entregues"], 1)
+        self.assertEqual(progresso["atividades_corrigidas"], 1)
+        # 20 pela entrega + 30 pela nota cheia + 25 pelo dia de estudo
+        self.assertEqual(progresso["xp"], 75)
+
+    def test_nota_baixa_vale_menos_xp_que_nota_alta(self):
+        certa = self.criar_objetiva(titulo="Certa", pontos=10)["atividade_ids"][0]
+        enviar_entrega(ALUNO, certa, [1, 1])
+        xp_com_nota_cheia = resumo_do_aluno(ALUNO)["progresso"]["xp"]
+
+        errada = self.criar_objetiva(titulo="Errada", pontos=10)["atividade_ids"][0]
+        enviar_entrega(ALUNO, errada, [0, 0])
+        xp_total = resumo_do_aluno(ALUNO)["progresso"]["xp"]
+
+        ganho_da_errada = xp_total - xp_com_nota_cheia
+        # So os 20 da entrega: zero acerto nao rende XP de desempenho.
+        self.assertEqual(ganho_da_errada, XP_POR_ATIVIDADE_ENTREGUE)
+
+    def test_composicao_continua_batendo_com_o_total(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 0])
+        self._perguntar("Uma duvida real")
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+        soma = sum(item["xp"] for item in progresso["composicao"])
+        self.assertEqual(soma, progresso["xp"])
 
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")

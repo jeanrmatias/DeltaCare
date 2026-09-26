@@ -56,42 +56,18 @@ function limparSessaoLocal() {
 const CAMINHO_LOGIN = "../index.html";
 
 /**
- * Faz a requisição, caindo no modo demonstração quando não há servidor.
- *
- * O `catch` só pega falha de rede — servidor fora do ar, DNS, CORS. Resposta
- * 401, 403 ou 500 não cai aqui: essas o servidor respondeu, e quem trata é
- * quem chamou. A distinção importa, senão um erro do backend viraria "modo
- * demonstração" e esconderia o problema real.
- *
- * É isto que permite publicar o front na Vercel sem backend: o deploy estático
- * responde a si mesmo (ver demo.js).
- */
-async function requisitar(caminho, opcoes) {
-    if (typeof Demo !== "undefined" && Demo.ativo()) {
-        return Demo.responder(caminho, opcoes);
-    }
-
-    try {
-        return await fetch(`${API_URL}${caminho}`, opcoes);
-    } catch (erro) {
-        if (typeof Demo === "undefined") {
-            throw erro;
-        }
-
-        Demo.ativar();
-        return Demo.responder(caminho, opcoes);
-    }
-}
-
-/**
  * Chama a API sem token: login, cadastro e recuperação de senha.
  *
- * Existe para essas três telas terem o mesmo fallback de demonstração que o
- * resto do sistema — sem ela, o login continuaria tentando um servidor que não
- * existe e a demonstração nunca começaria.
+ * Existe para as três telas públicas passarem pelo mesmo ponto que o resto do
+ * sistema, em vez de montarem a URL cada uma do seu jeito.
+ *
+ * **Não há modo de contingência.** Se o backend não responder, a chamada falha
+ * e a tela diz isso. O Delta Care é um sistema de instituição: exibir dado
+ * fictício quando o servidor cai seria pior do que não exibir nada — o usuário
+ * não teria como saber que está olhando para algo que não é real.
  */
 async function apiPublica(caminho, opcoes = {}) {
-    return requisitar(caminho, opcoes);
+    return fetch(`${API_URL}${caminho}`, opcoes);
 }
 
 /**
@@ -114,7 +90,7 @@ async function api(caminho, opcoes = {}) {
         cabecalhos["Content-Type"] = "application/json";
     }
 
-    const resposta = await requisitar(caminho, Object.assign({}, opcoes, { headers: cabecalhos }));
+    const resposta = await fetch(`${API_URL}${caminho}`, Object.assign({}, opcoes, { headers: cabecalhos }));
 
     if (resposta.status === 401) {
         limparSessaoLocal();

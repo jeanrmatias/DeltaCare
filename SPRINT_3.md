@@ -518,7 +518,7 @@ como o backlog foi escrito.
   eram problemas reais, e um deles (notificações) era uma funcionalidade que
   parecia existir e não existia.
 - Escrever o *porquê* junto do código. As decisões de modelagem e segurança
-  estão no `IMPLEMENTACAO.md` e nos comentários, o que tornou possível retomar
+  estão nos comentários do código, o que tornou possível retomar
   o trabalho sem reconstruir o raciocínio.
 - Testar a regra, não a tela. Os 80 testes de backend pegam erros de permissão
   que nenhuma inspeção visual pegaria.
@@ -570,7 +570,5 @@ O assistente de IA exige Ollama rodando com `gpt-oss:20b` e
 
 **Documentação do projeto:** [`README.md`](README.md) (visão geral) ·
 [`ARQUITETURA.md`](ARQUITETURA.md) (diagramas) ·
-[`IMPLEMENTACAO.md`](IMPLEMENTACAO.md) (detalhe técnico item por item) ·
 [`TUTORIAL.md`](TUTORIAL.md) (uso) ·
-[`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) (demonstração) ·
-[`CONTEXTO.md`](CONTEXTO.md) (decisões e armadilhas).
+[`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) (demonstração).

@@ -18,9 +18,10 @@ const MODULOS = {
         itens: [
             "Resolver exercícios separados por tema",
             "Salvar o progresso e retomar de onde parou",
-            "Enviar resumo ou trabalho dentro do prazo",
+            "Enviar resumo ou trabalho, com aviso quando passar do prazo",
             "Ver a nota e a devolutiva do professor",
         ],
+        nota: "As regras já existem no servidor: questões objetivas são corrigidas na hora, o progresso salvo é retomado e a entrega fora do prazo é aceita e sinalizada — quem decide o que fazer com o atraso é o professor. O que falta é esta tela.",
     },
     "desempenho-aluno": {
         titulo: "Desempenho",
@@ -38,11 +39,13 @@ const MODULOS = {
         resumo: "Criação e correção das atividades da turma.",
         sprint: "Sprint 3",
         itens: [
-            "Criar exercícios, trabalhos e desafios",
+            "Criar exercícios objetivos e trabalhos dissertativos",
+            "Publicar na turma, em várias de uma vez, com rascunho e agendamento",
             "Definir data de liberação e prazo de entrega",
-            "Acompanhar quem entregou e quem está pendente",
+            "Acompanhar quem entregou, quem atrasou e quem está pendente",
             "Corrigir e escrever devolutiva para o aluno",
         ],
+        nota: "O servidor já faz tudo isto; falta a tela. A entrega atrasada não é bloqueada de propósito: a plataforma marca o atraso e o professor decide se aceita.",
     },
     "calendario-professor": {
         titulo: "Calendário",
@@ -110,6 +113,74 @@ const MODULOS = {
         ],
         nota: "Hoje a administração cria turmas e matricula alunos, mas não abre o material das turmas — o acesso é do professor responsável.",
     },
+    // ---------------------------------------------------------------------
+    // Os cinco abaixo saíram de uma conferência do backlog contra este
+    // catálogo: existiam como card e não apareciam em lugar nenhum do produto.
+    // É a mesma lacuna das denúncias, repetida cinco vezes — sinal de que a
+    // conferência precisa virar hábito, e não acontecer só quando alguém
+    // pergunta "cadê tal coisa?".
+    //
+    // Levam "Backlog" no lugar de "Sprint N" porque ainda não foram
+    // sequenciados. Inventar um número aqui seria fingir um planejamento que
+    // não existe.
+    // ---------------------------------------------------------------------
+
+    "favoritos-aluno": {
+        titulo: "Favoritos",
+        resumo: "Marcar o que você quer reencontrar rápido.",
+        sprint: "Backlog",
+        itens: [
+            "Marcar e desmarcar material como favorito",
+            "Aba dedicada, separada da lista geral",
+            "Favoritos que continuam válidos entre semestres",
+        ],
+    },
+    "anotacoes-aluno": {
+        titulo: "Anotações",
+        resumo: "Suas notas e destaques dentro do material de aula.",
+        sprint: "Backlog",
+        itens: [
+            "Escrever, editar e apagar anotações num material",
+            "Destacar trechos do conteúdo",
+            "Anotação é privada: ninguém além de você enxerga",
+        ],
+        nota: "A privacidade aqui não é detalhe de interface. Anotação de estudo é do aluno, e nem professor nem administração devem conseguir ler.",
+    },
+    "ranking-aluno": {
+        titulo: "Ranking",
+        resumo: "Como você está em relação à turma, se quiser aparecer.",
+        sprint: "Backlog",
+        itens: [
+            "Posição na turma calculada a partir do XP",
+            "Escolher não aparecer no ranking público",
+            "Destaque de quem mais evoluiu no período",
+        ],
+        nota: "Depende do XP, que já existe e já conta atividade entregue e nota. A opção de não aparecer é parte do módulo, não um extra: ranking obrigatório expõe quem está indo mal.",
+    },
+    "avisos-professor": {
+        titulo: "Avisos",
+        resumo: "Recado do professor ou da administração para a turma.",
+        sprint: "Backlog",
+        itens: [
+            "Escrever aviso para uma turma ou para todas",
+            "Marcar como urgente",
+            "Histórico do que já foi enviado",
+            "Aviso geral da administração para a instituição inteira",
+        ],
+        nota: "Diferente das notificações, que nascem de eventos do sistema. Aqui é uma pessoa escrevendo para outras.",
+    },
+    "historico-semestres": {
+        titulo: "Semestres anteriores",
+        resumo: "O material das turmas que já terminaram.",
+        sprint: "Backlog",
+        itens: [
+            "Consultar material de semestres passados",
+            "Buscar por palavra dentro do arquivo histórico",
+            "Vale para aluno e para professor",
+        ],
+        nota: "Hoje o material some da vista quando o semestre vira. Para quem vai prestar prova de residência, é justamente o conteúdo antigo que importa.",
+    },
+
     "relatorios-admin": {
         titulo: "Relatórios",
         resumo: "Indicadores da instituição para coordenação.",

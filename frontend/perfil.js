@@ -6,7 +6,7 @@
  * com os dados reais da conta.
  *
  * **Só leitura.** Editar o próprio cadastro (autosserviço) é item de escopo
- * futuro, registrado no CONTEXTO.md. Mostrar o que já existe é outra coisa, e
+ * futuro, registrado no backlog. Mostrar o que já existe é outra coisa, e
  * é o que faz o menu deixar de ser um beco sem saída.
  */
 

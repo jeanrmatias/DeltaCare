@@ -214,6 +214,91 @@ def configurar_banco(silencioso: bool = False):
     if "notificado" not in colunas_materiais:
         cursor.execute("ALTER TABLE materiais ADD COLUMN notificado INTEGER DEFAULT 0")
 
+    # Atividades propostas pelo professor.
+    #
+    # Mesmo desenho dos materiais: `turma_id` na própria linha, então publicar
+    # em N turmas cria N atividades. E os mesmos três estados — rascunho,
+    # agendado (data_liberacao no futuro) e publicado —, para o aluno nunca ver
+    # o que ainda não foi liberado.
+    #
+    # `tipo` decide quem corrige: 'objetiva' o sistema corrige sozinho
+    # comparando com o gabarito; 'dissertativa' espera nota e devolutiva do
+    # professor.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS atividades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            professor_id INTEGER NOT NULL,
+            turma_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            enunciado TEXT,
+            tipo TEXT NOT NULL,
+            assunto TEXT,
+            topico TEXT,
+            pontos INTEGER NOT NULL DEFAULT 10,
+            rascunho INTEGER NOT NULL DEFAULT 0,
+            data_liberacao TEXT,
+            prazo TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL,
+            notificado INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (professor_id) REFERENCES users (id),
+            FOREIGN KEY (turma_id) REFERENCES turmas (id)
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_atividades_turma ON atividades (turma_id)"
+    )
+
+    # Questões de uma atividade objetiva.
+    #
+    # `alternativas` guarda uma lista JSON em vez de virar uma quarta tabela:
+    # alternativa não é consultada sozinha, só existe dentro da questão e
+    # sempre é lida inteira. `correta` é o índice na lista — o gabarito nunca
+    # sai do servidor para o aluno (ver regras/atividades.py).
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS questoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            atividade_id INTEGER NOT NULL,
+            ordem INTEGER NOT NULL,
+            enunciado TEXT NOT NULL,
+            alternativas TEXT NOT NULL,
+            correta INTEGER NOT NULL,
+            FOREIGN KEY (atividade_id) REFERENCES atividades (id)
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_questoes_atividade ON questoes (atividade_id)"
+    )
+
+    # O que o aluno respondeu.
+    #
+    # Uma linha por aluno por atividade (daí o UNIQUE), criada já no primeiro
+    # rascunho. **`enviado_em NULL` é o progresso salvo e ainda não entregue** —
+    # é assim que o aluno fecha a aba e retoma de onde parou, sem precisar de
+    # uma coluna de estado que poderia discordar da data.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS entregas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            atividade_id INTEGER NOT NULL,
+            aluno_id INTEGER NOT NULL,
+            respostas TEXT,
+            enviado_em TEXT,
+            nota REAL,
+            devolutiva TEXT,
+            corrigido_em TEXT,
+            atualizado_em TEXT NOT NULL,
+            FOREIGN KEY (atividade_id) REFERENCES atividades (id),
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            UNIQUE (atividade_id, aluno_id)
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_entregas_atividade ON entregas (atividade_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_entregas_aluno ON entregas (aluno_id)"
+    )
+
     conexao.commit()
     conexao.close()
 
