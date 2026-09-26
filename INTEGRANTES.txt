@@ -1,8 +1,27 @@
-Jean Rodrigues Matias
-rm571284
+CHALLENGE HOSPITAL MOINHOS DE VENTO - SPRINT 3
+Projeto: Delta Care - Plataforma LXP com IA para a Formacao Medica
+FIAP - 1o Engenharia de Software - Semi Presencial - Porto Alegre
 
-Matheus Marques De Souza
-rm573203
 
-Arthur Veiga Demétrio
-rm570056
+INTEGRANTES
+
+Arthur Veiga Demetrio         RM570056
+Jean Rodrigues Matias         RM571284
+Matheus Marques De Souza      RM573203
+
+
+REPOSITORIO
+
+https://github.com/jeanrmatias/DeltaCare
+
+
+ACESSO PARA TESTE
+
+A solucao possui autenticacao. As contas abaixo sao criadas pelo script
+de dados de demonstracao (backend/seed_demo.py) e usam a mesma senha.
+
+  Administracao   adm@deltacare.com          demo123
+  Professor       professor@deltacare.com    demo123
+  Aluno           aluno@deltacare.com        demo123
+
+O passo a passo para executar o projeto esta no README.md.
