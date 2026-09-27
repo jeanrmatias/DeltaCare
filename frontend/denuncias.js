@@ -54,7 +54,13 @@ const CLASSE_STATUS = {
     em_analise: "agendado",
     concluida: "publicado",
     arquivada: "rascunho",
+    retirada: "rascunho",
 };
+
+/** Só dá para voltar atrás antes de a administração encerrar o caso. */
+function podeRetirar(denuncia) {
+    return denuncia.status === "aberta" || denuncia.status === "em_analise";
+}
 
 // =========================================================================
 // Listagem
@@ -117,9 +123,62 @@ function criarLinha(denuncia) {
             ${denuncia.descricao ? `<p class="material-descricao">${esc(denuncia.descricao)}</p>` : ""}
             ${resposta}
         </div>
+        ${podeRetirar(denuncia)
+            ? `<div class="material-linha-acoes">
+                   <button type="button" class="acao acao--discreta" data-retirar>Retirar</button>
+               </div>`
+            : ""}
     `;
 
+    const retirar = linha.querySelector("[data-retirar]");
+    if (retirar) {
+        retirar.addEventListener("click", () => retirarDenuncia(denuncia));
+    }
+
     return linha;
+}
+
+/**
+ * Retira uma denúncia feita por engano.
+ *
+ * O aviso muda conforme o estado, porque a consequência é diferente: enquanto
+ * ninguém leu, a denúncia some de vez; depois que a administração começou a
+ * analisar, ela fica registrada como retirada — e dizer isso antes evita a
+ * pessoa achar que apagou algo que continua lá.
+ */
+async function retirarDenuncia(denuncia) {
+    const emAnalise = denuncia.status === "em_analise";
+
+    const confirmou = await confirmar(
+        emAnalise
+            ? `A administração já começou a analisar "${denuncia.material_titulo}".\n\n` +
+              "A denúncia deixa de estar na fila, mas continua registrada como retirada, " +
+              "e a administração é avisada."
+            : `Retirar a denúncia de "${denuncia.material_titulo}"?\n\n` +
+              "Como ninguém analisou ainda, ela é apagada e não fica registrada.",
+        {
+            titulo: "Retirar denúncia",
+            rotulo: "Retirar",
+            perigo: !emAnalise,
+        }
+    );
+
+    if (!confirmou) return;
+
+    try {
+        const resposta = await api(`/denuncias/${denuncia.id}`, { method: "DELETE" });
+        const dados = await resposta.json();
+
+        if (dados.sucesso) {
+            await avisar(dados.mensagem, "Denúncia retirada");
+            carregar();
+        } else {
+            await avisarErro(dados.mensagem);
+        }
+    } catch (erro) {
+        console.error("Erro ao retirar denúncia:", erro);
+        await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
+    }
 }
 
 // =========================================================================

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Denúncias</title>
-    <link rel="stylesheet" href="../style_dashboard.css?v=16">
+    <link rel="stylesheet" href="../style_dashboard.css?v=17">
 </head>
 <body>
     <div class="app">
@@ -77,6 +77,7 @@
                             <option value="em_analise">Em análise</option>
                             <option value="concluida">Concluídas</option>
                             <option value="arquivada">Arquivadas</option>
+                            <option value="retirada">Retiradas</option>
                         </select>
                     </label>
                 </div>
@@ -99,6 +100,10 @@
                     <span class="stat-rotulo">Arquivadas</span>
                     <strong class="stat-valor" id="statArquivadas">0</strong>
                 </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Retiradas</span>
+                    <strong class="stat-valor" id="statRetiradas">0</strong>
+                </article>
             </section>
 
             <section class="lista-materiais" id="lista"></section>
@@ -108,11 +113,11 @@
         </main>
     </div>
 
-    <script src="../config.js?v=16"></script>
-    <script src="../dialogo.js?v=16"></script>
-    <script src="../auth.js?v=16"></script>
-    <script src="../perfil.js?v=16"></script>
-    <script src="../notificacoes.js?v=16"></script>
-    <script src="denuncias.js?v=16"></script>
+    <script src="../config.js?v=17"></script>
+    <script src="../dialogo.js?v=17"></script>
+    <script src="../auth.js?v=17"></script>
+    <script src="../perfil.js?v=17"></script>
+    <script src="../notificacoes.js?v=17"></script>
+    <script src="denuncias.js?v=17"></script>
 </body>
 </html>

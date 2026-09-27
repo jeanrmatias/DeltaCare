@@ -2907,8 +2907,11 @@ dialog.visualizador:not([open]) {
         padding: 28px 36px 48px;
     }
 
+    /* `auto-fit` em vez de 4 colunas fixas: as telas têm três, quatro ou cinco
+       indicadores, e com número fixo o quinto cartão ficava sozinho numa linha
+       enquanto sobrava espaço ao lado dos outros. */
     .stats {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     }
 
     .busca input {

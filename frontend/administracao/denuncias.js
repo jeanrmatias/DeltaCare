@@ -19,6 +19,7 @@ const CLASSE_STATUS = {
     em_analise: "agendado",
     concluida: "publicado",
     arquivada: "rascunho",
+    retirada: "rascunho",
 };
 
 const PROXIMOS_PASSOS = {
@@ -33,6 +34,13 @@ const PROXIMOS_PASSOS = {
     ],
     concluida: [{ status: "em_analise", rotulo: "Reabrir" }],
     arquivada: [{ status: "em_analise", rotulo: "Reabrir" }],
+    // Quem reportou já voltou atrás. Não há o que concluir, só tirar da fila —
+    // e reabrir continua possível caso a administração queira apurar mesmo
+    // assim, porque o problema pode ser real ainda que a pessoa desista.
+    retirada: [
+        { status: "arquivada", rotulo: "Arquivar" },
+        { status: "em_analise", rotulo: "Apurar mesmo assim" },
+    ],
 };
 
 if (usuario) {
@@ -89,6 +97,7 @@ async function carregar() {
         document.querySelector("#statAnalise").textContent = dados.resumo.em_analise;
         document.querySelector("#statConcluidas").textContent = dados.resumo.concluidas;
         document.querySelector("#statArquivadas").textContent = dados.resumo.arquivadas;
+        document.querySelector("#statRetiradas").textContent = dados.resumo.retiradas;
 
         lista.innerHTML = "";
         vazio.hidden = dados.denuncias.length > 0;

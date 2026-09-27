@@ -33,6 +33,7 @@ STATUS = {
     "em_analise": "Em análise",
     "concluida": "Concluída",
     "arquivada": "Arquivada",
+    "retirada": "Retirada por quem reportou",
 }
 
 
@@ -214,6 +215,83 @@ def listar_minhas(autor_email: str) -> dict:
     }
 
 
+def remover_denuncia(autor_email: str, denuncia_id: int) -> dict:
+    """Quem reportou volta atrás — por engano, ou porque o problema se resolveu.
+
+    O que acontece depende de quanto trabalho já houve em cima da denúncia, e
+    são três casos diferentes de propósito:
+
+    **Aberta** — apagada de vez. Ninguém leu ainda, então não há trabalho a
+    preservar; e deixar registrada uma acusação que a própria pessoa retirou é
+    injusto com quem publicou o material.
+
+    **Em análise** — vira `retirada`, com o registro mantido e a administração
+    avisada. Aqui já houve trabalho, e o professor pode até já ter sido
+    procurado: apagar esconderia da administração por que ela parou no meio.
+
+    **Concluída ou arquivada** — não dá mais para retirar. O caso já teve
+    desfecho, e mexer nele depois seria reescrever histórico.
+    """
+    conexao = conectar()
+    autor = buscar_usuario(conexao, autor_email)
+
+    if not autor:
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Usuário não encontrado."}
+
+    # O filtro por autor_id é o que impede retirar a denúncia de outra pessoa:
+    # sem ele, bastaria conhecer o id.
+    denuncia = conexao.execute(
+        "SELECT id, status, material_titulo FROM denuncias WHERE id = ? AND autor_id = ?",
+        (int(denuncia_id), autor[0]),
+    ).fetchone()
+
+    if not denuncia:
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Denúncia não encontrada."}
+
+    status = denuncia[1]
+
+    if status in ("concluida", "arquivada"):
+        conexao.close()
+        return {
+            "sucesso": False,
+            "mensagem": "Esta denúncia já foi analisada e encerrada. Fale com a administração se houve engano.",
+        }
+
+    if status == "retirada":
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Esta denúncia já foi retirada."}
+
+    if status == "aberta":
+        conexao.execute("DELETE FROM denuncias WHERE id = ?", (int(denuncia_id),))
+        conexao.commit()
+        conexao.close()
+        return {"sucesso": True, "mensagem": "Denúncia retirada.", "apagada": True}
+
+    conexao.execute(
+        "UPDATE denuncias SET status = 'retirada', atualizado_em = ? WHERE id = ?",
+        (_agora(), int(denuncia_id)),
+    )
+    conexao.commit()
+
+    admins = conexao.execute("SELECT id FROM users WHERE tipo = 'adm'").fetchall()
+    conexao.close()
+
+    from regras.notificacoes import criar_notificacao
+
+    for (admin_id,) in admins:
+        criar_notificacao(
+            admin_id,
+            "denuncia",
+            "Denúncia retirada",
+            f'"{denuncia[2]}" foi retirada por quem reportou. A análise pode ser encerrada.',
+            "denuncias.html",
+        )
+
+    return {"sucesso": True, "mensagem": "Denúncia retirada. A administração foi avisada.", "apagada": False}
+
+
 # =========================================================================
 # Quem trata
 # =========================================================================
@@ -255,11 +333,14 @@ def listar_todas(admin_email: str, status: str | None = None) -> dict:
     return {
         "sucesso": True,
         "denuncias": [_linha_para_dict(l) for l in linhas],
+        # Todo status tem seu contador: uma denúncia que aparece na lista e não
+        # é contada em lugar nenhum faz o administrador desconfiar do painel.
         "resumo": {
             "abertas": contagem.get("aberta", 0),
             "em_analise": contagem.get("em_analise", 0),
             "concluidas": contagem.get("concluida", 0),
             "arquivadas": contagem.get("arquivada", 0),
+            "retiradas": contagem.get("retirada", 0),
         },
     }
 

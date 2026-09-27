@@ -54,6 +54,7 @@ from regras.denuncias import (  # noqa: E402
     criar_denuncia,
     listar_minhas,
     listar_todas,
+    remover_denuncia,
     tratar_denuncia,
 )
 from regras.desempenho import desempenho_da_turma, desempenho_do_aluno  # noqa: E402
@@ -1566,6 +1567,116 @@ class TestesDenuncias(BaseDelta):
         fila = listar_todas(ADMIN)["denuncias"]
         self.assertEqual(len(fila), 1)
         self.assertEqual(fila[0]["material_titulo"], "Aula publicada")
+
+
+class TestesRetiradaDeDenuncia(BaseDelta):
+    """Quem reportou volta atras.
+
+    Tres casos diferentes de proposito, conforme o trabalho ja gasto: aberta
+    some, em analise vira 'retirada' com aviso, encerrada nao se mexe.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.material_id = self.criar_material_simples("Aula publicada")["material_id"]
+
+    def _denuncia_do_aluno(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto", "Reportei sem querer.")
+        return listar_minhas(ALUNO)["denuncias"][0]
+
+    def test_aberta_e_apagada_de_vez(self):
+        """Ninguem leu ainda; deixar a acusacao registrada seria injusto."""
+        denuncia = self._denuncia_do_aluno()
+
+        resultado = remover_denuncia(ALUNO, denuncia["id"])
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertTrue(resultado["apagada"])
+        self.assertEqual(listar_minhas(ALUNO)["denuncias"], [])
+        self.assertEqual(listar_todas(ADMIN)["denuncias"], [])
+
+    def test_em_analise_vira_retirada_e_fica_no_historico(self):
+        """A administracao ja trabalhou nela; apagar esconderia o porque da parada."""
+        denuncia = self._denuncia_do_aluno()
+        tratar_denuncia(ADMIN, denuncia["id"], "em_analise")
+
+        resultado = remover_denuncia(ALUNO, denuncia["id"])
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertFalse(resultado["apagada"])
+
+        fila = listar_todas(ADMIN)["denuncias"]
+        self.assertEqual(len(fila), 1)
+        self.assertEqual(fila[0]["status"], "retirada")
+
+    def test_administracao_e_avisada_da_retirada_em_analise(self):
+        denuncia = self._denuncia_do_aluno()
+        tratar_denuncia(ADMIN, denuncia["id"], "em_analise")
+        remover_denuncia(ALUNO, denuncia["id"])
+
+        avisos = [n["titulo"] for n in listar_notificacoes(ADMIN)["notificacoes"]]
+        self.assertIn("Denúncia retirada", avisos)
+
+    def test_concluida_nao_pode_ser_retirada(self):
+        denuncia = self._denuncia_do_aluno()
+        tratar_denuncia(ADMIN, denuncia["id"], "concluida", "Material corrigido.")
+
+        resultado = remover_denuncia(ALUNO, denuncia["id"])
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertEqual(len(listar_todas(ADMIN)["denuncias"]), 1)
+
+    def test_arquivada_nao_pode_ser_retirada(self):
+        denuncia = self._denuncia_do_aluno()
+        tratar_denuncia(ADMIN, denuncia["id"], "arquivada", "Sem procedencia.")
+
+        self.assertFalse(remover_denuncia(ALUNO, denuncia["id"])["sucesso"])
+
+    def test_nao_retira_a_denuncia_de_outra_pessoa(self):
+        """Sem o filtro por autor, bastaria conhecer o id da denuncia alheia."""
+        denuncia = self._denuncia_do_aluno()
+
+        self.assertFalse(remover_denuncia(PROFESSOR, denuncia["id"])["sucesso"])
+        self.assertFalse(remover_denuncia(ALUNO_FORA, denuncia["id"])["sucesso"])
+        self.assertEqual(len(listar_minhas(ALUNO)["denuncias"]), 1)
+
+    def test_admin_nao_retira_pelo_caminho_do_autor(self):
+        """A administracao arquiva; retirar e do autor. Sao acoes diferentes."""
+        denuncia = self._denuncia_do_aluno()
+        self.assertFalse(remover_denuncia(ADMIN, denuncia["id"])["sucesso"])
+
+    def test_nao_retira_duas_vezes(self):
+        denuncia = self._denuncia_do_aluno()
+        tratar_denuncia(ADMIN, denuncia["id"], "em_analise")
+        remover_denuncia(ALUNO, denuncia["id"])
+
+        self.assertFalse(remover_denuncia(ALUNO, denuncia["id"])["sucesso"])
+
+    def test_depois_de_retirar_pode_reportar_de_novo(self):
+        """Retirou por engano; tem de poder reportar de verdade depois."""
+        denuncia = self._denuncia_do_aluno()
+        remover_denuncia(ALUNO, denuncia["id"])
+
+        self.assertTrue(criar_denuncia(ALUNO, self.material_id, "ofensivo")["sucesso"])
+
+    def test_retirada_em_analise_nao_bloqueia_nova_denuncia(self):
+        denuncia = self._denuncia_do_aluno()
+        tratar_denuncia(ADMIN, denuncia["id"], "em_analise")
+        remover_denuncia(ALUNO, denuncia["id"])
+
+        self.assertTrue(criar_denuncia(ALUNO, self.material_id, "ofensivo")["sucesso"])
+
+    def test_retirada_nao_conta_como_aberta_no_resumo(self):
+        denuncia = self._denuncia_do_aluno()
+        tratar_denuncia(ADMIN, denuncia["id"], "em_analise")
+        remover_denuncia(ALUNO, denuncia["id"])
+
+        resumo = listar_todas(ADMIN)["resumo"]
+        self.assertEqual(resumo["abertas"], 0)
+        self.assertEqual(resumo["em_analise"], 0)
+        # E aparece no proprio contador: denuncia que esta na lista e nao e
+        # contada em lugar nenhum faz o admin desconfiar do painel.
+        self.assertEqual(resumo["retiradas"], 1)
 
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")

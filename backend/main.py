@@ -65,6 +65,7 @@ from regras.denuncias import (
     criar_denuncia,
     listar_minhas,
     listar_todas,
+    remover_denuncia,
     tratar_denuncia,
 )
 from regras.desempenho import desempenho_da_turma, desempenho_do_aluno
@@ -661,6 +662,12 @@ def criar_denuncia_rota(dados: DenunciaRequest, usuario: dict = Depends(usuario_
 def listar_minhas_denuncias_rota(usuario: dict = Depends(usuario_logado)):
     """O que a própria pessoa reportou. Nunca o que os outros reportaram."""
     return listar_minhas(usuario["email"])
+
+
+@app.delete("/denuncias/{denuncia_id}")
+def remover_denuncia_rota(denuncia_id: int, usuario: dict = Depends(usuario_logado)):
+    """Quem reportou volta atrás. Só a própria denúncia, e só antes do desfecho."""
+    return remover_denuncia(usuario["email"], denuncia_id)
 
 
 @app.get("/admin/denuncias")
