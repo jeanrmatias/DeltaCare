@@ -91,7 +91,7 @@ Para rodar: suba o backend (ver **Configuração**) e sirva o front com
 backend/
   main.py                  - API FastAPI: rotas e dependências de autenticação
   seed_demo.py             - cria os dados de demonstração
-  testes.py                - 80 testes (rodam sem o Ollama)
+  testes.py                - 146 testes (rodam sem o Ollama)
 
   infra/                   - infraestrutura: o que o sistema USA
     database.py              schema e caminho único do banco
@@ -104,6 +104,9 @@ backend/
     turmas.py                turmas, professores, usuários
     materiais.py             materiais na visão do PROFESSOR
     aluno.py                 materiais na visão do ALUNO, XP e acompanhamento
+    atividades.py            atividades, entregas e correção
+    desempenho.py            notas, evolução e erro por tópico
+    denuncias.py             conteúdo reportado: quem reporta e quem trata
     matriculas.py            matrículas
     notificacoes.py          avisos gerados por eventos reais
     importacao.py            leitura de planilha CSV/XLSX (sem dependência)
@@ -120,6 +123,9 @@ frontend/
   markdown.js               - renderiza a resposta da IA (sem innerHTML)
   notificacoes.js           - sino e painel de notificações
   visualizador.js           - abre material na plataforma, sem download
+  calendario.js             - seletor de data e hora (digitado ou pelo calendário)
+  reportar.js               - reportar material de dentro da própria lista
+  denuncias.js              - acompanhamento das denúncias (aluno e professor)
   modulos.js                - catálogo dos módulos ainda não construídos
   testes.mjs                - testes do JavaScript (node testes.mjs)
 
@@ -271,7 +277,7 @@ cd backend
 python testes.py        # 80 testes das regras de negócio
 
 cd ../frontend
-node testes.mjs         # 49 testes do JavaScript
+node testes.mjs         # 47 testes do JavaScript
 ```
 
 **Backend:** permissões, visibilidade de material, sessão, notificações,

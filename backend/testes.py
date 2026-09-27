@@ -50,6 +50,13 @@ from regras.atividades import (  # noqa: E402
     obter_atividade_do_aluno,
     salvar_progresso,
 )
+from regras.denuncias import (  # noqa: E402
+    criar_denuncia,
+    listar_minhas,
+    listar_todas,
+    tratar_denuncia,
+)
+from regras.desempenho import desempenho_da_turma, desempenho_do_aluno  # noqa: E402
 from regras.importacao import analisar_planilha, importar_alunos  # noqa: E402
 from regras.materiais import (  # noqa: E402
     atualizar_material,
@@ -1222,6 +1229,343 @@ class TestesXPNaoFarmavel(BaseAtividades):
         progresso = resumo_do_aluno(ALUNO)["progresso"]
         soma = sum(item["xp"] for item in progresso["composicao"])
         self.assertEqual(soma, progresso["xp"])
+
+
+# =========================================================================
+# Desempenho
+# =========================================================================
+
+class TestesDesempenho(BaseAtividades):
+    """O numero que interessa aqui e o erro por topico.
+
+    Media de turma diz que foi mal; erro por topico diz **onde** foi mal, que e
+    o que muda a aula seguinte. Se essa conta estiver errada, o professor
+    retrabalha o assunto errado e ninguem percebe.
+    """
+
+    def criar_quiz(self, titulo, topico, gabarito, pontos=10):
+        """Cria uma objetiva com uma questao por item do gabarito."""
+        questoes = [
+            {
+                "enunciado": "Questao %d de %s" % (i + 1, titulo),
+                "alternativas": ["A", "B", "C"],
+                "correta": correta,
+            }
+            for i, correta in enumerate(gabarito)
+        ]
+        return criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo=titulo, tipo="objetiva",
+            topico=topico, pontos=pontos, rascunho=False, questoes=questoes,
+        )["atividade_ids"][0]
+
+    # ------------------------------------------------------------- aluno
+
+    def test_aluno_sem_entrega_nao_inventa_numero(self):
+        resultado = desempenho_do_aluno(ALUNO)
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(resultado["notas"], [])
+        self.assertEqual(resultado["topicos"], [])
+        self.assertIsNone(resultado["resumo"]["aproveitamento"])
+
+    def test_aproveitamento_e_ponderado_pelos_pontos(self):
+        """Uma atividade que vale 30 pesa mais que uma que vale 10."""
+        pequena = self.criar_quiz("Pequena", "Arritmias", [0, 0], pontos=10)
+        grande = self.criar_quiz("Grande", "Arritmias", [0, 0], pontos=30)
+
+        enviar_entrega(ALUNO, pequena, [0, 0])   # 10 de 10
+        enviar_entrega(ALUNO, grande, [0, 1])    # 15 de 30
+
+        resumo = desempenho_do_aluno(ALUNO)["resumo"]
+
+        self.assertEqual(resumo["pontos_obtidos"], 25.0)
+        self.assertEqual(resumo["pontos_possiveis"], 40.0)
+        # Media simples daria 75%; ponderada da 62.5%.
+        self.assertEqual(resumo["aproveitamento"], 62.5)
+
+    def test_topico_com_mais_erro_vem_primeiro(self):
+        # Os nomes sao escolhidos para a ordem alfabetica ser o CONTRARIO da
+        # ordem por erro. Com "Arritmias" dificil e "Valvopatias" facil, um
+        # sort por nome passaria no teste sem ordenar por erro nenhum.
+        facil = self.criar_quiz("Facil", "Arritmias", [0, 0])
+        dificil = self.criar_quiz("Dificil", "Valvopatias", [0, 0])
+
+        enviar_entrega(ALUNO, facil, [0, 0])      # 2 acertos
+        enviar_entrega(ALUNO, dificil, [1, 1])    # 2 erros
+
+        topicos = desempenho_do_aluno(ALUNO)["topicos"]
+
+        self.assertEqual(topicos[0]["topico"], "Valvopatias")
+        self.assertEqual(topicos[0]["percentual_erro"], 100.0)
+        self.assertEqual(topicos[1]["topico"], "Arritmias")
+        self.assertEqual(topicos[1]["percentual_erro"], 0.0)
+
+    def test_questao_em_branco_conta_como_erro(self):
+        """Para saber o que revisar, nao respondida e errada dizem o mesmo."""
+        quiz = self.criar_quiz("Quiz", "Valvopatias", [0, 0])
+        enviar_entrega(ALUNO, quiz, [0])  # respondeu so a primeira
+
+        topicos = desempenho_do_aluno(ALUNO)["topicos"]
+        self.assertEqual(topicos[0]["acertos"], 1)
+        self.assertEqual(topicos[0]["erros"], 1)
+
+    def test_dissertativa_nao_entra_na_conta_de_topico(self):
+        """Sem gabarito nao da para dizer em que questao ele errou."""
+        quiz = self.criar_quiz("Quiz", "Arritmias", [0])
+        enviar_entrega(ALUNO, quiz, [0])
+
+        dissertativa = self.criar_dissertativa("Resumo")["atividade_ids"][0]
+        enviar_entrega(ALUNO, dissertativa, "meu texto")
+
+        resultado = desempenho_do_aluno(ALUNO)
+
+        self.assertEqual(len(resultado["notas"]), 2, "a dissertativa sumiu das notas")
+        self.assertEqual(len(resultado["topicos"]), 1, "dissertativa entrou nos topicos")
+
+    def test_aluno_nao_ve_desempenho_de_outro(self):
+        quiz = self.criar_quiz("Quiz", "Arritmias", [0])
+        enviar_entrega(ALUNO, quiz, [0])
+
+        # O outro aluno nem esta na turma; o dele tem que vir vazio.
+        self.assertEqual(desempenho_do_aluno(ALUNO_FORA)["notas"], [])
+
+    def test_atividade_aguardando_correcao_aparece_sem_nota(self):
+        dissertativa = self.criar_dissertativa("Resumo")["atividade_ids"][0]
+        enviar_entrega(ALUNO, dissertativa, "texto")
+
+        resumo = desempenho_do_aluno(ALUNO)["resumo"]
+        self.assertEqual(resumo["entregues"], 1)
+        self.assertEqual(resumo["corrigidas"], 0)
+        self.assertEqual(resumo["aguardando"], 1)
+
+    # ------------------------------------------------------------- professor
+
+    def test_professor_so_ve_a_propria_turma(self):
+        outra = criar_turma(ADMIN, PROFESSOR2, "Clinica", "2026.2")["turma"]["id"]
+        self.assertFalse(desempenho_da_turma(PROFESSOR, outra)["sucesso"])
+
+    def test_turma_sem_atividade_devolve_vazio(self):
+        resultado = desempenho_da_turma(PROFESSOR, self.turma_id)
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(resultado["atividades"], [])
+        self.assertIsNone(resultado["resumo"]["media_percentual"])
+
+    def test_media_e_taxa_de_entrega_da_turma(self):
+        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
+
+        quiz = self.criar_quiz("Quiz", "Arritmias", [0, 0])
+        enviar_entrega(ALUNO, quiz, [0, 0])              # 100%
+        enviar_entrega("aluno3@teste.com", quiz, [0, 1])  # 50%
+
+        resultado = desempenho_da_turma(PROFESSOR, self.turma_id)
+
+        self.assertEqual(resultado["resumo"]["total_alunos"], 2)
+        self.assertEqual(resultado["resumo"]["media_percentual"], 75.0)
+        self.assertEqual(resultado["resumo"]["taxa_entrega"], 100.0)
+        self.assertEqual(resultado["atividades"][0]["menor"], 5.0)
+        self.assertEqual(resultado["atividades"][0]["maior"], 10.0)
+
+    def test_pendencia_aparece_quando_aluno_nao_entrega(self):
+        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
+
+        quiz = self.criar_quiz("Quiz", "Arritmias", [0])
+        enviar_entrega(ALUNO, quiz, [0])
+
+        atividade = desempenho_da_turma(PROFESSOR, self.turma_id)["atividades"][0]
+        self.assertEqual(atividade["entregues"], 1)
+        self.assertEqual(atividade["pendentes"], 1)
+
+    def test_topico_da_turma_soma_os_erros_de_todos(self):
+        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
+
+        quiz = self.criar_quiz("Quiz", "Arritmias", [0, 0])
+        enviar_entrega(ALUNO, quiz, [1, 1])               # 2 erros
+        enviar_entrega("aluno3@teste.com", quiz, [0, 1])   # 1 acerto, 1 erro
+
+        topicos = desempenho_da_turma(PROFESSOR, self.turma_id)["topicos"]
+
+        self.assertEqual(topicos[0]["topico"], "Arritmias")
+        self.assertEqual(topicos[0]["erros"], 3)
+        self.assertEqual(topicos[0]["acertos"], 1)
+        self.assertEqual(topicos[0]["percentual_erro"], 75.0)
+
+    def test_rascunho_e_agendada_ficam_fora_da_conta(self):
+        self.criar_quiz("Publicada", "Arritmias", [0])
+
+        criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Rascunho", tipo="objetiva",
+            topico="Arritmias", rascunho=True,
+            questoes=[{"enunciado": "E?", "alternativas": ["A", "B"], "correta": 0}],
+        )
+        futuro = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
+        criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Agendada", tipo="objetiva",
+            topico="Arritmias", rascunho=False, data_liberacao=futuro,
+            questoes=[{"enunciado": "E?", "alternativas": ["A", "B"], "correta": 0}],
+        )
+
+        atividades = desempenho_da_turma(PROFESSOR, self.turma_id)["atividades"]
+        titulos = [a["titulo"] for a in atividades]
+
+        self.assertEqual(titulos, ["Publicada"])
+
+    def test_lista_de_alunos_traz_quem_nao_entregou(self):
+        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
+
+        quiz = self.criar_quiz("Quiz", "Arritmias", [0])
+        enviar_entrega(ALUNO, quiz, [0])
+
+        alunos = {a["aluno_email"]: a for a in desempenho_da_turma(PROFESSOR, self.turma_id)["alunos"]}
+
+        self.assertEqual(alunos[ALUNO]["entregues"], 1)
+        self.assertEqual(alunos[ALUNO]["aproveitamento"], 100.0)
+        self.assertEqual(alunos["aluno3@teste.com"]["entregues"], 0)
+        self.assertIsNone(alunos["aluno3@teste.com"]["aproveitamento"])
+
+
+# =========================================================================
+# Denuncias
+# =========================================================================
+
+class TestesDenuncias(BaseDelta):
+    """Os dois lados: quem reporta e quem trata.
+
+    O risco aqui nao e calculo, e visibilidade: denuncia de um usuario nao pode
+    aparecer para outro, e ninguem pode reportar material que nao enxerga --
+    senao da para descobrir o titulo de material de outra turma chutando id.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.material_id = self.criar_material_simples("Aula publicada")["material_id"]
+
+    def test_aluno_reporta_material_da_turma_dele(self):
+        resultado = criar_denuncia(ALUNO, self.material_id, "incorreto", "A dose esta errada.")
+        self.assertTrue(resultado["sucesso"], resultado.get("mensagem"))
+
+        minhas = listar_minhas(ALUNO)["denuncias"]
+        self.assertEqual(len(minhas), 1)
+        self.assertEqual(minhas[0]["status"], "aberta")
+        self.assertEqual(minhas[0]["material_titulo"], "Aula publicada")
+
+    def test_professor_tambem_pode_reportar(self):
+        self.assertTrue(criar_denuncia(PROFESSOR, self.material_id, "problema_tecnico")["sucesso"])
+
+    def test_aluno_fora_da_turma_nao_reporta(self):
+        """Sem isso, chutar ids revelaria o titulo de material de outra turma."""
+        resultado = criar_denuncia(ALUNO_FORA, self.material_id, "incorreto")
+        self.assertFalse(resultado["sucesso"])
+
+    def test_nao_reporta_material_nao_publicado(self):
+        rascunho = self.criar_material_simples("Rascunho", rascunho=True)["material_id"]
+        self.assertFalse(criar_denuncia(ALUNO, rascunho, "incorreto")["sucesso"])
+
+    def test_administracao_nao_reporta(self):
+        """Quem trata a fila nao alimenta a fila."""
+        resultado = criar_denuncia(ADMIN, self.material_id, "incorreto")
+        self.assertFalse(resultado["sucesso"])
+
+    def test_motivo_invalido_e_recusado(self):
+        self.assertFalse(criar_denuncia(ALUNO, self.material_id, "nao_gostei")["sucesso"])
+
+    def test_motivo_outro_exige_descricao(self):
+        self.assertFalse(criar_denuncia(ALUNO, self.material_id, "outro")["sucesso"])
+        self.assertTrue(criar_denuncia(ALUNO, self.material_id, "outro", "Explico aqui.")["sucesso"])
+
+    def test_nao_duplica_denuncia_em_aberto(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        segunda = criar_denuncia(ALUNO, self.material_id, "ofensivo")
+
+        self.assertFalse(segunda["sucesso"])
+        self.assertEqual(len(listar_minhas(ALUNO)["denuncias"]), 1)
+
+    def test_pode_reportar_de_novo_depois_de_concluida(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        denuncia = listar_todas(ADMIN)["denuncias"][0]
+        tratar_denuncia(ADMIN, denuncia["id"], "concluida", "Material corrigido pelo professor.")
+
+        self.assertTrue(criar_denuncia(ALUNO, self.material_id, "incorreto")["sucesso"])
+
+    def test_cada_um_so_ve_as_proprias(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        criar_denuncia(PROFESSOR, self.material_id, "problema_tecnico")
+
+        self.assertEqual(len(listar_minhas(ALUNO)["denuncias"]), 1)
+        self.assertEqual(listar_minhas(ALUNO)["denuncias"][0]["motivo"], "incorreto")
+        self.assertEqual(len(listar_minhas(PROFESSOR)["denuncias"]), 1)
+        self.assertEqual(listar_minhas(PROFESSOR)["denuncias"][0]["motivo"], "problema_tecnico")
+
+    # ------------------------------------------------------------- admin
+
+    def test_so_admin_ve_a_fila(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+
+        self.assertFalse(listar_todas(ALUNO)["sucesso"])
+        self.assertFalse(listar_todas(PROFESSOR)["sucesso"])
+        self.assertTrue(listar_todas(ADMIN)["sucesso"])
+
+    def test_so_admin_trata(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        denuncia = listar_todas(ADMIN)["denuncias"][0]
+
+        self.assertFalse(tratar_denuncia(PROFESSOR, denuncia["id"], "concluida", "resolvido")["sucesso"])
+        self.assertFalse(tratar_denuncia(ALUNO, denuncia["id"], "concluida", "resolvido")["sucesso"])
+
+    def test_encerrar_sem_dizer_a_acao_e_recusado(self):
+        """Concluir sem acao devolve 'concluida' e nenhuma informacao."""
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        denuncia = listar_todas(ADMIN)["denuncias"][0]
+
+        self.assertFalse(tratar_denuncia(ADMIN, denuncia["id"], "concluida")["sucesso"])
+        self.assertTrue(tratar_denuncia(ADMIN, denuncia["id"], "em_analise")["sucesso"])
+
+    def test_quem_reportou_e_avisado_do_desfecho(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        denuncia = listar_todas(ADMIN)["denuncias"][0]
+        tratar_denuncia(ADMIN, denuncia["id"], "concluida", "Material substituido.")
+
+        tipos = [n["tipo"] for n in listar_notificacoes(ALUNO)["notificacoes"]]
+        self.assertIn("denuncia", tipos)
+
+    def test_admin_e_avisado_da_denuncia_nova(self):
+        criar_denuncia(ALUNO, self.material_id, "ofensivo")
+
+        avisos = [n for n in listar_notificacoes(ADMIN)["notificacoes"] if n["tipo"] == "denuncia"]
+        self.assertEqual(len(avisos), 1)
+
+    def test_fila_traz_as_abertas_primeiro(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        primeira = listar_todas(ADMIN)["denuncias"][0]
+        tratar_denuncia(ADMIN, primeira["id"], "concluida", "Resolvido.")
+
+        outro = self.criar_material_simples("Outra aula")["material_id"]
+        criar_denuncia(ALUNO, outro, "ofensivo")
+
+        fila = listar_todas(ADMIN)["denuncias"]
+        self.assertEqual(fila[0]["status"], "aberta", "a concluida veio antes da aberta")
+
+    def test_resumo_conta_por_status(self):
+        criar_denuncia(ALUNO, self.material_id, "incorreto")
+        criar_denuncia(PROFESSOR, self.material_id, "ofensivo")
+        denuncia = listar_todas(ADMIN)["denuncias"][0]
+        tratar_denuncia(ADMIN, denuncia["id"], "concluida", "Resolvido.")
+
+        resumo = listar_todas(ADMIN)["resumo"]
+        self.assertEqual(resumo["abertas"], 1)
+        self.assertEqual(resumo["concluidas"], 1)
+
+    def test_denuncia_sobrevive_a_exclusao_do_material(self):
+        """O historico e o que justifica a exclusao; some-lo seria apagar a prova."""
+        criar_denuncia(ALUNO, self.material_id, "ofensivo", "Conteudo impróprio.")
+        excluir_material(self.material_id, PROFESSOR)
+
+        fila = listar_todas(ADMIN)["denuncias"]
+        self.assertEqual(len(fila), 1)
+        self.assertEqual(fila[0]["material_titulo"], "Aula publicada")
 
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")

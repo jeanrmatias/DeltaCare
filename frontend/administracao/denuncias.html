@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Módulo</title>
+    <title>Delta Care | Denúncias</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=16">
 </head>
 <body>
@@ -31,7 +31,7 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c0-4.1 3.4-7.5 7.5-7.5s7.5 3.4 7.5 7.5"/></svg>
                     Usuários
                 </a>
-                <a href="denuncias.html" class="sidebar-link">
+                <a href="denuncias.html" class="sidebar-link ativo">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"/><path d="M10.3 4.3 2.8 17a1.7 1.7 0 0 0 1.5 2.5h15.4a1.7 1.7 0 0 0 1.5-2.5L13.7 4.3a1.7 1.7 0 0 0-3 0Z"/></svg>
                     Denúncias
                 </a>
@@ -57,25 +57,54 @@
             </footer>
         </aside>
 
-
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1 id="moduloTitulo">Módulo</h1>
-                    <p id="moduloResumo"></p>
+                    <h1>Denúncias</h1>
+                    <p>Conteúdo reportado por alunos e professores.</p>
+                </div>
+
+                <div class="topo-acoes">
+                    <div class="area-notificacoes">
+                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificacoes">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
+                        </button>
+                    </div>
+                    <label class="campo campo--seletor">
+                        <select id="seletorStatus">
+                            <option value="">Todas</option>
+                            <option value="aberta">Abertas</option>
+                            <option value="em_analise">Em análise</option>
+                            <option value="concluida">Concluídas</option>
+                            <option value="arquivada">Arquivadas</option>
+                        </select>
+                    </label>
                 </div>
             </header>
 
-            <section class="cartao cartao--indisponivel modulo-cartao">
-                <span class="etiqueta-breve" id="moduloSprint">Planejado</span>
-
-                <h2 class="cartao-titulo">Ainda não construído nesta versão</h2>
-                <p>O que este módulo vai permitir quando for entregue:</p>
-
-                <ul class="modulo-itens" id="moduloItens"></ul>
-
-                <p class="modulo-nota" id="moduloNota" hidden></p>
+            <section class="stats" id="resumo" hidden>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Abertas</span>
+                    <strong class="stat-valor" id="statAbertas">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Em análise</span>
+                    <strong class="stat-valor" id="statAnalise">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Concluídas</span>
+                    <strong class="stat-valor stat-valor--sucesso" id="statConcluidas">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Arquivadas</span>
+                    <strong class="stat-valor" id="statArquivadas">0</strong>
+                </article>
             </section>
+
+            <section class="lista-materiais" id="lista"></section>
+            <p class="estado-vazio" id="vazio" hidden>
+                Nenhuma denúncia por aqui. Quando alguém reportar um conteúdo, ele aparece nesta fila.
+            </p>
         </main>
     </div>
 
@@ -83,7 +112,7 @@
     <script src="../dialogo.js?v=16"></script>
     <script src="../auth.js?v=16"></script>
     <script src="../perfil.js?v=16"></script>
-    <script src="../modulos.js?v=16"></script>
-    <script src="em-breve.js?v=16"></script>
+    <script src="../notificacoes.js?v=16"></script>
+    <script src="denuncias.js?v=16"></script>
 </body>
 </html>

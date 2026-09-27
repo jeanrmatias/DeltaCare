@@ -11,17 +11,6 @@
  */
 
 const MODULOS = {
-    "desempenho-aluno": {
-        titulo: "Desempenho",
-        resumo: "Seu progresso na disciplina, com pontos e histórico de acertos.",
-        sprint: "Sprint 5",
-        itens: [
-            "Pontuação acumulada pelas atividades entregues",
-            "Ofensiva diária de estudo",
-            "Tópicos em que você mais erra, para orientar a revisão",
-            "Posição no ranking da turma, se você optar por aparecer",
-        ],
-    },
     "calendario-professor": {
         titulo: "Calendário",
         resumo: "Visão do semestre com material e atividades por data.",
@@ -42,41 +31,6 @@ const MODULOS = {
             "Aviso de mensagem nova",
         ],
         nota: "Hoje o aluno tira dúvidas com o assistente de IA, que responde apenas com base no material liberado. Este módulo é para o que a IA não resolve.",
-    },
-    "desempenho-professor": {
-        titulo: "Desempenho",
-        resumo: "Como a turma está indo, em números.",
-        sprint: "Sprint 7",
-        itens: [
-            "Tópicos com maior índice de erro na turma",
-            "Média e totalização por atividade",
-            "Filtros por turma e período",
-            "Visão agregada e por aluno",
-        ],
-    },
-    "denunciar-conteudo": {
-        titulo: "Denúncias",
-        resumo: "Reportar conteúdo inadequado e acompanhar o que você reportou.",
-        sprint: "Sprint 8",
-        itens: [
-            "Reportar um material direto da tela em que ele aparece",
-            "Escolher o motivo e descrever o problema",
-            "Acompanhar o andamento do que você reportou",
-            "Ser avisado quando a administração concluir a análise",
-        ],
-        nota: "Este é o lado de quem reporta. Quem recebe e trata as denúncias é a administração, no módulo de mesmo nome — os dois fazem parte da mesma entrega.",
-    },
-    "denuncias-admin": {
-        titulo: "Denúncias",
-        resumo: "Registro e tratamento do conteúdo reportado por alunos e professores.",
-        sprint: "Sprint 8",
-        itens: [
-            "Receber e listar denúncias abertas",
-            "Acompanhar o status de cada uma",
-            "Registrar a ação tomada",
-            "Devolver o resultado a quem reportou",
-        ],
-        nota: "As denúncias chegam do módulo de mesmo nome nas áreas do aluno e do professor, onde o conteúdo é reportado. Sem aquele lado, esta tela não teria o que listar.",
     },
     "conteudo-admin": {
         titulo: "Supervisão de conteúdo",

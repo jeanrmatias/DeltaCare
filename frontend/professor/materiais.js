@@ -238,11 +238,13 @@ function criarLinhaMaterial(material) {
             ${referencia ? `<p class="material-referencia">${referencia}</p>` : ""}
         </div>
         <div class="material-linha-acoes">
+            <button type="button" class="acao acao--discreta" data-acao-reportar>Reportar</button>
             <button type="button" class="acao" data-acao-editar>Editar</button>
             <button type="button" class="acao acao--perigo" data-acao-excluir>Excluir</button>
         </div>
     `;
 
+    linha.querySelector("[data-acao-reportar]").addEventListener("click", () => reportarMaterial(material));
     linha.querySelector("[data-acao-editar]").addEventListener("click", () => abrirFormulario(material));
     linha.querySelector("[data-acao-excluir]").addEventListener("click", () => excluirMaterial(material));
 

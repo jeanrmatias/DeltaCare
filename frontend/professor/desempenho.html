@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Turmas</title>
+    <title>Delta Care | Desempenho</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=16">
 </head>
 <body>
@@ -35,7 +35,7 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 9.5h18"/></svg>
                     Calendário
                 </a>
-                <a href="turmas.html" class="sidebar-link ativo">
+                <a href="turmas.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14c2.7.3 4.5 2.6 4.5 6"/></svg>
                     Turmas
                 </a>
@@ -43,7 +43,7 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-8.9 8.5c-1.4 0-2.7-.3-3.9-.9L3 21l1.5-4.7A8.5 8.5 0 1 1 21 12Z"/></svg>
                     Chat
                 </a>
-                <a href="desempenho.html" class="sidebar-link">
+                <a href="desempenho.html" class="sidebar-link ativo">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>
                     Desempenho
                 </a>
@@ -76,31 +76,81 @@
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1>Turmas</h1>
-                    <p>As turmas atribuídas a você pela administração. Só um administrador pode criar ou editar turmas.</p>
+                    <h1>Desempenho</h1>
+                    <p>Como a turma está indo e qual tópico precisa voltar na aula.</p>
                 </div>
 
                 <div class="topo-acoes">
                     <div class="area-notificacoes">
-                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
+                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificacoes">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
                         </button>
                     </div>
+                    <label class="campo campo--seletor" id="seletorTurmaCampo">
+                        <select id="seletorTurma"></select>
+                    </label>
+                    <label class="campo campo--seletor">
+                        <select id="seletorPeriodo">
+                            <option value="">Todo o semestre</option>
+                            <option value="7">Últimos 7 dias</option>
+                            <option value="30">Últimos 30 dias</option>
+                            <option value="90">Últimos 90 dias</option>
+                        </select>
+                    </label>
                 </div>
             </header>
 
-            <section class="grade-turmas" id="listaTurmas"></section>
-            <p class="estado-vazio" id="turmasVazio" hidden>
-                Você ainda não tem nenhuma turma atribuída. Fale com a administração para ser vinculado a uma turma.
+            <p class="estado-vazio" id="semTurmas" hidden>
+                Você ainda não tem nenhuma turma. <a href="turmas.html">Crie uma turma primeiro</a>.
             </p>
+
+            <section class="stats" id="resumo" hidden>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Alunos</span>
+                    <strong class="stat-valor" id="statAlunos">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Atividades publicadas</span>
+                    <strong class="stat-valor" id="statAtividades">0</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Média da turma</span>
+                    <strong class="stat-valor" id="statMedia">—</strong>
+                </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Taxa de entrega</span>
+                    <strong class="stat-valor" id="statEntrega">—</strong>
+                </article>
+            </section>
+
+            <p class="estado-vazio" id="vazio" hidden>
+                Nenhuma atividade publicada nesta turma no período escolhido.
+            </p>
+
+            <section class="cartao" id="cartaoTopicos" hidden>
+                <h2 class="cartao-titulo">Tópicos que a turma mais erra</h2>
+                <p class="cartao-nota">Conta apenas questões objetivas, somando todos os alunos. Questão em branco entra como erro.</p>
+                <div id="listaTopicos"></div>
+            </section>
+
+            <section class="cartao" id="cartaoAtividades" hidden>
+                <h2 class="cartao-titulo">Por atividade</h2>
+                <div class="rolavel"><table class="tabela" id="tabelaAtividades"></table></div>
+            </section>
+
+            <section class="cartao" id="cartaoAlunos" hidden>
+                <h2 class="cartao-titulo">Por aluno</h2>
+                <div class="rolavel"><table class="tabela" id="tabelaAlunos"></table></div>
+            </section>
         </main>
     </div>
 
     <script src="../config.js?v=16"></script>
     <script src="../dialogo.js?v=16"></script>
+    <script src="../visualizador.js?v=16"></script>
     <script src="../auth.js?v=16"></script>
     <script src="../perfil.js?v=16"></script>
     <script src="../notificacoes.js?v=16"></script>
-    <script src="turmas.js?v=16"></script>
+    <script src="desempenho.js?v=16"></script>
 </body>
 </html>

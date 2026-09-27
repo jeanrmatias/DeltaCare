@@ -53,12 +53,28 @@ function _criarDialogo({ titulo, mensagem, tipo = "aviso", campos = null, rotulo
         const texto = document.createElement("span");
         texto.textContent = campo.rotulo;
 
-        const entrada = document.createElement("input");
-        entrada.type = campo.tipo || "text";
-        entrada.value = campo.valor || "";
-        if (campo.placeholder) entrada.placeholder = campo.placeholder;
+        // `tipo: "select"` monta uma lista a partir de `campo.opcoes`. Sem isto
+        // um campo de escolha viraria <input type="select">, que o navegador
+        // trata como texto livre — e o usuário digitaria o valor na mão.
+        const ehLista = campo.tipo === "select";
+        const entrada = document.createElement(ehLista ? "select" : "input");
+
+        if (ehLista) {
+            (campo.opcoes || []).forEach((opcao) => {
+                const item = document.createElement("option");
+                item.value = opcao.valor;
+                item.textContent = opcao.rotulo;
+                if (campo.valor && campo.valor === opcao.valor) item.selected = true;
+                entrada.appendChild(item);
+            });
+        } else {
+            entrada.type = campo.tipo || "text";
+            entrada.value = campo.valor || "";
+            if (campo.placeholder) entrada.placeholder = campo.placeholder;
+            if (campo.minimo) entrada.minLength = campo.minimo;
+        }
+
         if (campo.obrigatorio !== false) entrada.required = true;
-        if (campo.minimo) entrada.minLength = campo.minimo;
         if (indice === 0) entrada.autofocus = true;
 
         rotulo.appendChild(texto);

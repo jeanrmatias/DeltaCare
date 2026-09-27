@@ -299,6 +299,36 @@ def configurar_banco(silencioso: bool = False):
         "CREATE INDEX IF NOT EXISTS idx_entregas_aluno ON entregas (aluno_id)"
     )
 
+    # Conteúdo reportado por aluno ou professor.
+    #
+    # `material_id` aceita NULL porque o material pode ser excluído depois da
+    # denúncia — e apagar a denúncia junto esconderia justamente o histórico
+    # que a administração precisa para justificar a exclusão. O título fica
+    # copiado em `material_titulo` pelo mesmo motivo: sem ele, a denúncia de um
+    # material excluído viraria uma linha sem assunto.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS denuncias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            autor_id INTEGER NOT NULL,
+            material_id INTEGER,
+            material_titulo TEXT,
+            turma_id INTEGER,
+            motivo TEXT NOT NULL,
+            descricao TEXT,
+            status TEXT NOT NULL DEFAULT 'aberta',
+            acao TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL,
+            FOREIGN KEY (autor_id) REFERENCES users (id)
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_denuncias_status ON denuncias (status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_denuncias_autor ON denuncias (autor_id)"
+    )
+
     conexao.commit()
     conexao.close()
 

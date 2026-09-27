@@ -285,18 +285,31 @@ test("markdown lida com null sem quebrar", () => {
 });
 
 // ---------------------------------------------------------------- módulos
-test("catálogo cobre os dois lados da denúncia", () => {
-    // O roadmap descrevia quem *gerencia* denúncias e esquecia quem as *faz*:
-    // uma caixa de entrada sem porta de entrada. Os dois lados precisam existir.
-    assert.ok(MODULOS["denuncias-admin"], "falta o lado de quem trata");
-    assert.ok(MODULOS["denunciar-conteudo"], "falta o lado de quem reporta");
+test("denúncia tem os dois lados construídos", () => {
+    // O backlog descrevia quem *gerencia* denúncias e esquecia quem as *faz*:
+    // uma caixa de entrada sem porta de entrada. Enquanto era roadmap, o teste
+    // olhava o catálogo; agora que é tela, olha as telas. A garantia é a mesma:
+    // ninguém entrega metade deste módulo.
+    for (const pagina of ["aluno/denuncias.html", "professor/denuncias.html",
+                          "administracao/denuncias.html"]) {
+        assert.ok(fs.existsSync(pagina), `falta a tela ${pagina}`);
+    }
 });
 
-test("módulos que dependem de outro apontam para ele", () => {
-    // Um módulo que só faz sentido junto de outro deve dizer isso na tela, em
-    // vez de deixar a banca notar a lacuna antes da gente.
-    for (const chave of ["denuncias-admin", "denunciar-conteudo"]) {
-        assert.ok(MODULOS[chave].nota, `${chave} não explica a contraparte`);
+test("dá para reportar de dentro do material", () => {
+    // Reportar só pela tela de Denúncias exigiria lembrar o nome do arquivo e
+    // navegar até lá. Sem o atalho no item, a porta de entrada existe no papel
+    // e não na prática.
+    assert.ok(fs.existsSync("reportar.js"), "falta o módulo de reportar");
+
+    for (const pagina of ["aluno/materiais.html", "professor/materiais.html"]) {
+        const html = fs.readFileSync(pagina, "utf-8");
+        assert.ok(html.includes("reportar.js"), `${pagina} não carrega reportar.js`);
+    }
+
+    for (const script of ["aluno/materiais.js", "professor/materiais.js"]) {
+        const codigo = fs.readFileSync(script, "utf-8");
+        assert.ok(codigo.includes("reportarMaterial"), `${script} não oferece o atalho`);
     }
 });
 

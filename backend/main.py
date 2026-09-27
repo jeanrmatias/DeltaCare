@@ -61,6 +61,13 @@ from regras.atividades import (
     obter_atividade_do_aluno,
     salvar_progresso,
 )
+from regras.denuncias import (
+    criar_denuncia,
+    listar_minhas,
+    listar_todas,
+    tratar_denuncia,
+)
+from regras.desempenho import desempenho_da_turma, desempenho_do_aluno
 from regras.importacao import analisar_planilha, importar_alunos
 from regras.notificacoes import (
     listar_notificacoes,
@@ -212,6 +219,17 @@ class MatriculaRequest(BaseModel):
 class PerguntaRequest(BaseModel):
     turma_id: int
     pergunta: str
+
+
+class DenunciaRequest(BaseModel):
+    material_id: int
+    motivo: str
+    descricao: str = ""
+
+
+class TratamentoDenunciaRequest(BaseModel):
+    status: str
+    acao: str = ""
 
 
 class QuestaoRequest(BaseModel):
@@ -628,6 +646,61 @@ def enviar_entrega_rota(
     aluno: dict = Depends(usuario_aluno),
 ):
     return enviar_entrega(aluno["email"], atividade_id, dados.respostas)
+
+
+# ---------------------------- denúncias ----------------------------
+# Os dois lados da mesma entrega: aluno e professor reportam, a administração
+# trata. Implementar só um dos lados repetiria a lacuna que originou o módulo.
+
+@app.post("/denuncias")
+def criar_denuncia_rota(dados: DenunciaRequest, usuario: dict = Depends(usuario_logado)):
+    return criar_denuncia(usuario["email"], dados.material_id, dados.motivo, dados.descricao)
+
+
+@app.get("/denuncias")
+def listar_minhas_denuncias_rota(usuario: dict = Depends(usuario_logado)):
+    """O que a própria pessoa reportou. Nunca o que os outros reportaram."""
+    return listar_minhas(usuario["email"])
+
+
+@app.get("/admin/denuncias")
+def listar_denuncias_rota(
+    status: Optional[str] = None,
+    admin: dict = Depends(usuario_admin),
+):
+    return listar_todas(admin["email"], status)
+
+
+@app.post("/admin/denuncias/{denuncia_id}")
+def tratar_denuncia_rota(
+    denuncia_id: int,
+    dados: TratamentoDenunciaRequest,
+    admin: dict = Depends(usuario_admin),
+):
+    return tratar_denuncia(admin["email"], denuncia_id, dados.status, dados.acao)
+
+
+# ---------------------------- desempenho ----------------------------
+# As duas rotas leem os mesmos dados e respondem perguntas diferentes: o aluno
+# quer saber onde ele erra; o professor, onde a turma erra. A do aluno só
+# enxerga as entregas dele — o id vem do token, nunca da query.
+
+@app.get("/aluno/desempenho")
+def desempenho_do_aluno_rota(
+    turma_id: Optional[int] = None,
+    dias: Optional[int] = None,
+    aluno: dict = Depends(usuario_aluno),
+):
+    return desempenho_do_aluno(aluno["email"], turma_id, dias)
+
+
+@app.get("/desempenho")
+def desempenho_da_turma_rota(
+    turma_id: int,
+    dias: Optional[int] = None,
+    professor: dict = Depends(usuario_professor),
+):
+    return desempenho_da_turma(professor["email"], turma_id, dias)
 
 
 @app.post("/chat/perguntar")

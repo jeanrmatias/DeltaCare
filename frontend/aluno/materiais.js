@@ -309,6 +309,16 @@ function montarLinha(material) {
         acoes.appendChild(botao);
     }
 
+    // Reportar fica no próprio material, e não só na tela de Denúncias: uma
+    // denúncia que exige lembrar o nome do arquivo e navegar até outro lugar é
+    // uma denúncia que ninguém faz.
+    const reportar = document.createElement("button");
+    reportar.type = "button";
+    reportar.className = "acao acao--discreta";
+    reportar.textContent = "Reportar";
+    reportar.addEventListener("click", () => reportarMaterial(material));
+    acoes.appendChild(reportar);
+
     linha.appendChild(info);
     linha.appendChild(acoes);
 

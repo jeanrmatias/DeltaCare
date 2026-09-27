@@ -2584,6 +2584,260 @@ dialog.visualizador:not([open]) {
 }
 
 
+/* =========================
+   Denúncias
+   ========================= */
+
+/* Reportar precisa estar ao alcance, mas não competindo com Visualizar e
+   Baixar: é a ação que quase ninguém usa e que, quando usa, procura. */
+.acao--discreta {
+    border-color: transparent;
+
+    color: var(--color-text-secondary);
+}
+
+.acao--discreta:hover {
+    border-color: var(--color-border);
+    color: var(--color-danger);
+}
+
+.denuncia-resposta {
+    margin-top: 10px;
+    padding: 12px 14px;
+
+    background: var(--color-bg);
+    border-left: 3px solid var(--color-success);
+    border-radius: var(--radius-sm);
+}
+
+.denuncia-resposta strong {
+    display: block;
+
+    margin-bottom: 4px;
+
+    color: var(--color-success);
+
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.denuncia-resposta p {
+    margin: 0;
+
+    color: var(--color-text);
+
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+
+/* =========================
+   Desempenho
+   ========================= */
+
+.cartao-nota {
+    margin: -6px 0 16px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* ---- barras de erro por tópico ---- */
+
+.barra-linha {
+    margin-bottom: 18px;
+}
+
+.barra-linha:last-child {
+    margin-bottom: 0;
+}
+
+.barra-rotulo {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+
+    margin-bottom: 6px;
+}
+
+.barra-rotulo span {
+    color: var(--color-text);
+
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.barra-rotulo strong {
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.barra-trilho {
+    height: 10px;
+
+    background: var(--color-bg);
+    border-radius: 100px;
+
+    overflow: hidden;
+}
+
+.barra-preenchida {
+    height: 100%;
+
+    background: var(--color-primary);
+    border-radius: 100px;
+}
+
+/* Acima de metade das questões erradas o assunto vira prioridade de revisão —
+   o âmbar marca isso sem gritar. */
+.barra-preenchida--alta {
+    background: var(--color-amber);
+}
+
+.barra-detalhe {
+    display: block;
+
+    margin-top: 5px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+}
+
+
+/* ---- colunas de evolução ---- */
+
+.evolucao {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+
+    padding-bottom: 4px;
+
+    overflow-x: auto;
+}
+
+/* O `max-width` evita que poucas atividades virem faixas gigantes numa tela
+   larga: a coluna cresce até um limite e depois sobra espaço, em vez de o
+   gráfico inchar e parecer outra coisa. */
+.evolucao-item {
+    display: flex;
+    flex: 1 0 44px;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+
+    min-width: 44px;
+    max-width: 90px;
+}
+
+.evolucao-trilho {
+    display: flex;
+    align-items: flex-end;
+
+    width: 100%;
+    height: 120px;
+
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+
+    overflow: hidden;
+}
+
+.evolucao-coluna {
+    width: 100%;
+
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.evolucao-coluna--boa {
+    background: var(--color-success);
+}
+
+.evolucao-coluna--baixa {
+    background: var(--color-amber);
+}
+
+.evolucao-valor {
+    color: var(--color-text);
+
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.evolucao-data {
+    color: var(--color-text-secondary);
+
+    font-size: 11px;
+}
+
+
+/* ---- tabelas de desempenho ---- */
+
+.tabela {
+    width: 100%;
+    min-width: 460px;
+
+    border-collapse: collapse;
+
+    font-size: 14px;
+}
+
+.tabela th {
+    padding: 0 14px 10px 0;
+
+    border-bottom: 1px solid var(--color-border);
+
+    color: var(--color-text-secondary);
+
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+
+    white-space: nowrap;
+}
+
+.tabela td {
+    padding: 12px 14px 12px 0;
+
+    border-bottom: 1px solid var(--color-border);
+
+    color: var(--color-text);
+
+    vertical-align: top;
+}
+
+.tabela tr:last-child td {
+    border-bottom: 0;
+}
+
+.tabela td.n {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.tabela-secundario {
+    display: block;
+
+    margin-top: 3px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+    font-weight: 400;
+}
+
 
 /* =======================================================================
    Mobile first
