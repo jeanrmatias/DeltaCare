@@ -21,6 +21,8 @@ async function carregarProfessoresETurmas() {
         const dadosProfessores = await respostaProfessores.json();
         const professores = dadosProfessores.professores || [];
 
+        await carregarSeletorDeCoortes();
+
         const seletor = document.querySelector("#turmaProfessor");
         const semProfessores = document.querySelector("#semProfessores");
         const botaoNovaTurma = document.querySelector("#botaoNovaTurma");
@@ -37,6 +39,39 @@ async function carregarProfessoresETurmas() {
         await carregarTurmas();
     } catch (erro) {
         console.error("Erro ao carregar professores:", erro);
+    }
+}
+
+/**
+ * Enche o seletor de turma do formulário de disciplina.
+ *
+ * "Nenhuma" é a primeira opção e o padrão, porque disciplina solta é caso
+ * legítimo — optativa, extensão — e porque escolher turma por acidente
+ * matricularia dezenas de alunos de uma vez.
+ */
+async function carregarSeletorDeCoortes() {
+    const seletor = document.querySelector("#turmaCoorte");
+
+    const nenhuma = document.createElement("option");
+    nenhuma.value = "";
+    nenhuma.textContent = "Nenhuma (disciplina solta)";
+    seletor.textContent = "";
+    seletor.appendChild(nenhuma);
+
+    try {
+        const resposta = await api("/admin/coortes");
+        const dados = await resposta.json();
+
+        (dados.coortes || []).forEach((coorte) => {
+            const opcao = document.createElement("option");
+            opcao.value = coorte.id;
+            opcao.textContent = `${coorte.nome} \u00b7 ${coorte.semestre} \u00b7 ${coorte.total_alunos} aluno(s)`;
+            seletor.appendChild(opcao);
+        });
+    } catch (erro) {
+        // Sem a lista, o formulário continua servindo para criar disciplina
+        // solta. Derrubar a tela inteira por isso seria pior.
+        console.error("Erro ao carregar turmas:", erro);
     }
 }
 
@@ -113,6 +148,7 @@ function ligarFormularioTurma() {
         const professorEmail = document.querySelector("#turmaProfessor").value;
         const nome = document.querySelector("#turmaNome").value.trim();
         const semestre = document.querySelector("#turmaSemestre").value.trim();
+        const coorte = document.querySelector("#turmaCoorte").value;
 
         try {
             const resposta = await api("/admin/turmas", {
@@ -121,6 +157,9 @@ function ligarFormularioTurma() {
                     professor_email: professorEmail,
                     nome: nome,
                     semestre: semestre,
+                    // null e não "" : o backend distingue "sem turma" de
+                    // "turma inválida", e "" cairia no segundo caso.
+                    coorte_id: coorte ? Number(coorte) : null,
                 }),
             });
 
@@ -132,6 +171,8 @@ function ligarFormularioTurma() {
                 formulario.reset();
                 cartaoFormulario.hidden = true;
                 carregarTurmas();
+                // O contador de alunos de cada turma envelheceu junto.
+                carregarSeletorDeCoortes();
             }
         } catch (erro) {
             console.error("Erro ao criar turma:", erro);

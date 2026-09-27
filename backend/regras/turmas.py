@@ -36,7 +36,20 @@ def _eh_admin(conexao, email: str) -> bool:
     return bool(usuario and usuario[1] == "adm")
 
 
-def criar_turma(admin_email: str, professor_email: str, nome: str, semestre: str) -> dict:
+def criar_turma(
+    admin_email: str,
+    professor_email: str,
+    nome: str,
+    semestre: str,
+    coorte_id: int | None = None,
+) -> dict:
+    """Cria uma disciplina (ver a nota de vocabulário em regras/coortes.py).
+
+    `coorte_id` é opcional e vai continuar opcional: disciplina solta é caso
+    legítimo — optativa, extensão, ou o admin que prefere matricular na mão.
+    Passando a coorte, os alunos dela já entram matriculados, menos os que
+    tiverem exceção registrada.
+    """
     nome = nome.strip()
     semestre = semestre.strip()
 
@@ -67,19 +80,47 @@ def criar_turma(admin_email: str, professor_email: str, nome: str, semestre: str
         conexao.close()
         return {"sucesso": False, "mensagem": "Esse professor já tem uma turma com esse nome nesse semestre."}
 
+    if coorte_id is not None:
+        cursor.execute("SELECT id FROM coortes WHERE id = ?", (int(coorte_id),))
+        if not cursor.fetchone():
+            conexao.close()
+            return {"sucesso": False, "mensagem": "Turma de alunos não encontrada."}
+
     agora = datetime.now(timezone.utc).isoformat()
     cursor.execute(
-        "INSERT INTO turmas (nome, semestre, professor_id, criado_em) VALUES (?, ?, ?, ?)",
-        (nome, semestre, professor_id, agora),
+        "INSERT INTO turmas (nome, semestre, professor_id, criado_em, coorte_id) VALUES (?, ?, ?, ?, ?)",
+        (nome, semestre, professor_id, agora, int(coorte_id) if coorte_id is not None else None),
     )
     conexao.commit()
     turma_id = cursor.lastrowid
     conexao.close()
 
+    matriculados = 0
+    if coorte_id is not None:
+        # Import aqui dentro para evitar ciclo: coortes importa deste módulo.
+        from regras.coortes import sincronizar_disciplina
+
+        # A disciplina nasce com a turma dentro dela. Sem isto, ela nasceria
+        # vazia e o admin teria que matricular todo mundo na mão — justamente
+        # o trabalho que a coorte existe para tirar.
+        matriculados = sincronizar_disciplina(turma_id)["matriculados"]
+
+    mensagem = "Turma criada com sucesso!"
+    if matriculados == 1:
+        mensagem = "Disciplina criada com 1 aluno da turma."
+    elif matriculados > 1:
+        mensagem = f"Disciplina criada com {matriculados} alunos da turma."
+
     return {
         "sucesso": True,
-        "mensagem": "Turma criada com sucesso!",
-        "turma": {"id": turma_id, "nome": nome, "semestre": semestre, "professor_email": professor_email},
+        "mensagem": mensagem,
+        "turma": {
+            "id": turma_id,
+            "nome": nome,
+            "semestre": semestre,
+            "professor_email": professor_email,
+            "coorte_id": int(coorte_id) if coorte_id is not None else None,
+        },
     }
 
 

@@ -83,6 +83,18 @@ from regras.matriculas import (  # noqa: E402
     matricular_aluno,
 )
 from regras.turmas import criar_turma, excluir_turma, listar_usuarios  # noqa: E402
+from regras.coortes import (  # noqa: E402
+    criar_coorte,
+    criar_excecao,
+    excluir_coorte,
+    listar_alunos_da_coorte,
+    listar_coortes,
+    listar_disciplinas_da_coorte,
+    matricular_na_coorte,
+    remover_da_coorte,
+    remover_excecao,
+    sincronizar_coorte,
+)
 from infra.security import hash_senha, verificar_senha  # noqa: E402
 from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
 from regras import chat_ia  # noqa: E402
@@ -1996,6 +2008,438 @@ class TestesTurmasDoAluno(BaseDelta):
     def test_turma_de_outro_aluno_nao_aparece(self):
         """A junção com users não pode ter afrouxado o filtro de matrícula."""
         self.assertEqual(listar_turmas_do_aluno(ALUNO_FORA)["turmas"], [])
+
+
+
+# =========================================================================
+# A turma de alunos (coorte) e o espalhamento para as disciplinas
+#
+# Vocabulário: `coorte` é a turma de alunos (MED 3A) e `turma` no banco é uma
+# disciplina (Anatomia). Ver a nota em regras/coortes.py.
+#
+# A invariante central: `matriculas` continua sendo a única verdade sobre quem
+# cursa o quê, e a coorte só escreve nela. Os 9 módulos que consultam
+# `matriculas` direto não sabem que a coorte existe, e é isso que os mantém
+# corretos sem alterar nenhum deles.
+# =========================================================================
+
+class BaseCoorte(BaseDelta):
+    """MED 3A com Anatomia e Fisiologia, e um aluno de fora para controle."""
+
+    def setUp(self):
+        super().setUp()
+        self.coorte_id = criar_coorte(ADMIN, "MED 3A", "2026.2")["coorte"]["id"]
+        self.anatomia = criar_turma(
+            ADMIN, PROFESSOR, "Anatomia", "2026.2", coorte_id=self.coorte_id
+        )["turma"]["id"]
+        self.fisiologia = criar_turma(
+            ADMIN, PROFESSOR2, "Fisiologia", "2026.2", coorte_id=self.coorte_id
+        )["turma"]["id"]
+
+    def cursa(self, aluno_email, turma_id) -> bool:
+        """Pergunta do jeito que o resto do sistema pergunta."""
+        from regras.matriculas import aluno_matriculado_na_turma
+
+        return aluno_matriculado_na_turma(aluno_email, turma_id)
+
+
+class TestesCoorte(BaseCoorte):
+
+    def test_nome_e_semestre_nao_repetem(self):
+        repetida = criar_coorte(ADMIN, "MED 3A", "2026.2")
+        self.assertFalse(repetida["sucesso"])
+
+    def test_mesmo_nome_em_outro_semestre_e_outra_turma(self):
+        """A MED 3A de 2027/1 não é a de 2026/2 — são pessoas diferentes."""
+        outra = criar_coorte(ADMIN, "MED 3A", "2027.1")
+        self.assertTrue(outra["sucesso"])
+
+    def test_so_admin_cria(self):
+        self.assertFalse(criar_coorte(PROFESSOR, "MED 4A", "2026.2")["sucesso"])
+        self.assertFalse(criar_coorte(ALUNO, "MED 4A", "2026.2")["sucesso"])
+
+    def test_listagem_conta_alunos_e_disciplinas(self):
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        coorte = [c for c in listar_coortes(ADMIN)["coortes"] if c["id"] == self.coorte_id][0]
+
+        self.assertEqual(coorte["total_alunos"], 1)
+        self.assertEqual(coorte["total_disciplinas"], 2)
+
+
+class TestesEspalhamento(BaseCoorte):
+
+    def test_entrar_na_turma_matricula_nas_disciplinas(self):
+        resultado = matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(resultado["matriculados"], 2)
+        self.assertTrue(self.cursa(ALUNO, self.anatomia))
+        self.assertTrue(self.cursa(ALUNO, self.fisiologia))
+
+    def test_disciplina_criada_depois_ja_nasce_com_a_turma(self):
+        """O caso que o espalhamento-como-evento poderia ter perdido."""
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        semiologia = criar_turma(
+            ADMIN, PROFESSOR, "Semiologia", "2026.2", coorte_id=self.coorte_id
+        )["turma"]["id"]
+
+        self.assertTrue(self.cursa(ALUNO, semiologia))
+
+    def test_aluno_de_fora_da_turma_nao_entra(self):
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        self.assertFalse(self.cursa(ALUNO_FORA, self.anatomia))
+        self.assertFalse(self.cursa(ALUNO_FORA, self.fisiologia))
+
+    def test_sincronizar_duas_vezes_nao_duplica(self):
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+        sincronizar_coorte(self.coorte_id)
+        sincronizar_coorte(self.coorte_id)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        total = conexao.execute(
+            "SELECT COUNT(*) FROM matriculas WHERE turma_id IN (?, ?)",
+            (self.anatomia, self.fisiologia),
+        ).fetchone()[0]
+        conexao.close()
+
+        self.assertEqual(total, 2)
+
+    def test_disciplina_solta_nao_recebe_ninguem(self):
+        """Sem coorte, nada espalha — continua funcionando como antes."""
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+        optativa = criar_turma(ADMIN, PROFESSOR, "Cirurgia Experimental", "2026.2")["turma"]["id"]
+
+        self.assertFalse(self.cursa(ALUNO, optativa))
+
+    def test_matricula_feita_na_mao_sobrevive_ao_espalhamento(self):
+        """O sincronismo só manda nas disciplinas da coorte.
+
+        Apagar uma matrícula que o admin fez à mão numa disciplina solta seria
+        efeito sem causa visível — ele nem saberia onde foi.
+        """
+        optativa = criar_turma(ADMIN, PROFESSOR, "Cirurgia Experimental", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, optativa)
+
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+        sincronizar_coorte(self.coorte_id)
+
+        self.assertTrue(self.cursa(ALUNO, optativa))
+
+    def test_sair_da_turma_tira_das_disciplinas(self):
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        remover_da_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        self.assertFalse(self.cursa(ALUNO, self.anatomia))
+        self.assertFalse(self.cursa(ALUNO, self.fisiologia))
+
+    def test_aluno_nao_entra_duas_vezes(self):
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        self.assertFalse(matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)["sucesso"])
+
+    def test_so_admin_matricula(self):
+        self.assertFalse(matricular_na_coorte(PROFESSOR, ALUNO, self.coorte_id)["sucesso"])
+        self.assertFalse(matricular_na_coorte(ALUNO, ALUNO_FORA, self.coorte_id)["sucesso"])
+
+
+class TestesExcecao(BaseCoorte):
+    """O aluno que traz Anatomia aproveitada de outra instituição."""
+
+    def setUp(self):
+        super().setUp()
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+    def test_excecao_tira_da_disciplina_e_mantem_na_turma(self):
+        resultado = criar_excecao(ADMIN, ALUNO, self.anatomia)
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertFalse(self.cursa(ALUNO, self.anatomia))
+        # Continua na turma, e por isso continua nas outras disciplinas.
+        self.assertTrue(self.cursa(ALUNO, self.fisiologia))
+        emails = [a["email"] for a in listar_alunos_da_coorte(ADMIN, self.coorte_id)["alunos"]]
+        self.assertIn(ALUNO, emails)
+
+    def test_excecao_sobrevive_a_um_novo_espalhamento(self):
+        """A invariante que justifica a exceção ser tabela, e não só a ausência
+        de uma linha em `matriculas`.
+
+        Guardada só como ausência, o próximo sincronismo — disparado por
+        qualquer aluno novo entrando na turma — recolocaria este aqui em
+        Anatomia, e o admin teria que tirar de novo sem entender por quê.
+        """
+        criar_excecao(ADMIN, ALUNO, self.anatomia)
+
+        matricular_na_coorte(ADMIN, ALUNO_FORA, self.coorte_id)
+        sincronizar_coorte(self.coorte_id)
+
+        self.assertFalse(self.cursa(ALUNO, self.anatomia))
+        self.assertTrue(self.cursa(ALUNO_FORA, self.anatomia))
+
+    def test_excecao_aparece_na_listagem_da_turma(self):
+        criar_excecao(ADMIN, ALUNO, self.anatomia)
+
+        aluno = [a for a in listar_alunos_da_coorte(ADMIN, self.coorte_id)["alunos"]
+                 if a["email"] == ALUNO][0]
+
+        self.assertEqual([d["nome"] for d in aluno["fora_de"]], ["Anatomia"])
+
+    def test_desfazer_excecao_devolve_a_disciplina(self):
+        criar_excecao(ADMIN, ALUNO, self.anatomia)
+
+        resultado = remover_excecao(ADMIN, ALUNO, self.anatomia)
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertTrue(self.cursa(ALUNO, self.anatomia))
+
+    def test_excecao_nao_se_repete(self):
+        criar_excecao(ADMIN, ALUNO, self.anatomia)
+
+        self.assertFalse(criar_excecao(ADMIN, ALUNO, self.anatomia)["sucesso"])
+
+    def test_desfazer_excecao_que_nao_existe_e_recusado(self):
+        self.assertFalse(remover_excecao(ADMIN, ALUNO, self.anatomia)["sucesso"])
+
+    def test_excecao_recusada_em_disciplina_sem_turma(self):
+        """Em disciplina solta o admin desmatricula direto — duas formas de
+        dizer a mesma coisa seria uma a mais do que dá para confiar."""
+        optativa = criar_turma(ADMIN, PROFESSOR, "Cirurgia Experimental", "2026.2")["turma"]["id"]
+
+        self.assertFalse(criar_excecao(ADMIN, ALUNO, optativa)["sucesso"])
+
+    def test_excecao_recusada_para_aluno_de_outra_turma(self):
+        self.assertFalse(criar_excecao(ADMIN, ALUNO_FORA, self.anatomia)["sucesso"])
+
+    def test_sair_da_turma_apaga_as_excecoes(self):
+        """Rematrícula futura não herda decisão de outro semestre em silêncio."""
+        criar_excecao(ADMIN, ALUNO, self.anatomia)
+        remover_da_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+        self.assertTrue(self.cursa(ALUNO, self.anatomia))
+
+    def test_so_admin_faz_excecao(self):
+        self.assertFalse(criar_excecao(PROFESSOR, ALUNO, self.anatomia)["sucesso"])
+        self.assertFalse(criar_excecao(ALUNO, ALUNO, self.anatomia)["sucesso"])
+
+
+class TestesDesfazerCoorte(BaseCoorte):
+
+    def setUp(self):
+        super().setUp()
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte_id)
+
+    def test_desfazer_a_turma_nao_desfaz_o_semestre_do_aluno(self):
+        """O aluno cursou Anatomia. Isso não deixa de ter acontecido porque o
+        agrupamento foi desfeito — há nota e material lido do outro lado."""
+        excluir_coorte(ADMIN, self.coorte_id)
+
+        self.assertTrue(self.cursa(ALUNO, self.anatomia))
+        self.assertTrue(self.cursa(ALUNO, self.fisiologia))
+
+    def test_disciplinas_voltam_a_ser_soltas(self):
+        excluir_coorte(ADMIN, self.coorte_id)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        vinculadas = conexao.execute(
+            "SELECT COUNT(*) FROM turmas WHERE coorte_id IS NOT NULL"
+        ).fetchone()[0]
+        conexao.close()
+
+        self.assertEqual(vinculadas, 0)
+
+    def test_so_admin_desfaz(self):
+        self.assertFalse(excluir_coorte(PROFESSOR, self.coorte_id)["sucesso"])
+
+    def test_disciplinas_da_turma_sao_listadas_com_professor(self):
+        disciplinas = listar_disciplinas_da_coorte(ADMIN, self.coorte_id)["disciplinas"]
+
+        por_nome = {d["nome"]: d for d in disciplinas}
+        self.assertEqual(por_nome["Anatomia"]["professor_nome"], "Professor Um")
+        self.assertEqual(por_nome["Fisiologia"]["professor_nome"], "Professor Dois")
+        self.assertEqual(por_nome["Anatomia"]["total_alunos"], 1)
+
+
+
+# =========================================================================
+# As rotas da coorte
+#
+# Os testes acima chamam os módulos direto e não veem nada do HTTP. Esta classe
+# existe por causa de um bug que só aparecia pela rota: `DELETE
+# /admin/coortes/excecoes` casava com `DELETE /admin/coortes/{coorte_id}`, e o
+# FastAPI tentava ler "excecoes" como inteiro. A lógica estava certa, os 27
+# testes de unidade passavam, e a tela não funcionava.
+# =========================================================================
+
+class TestesRotasCoorte(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+
+        # Importado aqui e não no topo: carregar `main` puxa o app inteiro, e
+        # só esta classe precisa dele.
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+        self.adm = self._token(ADMIN)
+
+    def _token(self, email):
+        resposta = self.cliente.post("/login", json={"email": email, "senha": SENHA})
+        return resposta.json()["token"]
+
+    def _cab(self, token):
+        return {"Authorization": f"Bearer {token}"}
+
+    def _disciplinas_do_aluno(self, email=ALUNO):
+        """O que o aluno cursa **fora** da linha de base.
+
+        `BaseDelta` já o matricula em Cardiologia à mão, e essa matrícula direta
+        é justamente a que a coorte não deve mexer. Descontá-la isola o efeito
+        que estes testes medem — e o teste de que ela sobrevive está em
+        TestesEspalhamento.
+        """
+        resposta = self.cliente.get("/aluno/turmas", headers=self._cab(self._token(email)))
+        nomes = [t["nome"] for t in resposta.json()["turmas"]]
+        self.assertIn("Cardiologia", nomes, "a matrícula direta da linha de base desapareceu")
+        return sorted(n for n in nomes if n != "Cardiologia")
+
+    def _criar_coorte(self, nome="MED 3A"):
+        resposta = self.cliente.post(
+            "/admin/coortes", json={"nome": nome, "semestre": "2026.2"}, headers=self._cab(self.adm)
+        )
+        return resposta.json()["coorte"]["id"]
+
+    def test_excluir_coorte_por_id(self):
+        coorte_id = self._criar_coorte()
+
+        resposta = self.cliente.delete(f"/admin/coortes/{coorte_id}", headers=self._cab(self.adm))
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+
+    def test_excecao_nao_colide_com_o_id_da_coorte(self):
+        """O bug que a suíte de unidade não via.
+
+        Se a rota da exceção voltar para baixo de /admin/coortes/, o DELETE
+        passa a ser lido como um id e responde 422 — e o sintoma não aponta
+        para a causa.
+        """
+        coorte_id = self._criar_coorte()
+        disciplina = criar_turma(
+            ADMIN, PROFESSOR, "Anatomia", "2026.2", coorte_id=coorte_id
+        )["turma"]["id"]
+        self.cliente.post(
+            f"/admin/coortes/{coorte_id}/alunos",
+            json={"aluno_email": ALUNO},
+            headers=self._cab(self.adm),
+        )
+
+        corpo = {"aluno_email": ALUNO, "turma_id": disciplina}
+
+        criar = self.cliente.post("/admin/excecoes", json=corpo, headers=self._cab(self.adm))
+        self.assertEqual(criar.status_code, 200, criar.text)
+        self.assertTrue(criar.json()["sucesso"], criar.text)
+
+        remover = self.cliente.request(
+            "DELETE", "/admin/excecoes", json=corpo, headers=self._cab(self.adm)
+        )
+        self.assertEqual(remover.status_code, 200, remover.text)
+        self.assertTrue(remover.json()["sucesso"], remover.text)
+
+    def test_matricula_em_cascata_pela_rota(self):
+        coorte_id = self._criar_coorte()
+        criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2", coorte_id=coorte_id)
+        criar_turma(ADMIN, PROFESSOR2, "Fisiologia", "2026.2", coorte_id=coorte_id)
+
+        resposta = self.cliente.post(
+            f"/admin/coortes/{coorte_id}/alunos",
+            json={"aluno_email": ALUNO},
+            headers=self._cab(self.adm),
+        )
+
+        self.assertEqual(resposta.json()["matriculados"], 2, resposta.text)
+
+        # A visão do aluno é o que importa: é dela que o seletor do chat vive.
+        self.assertEqual(self._disciplinas_do_aluno(), ["Anatomia", "Fisiologia"])
+
+    def test_remover_aluno_da_coorte_aceita_corpo_no_delete(self):
+        """DELETE com corpo, igual a /admin/matriculas. Alguns clientes o
+        descartam, então a rota precisa ser exercitada de verdade."""
+        coorte_id = self._criar_coorte()
+        criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2", coorte_id=coorte_id)
+        self.cliente.post(
+            f"/admin/coortes/{coorte_id}/alunos",
+            json={"aluno_email": ALUNO},
+            headers=self._cab(self.adm),
+        )
+
+        resposta = self.cliente.request(
+            "DELETE",
+            f"/admin/coortes/{coorte_id}/alunos",
+            json={"aluno_email": ALUNO},
+            headers=self._cab(self.adm),
+        )
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+        self.assertEqual(self._disciplinas_do_aluno(), [])
+
+    def test_disciplina_criada_pela_rota_aceita_a_coorte(self):
+        coorte_id = self._criar_coorte()
+        self.cliente.post(
+            f"/admin/coortes/{coorte_id}/alunos",
+            json={"aluno_email": ALUNO},
+            headers=self._cab(self.adm),
+        )
+
+        resposta = self.cliente.post(
+            "/admin/turmas",
+            json={
+                "professor_email": PROFESSOR,
+                "nome": "Semiologia",
+                "semestre": "2026.2",
+                "coorte_id": coorte_id,
+            },
+            headers=self._cab(self.adm),
+        )
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+        self.assertEqual(self._disciplinas_do_aluno(), ["Semiologia"])
+
+    def test_disciplina_sem_coorte_continua_valendo(self):
+        """coorte_id ausente não é erro: disciplina solta é caso legítimo."""
+        resposta = self.cliente.post(
+            "/admin/turmas",
+            json={"professor_email": PROFESSOR, "nome": "Cirurgia Experimental", "semestre": "2026.2"},
+            headers=self._cab(self.adm),
+        )
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+
+    def test_professor_e_aluno_nao_alcancam_as_rotas_de_coorte(self):
+        coorte_id = self._criar_coorte()
+
+        for email in (PROFESSOR, ALUNO):
+            token = self._cab(self._token(email))
+            with self.subTest(perfil=email):
+                self.assertIn(self.cliente.get("/admin/coortes", headers=token).status_code, (401, 403))
+                self.assertIn(
+                    self.cliente.post(
+                        "/admin/coortes", json={"nome": "MED 4A", "semestre": "2026.2"}, headers=token
+                    ).status_code,
+                    (401, 403),
+                )
+                self.assertIn(
+                    self.cliente.get(f"/admin/coortes/{coorte_id}/alunos", headers=token).status_code,
+                    (401, 403),
+                )
+
+    def test_sem_token_nao_alcanca(self):
+        self.assertIn(self.cliente.get("/admin/coortes").status_code, (401, 403))
 
 
 if __name__ == "__main__":

@@ -78,7 +78,65 @@ def configurar_banco(silencioso: bool = False):
             )
     conexao.commit()
 
-    # Turmas do professor.
+    # A turma de alunos — MED 3A, a coorte que cursa o semestre junto.
+    #
+    # **Atenção ao vocabulário, porque as duas coisas se chamam "turma" em
+    # lugares diferentes:** a tabela `turmas` logo abaixo é na verdade uma
+    # *disciplina* (um professor, um corpo de material, e o chat de IA busca só
+    # dentro dela). Renomear as 412 ocorrências de `turma_id` seria um diff
+    # enorme sem ganho funcional, então o código manteve o nome antigo e a
+    # coorte entrou com nome próprio. Na interface:
+    #
+    #     coortes  -> "Turma"       (MED 3A)
+    #     turmas   -> "Disciplina"  (Cardiologia I, ministrada pela Marina)
+    #
+    # A chave única é (nome, semestre): a MED 3A de 2026/2 não é a de 2027/1.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS coortes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            semestre TEXT NOT NULL,
+            criado_em TEXT NOT NULL,
+            UNIQUE (nome, semestre)
+        )
+    ''')
+
+    # A qual coorte o aluno pertence.
+    #
+    # Separada de `matriculas` de propósito: pertencer à MED 3A e cursar
+    # Anatomia são fatos diferentes, e é a diferença entre eles que permite a
+    # exceção.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS matriculas_coorte (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER NOT NULL,
+            coorte_id INTEGER NOT NULL,
+            criado_em TEXT NOT NULL,
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (coorte_id) REFERENCES coortes (id),
+            UNIQUE (aluno_id, coorte_id)
+        )
+    ''')
+
+    # Exceção: aluno da coorte que **não** cursa esta disciplina.
+    #
+    # Guardada como fato próprio, e não só apagando a linha de `matriculas`,
+    # porque a exceção precisa **sobreviver** à criação de disciplina nova e a
+    # uma rematrícula na coorte. Sem ela, o próximo espalhamento colocaria o
+    # aluno de volta em Anatomia e o admin teria que tirar outra vez.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS excecoes_coorte (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER NOT NULL,
+            turma_id INTEGER NOT NULL,
+            criado_em TEXT NOT NULL,
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (turma_id) REFERENCES turmas (id),
+            UNIQUE (aluno_id, turma_id)
+        )
+    ''')
+
+    # Turmas do professor (ver a nota de vocabulário acima: isto é disciplina).
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS turmas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,6 +147,17 @@ def configurar_banco(silencioso: bool = False):
             FOREIGN KEY (professor_id) REFERENCES users (id)
         )
     ''')
+
+    # Migração: a qual coorte a disciplina pertence.
+    #
+    # Anulável, e vai continuar anulável. As disciplinas que já existem não têm
+    # coorte, e uma disciplina solta é caso legítimo: optativa, curso de
+    # extensão, ou o admin que prefere matricular na mão. Sem coorte, nada
+    # espalha e tudo funciona como antes.
+    cursor.execute("PRAGMA table_info(turmas)")
+    colunas_turmas = {linha[1] for linha in cursor.fetchall()}
+    if "coorte_id" not in colunas_turmas:
+        cursor.execute("ALTER TABLE turmas ADD COLUMN coorte_id INTEGER REFERENCES coortes (id)")
 
     # Materiais publicados pelo professor em uma turma.
     cursor.execute('''

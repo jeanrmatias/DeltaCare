@@ -35,6 +35,17 @@ from regras.turmas import (
     listar_usuarios,
     perfil_do_usuario,
 )
+from regras.coortes import (
+    criar_coorte,
+    criar_excecao,
+    excluir_coorte,
+    listar_alunos_da_coorte,
+    listar_coortes,
+    listar_disciplinas_da_coorte,
+    matricular_na_coorte,
+    remover_da_coorte,
+    remover_excecao,
+)
 from regras.matriculas import (
     desmatricular_aluno,
     listar_alunos,
@@ -173,6 +184,26 @@ class TurmaRequest(BaseModel):
     professor_email: str
     nome: str
     semestre: str
+    # Opcional, e assim fica: disciplina sem coorte é caso legítimo (optativa,
+    # extensão), e nada espalha quando ela vem vazia.
+    coorte_id: Optional[int] = None
+
+
+class CoorteRequest(BaseModel):
+    """A turma de alunos. `coortes` no código, "Turma" na interface — a nota de
+    vocabulário está em regras/coortes.py."""
+    nome: str
+    semestre: str
+
+
+class CoorteAlunoRequest(BaseModel):
+    # aluno_email é o aluno sendo movido (alvo), não quem faz a requisição.
+    aluno_email: str
+
+
+class ExcecaoRequest(BaseModel):
+    aluno_email: str
+    turma_id: int
 
 
 class MaterialRequest(BaseModel):
@@ -378,7 +409,9 @@ def listar_turmas_admin_rota(admin: dict = Depends(usuario_admin)):
 
 @app.post("/admin/turmas")
 def criar_turma_rota(dados: TurmaRequest, admin: dict = Depends(usuario_admin)):
-    return criar_turma(admin["email"], dados.professor_email, dados.nome, dados.semestre)
+    return criar_turma(
+        admin["email"], dados.professor_email, dados.nome, dados.semestre, dados.coorte_id
+    )
 
 
 @app.delete("/admin/turmas/{turma_id}")
@@ -432,6 +465,74 @@ def desmatricular_aluno_rota(dados: MatriculaRequest, admin: dict = Depends(usua
 @app.get("/admin/turmas/{turma_id}/alunos")
 def listar_alunos_da_turma_rota(turma_id: int, admin: dict = Depends(usuario_admin)):
     return listar_alunos_da_turma(admin["email"], turma_id)
+
+
+# =========================================================================
+# Turmas de alunos (coortes)
+#
+# `/admin/coortes` e não `/admin/turmas` porque `/admin/turmas` já existe e
+# serve as disciplinas — ver a nota de vocabulário em regras/coortes.py. A
+# interface chama estas de "Turma" e aquelas de "Disciplina".
+# =========================================================================
+
+@app.get("/admin/coortes")
+def listar_coortes_rota(admin: dict = Depends(usuario_admin)):
+    return listar_coortes(admin["email"])
+
+
+@app.post("/admin/coortes")
+def criar_coorte_rota(dados: CoorteRequest, admin: dict = Depends(usuario_admin)):
+    return criar_coorte(admin["email"], dados.nome, dados.semestre)
+
+
+@app.delete("/admin/coortes/{coorte_id}")
+def excluir_coorte_rota(coorte_id: int, admin: dict = Depends(usuario_admin)):
+    return excluir_coorte(admin["email"], coorte_id)
+
+
+@app.get("/admin/coortes/{coorte_id}/alunos")
+def listar_alunos_da_coorte_rota(coorte_id: int, admin: dict = Depends(usuario_admin)):
+    return listar_alunos_da_coorte(admin["email"], coorte_id)
+
+
+@app.get("/admin/coortes/{coorte_id}/disciplinas")
+def listar_disciplinas_da_coorte_rota(coorte_id: int, admin: dict = Depends(usuario_admin)):
+    return listar_disciplinas_da_coorte(admin["email"], coorte_id)
+
+
+@app.post("/admin/coortes/{coorte_id}/alunos")
+def matricular_na_coorte_rota(
+    coorte_id: int, dados: CoorteAlunoRequest, admin: dict = Depends(usuario_admin)
+):
+    """Entra na turma e, com ela, em todas as disciplinas menos as de exceção."""
+    return matricular_na_coorte(admin["email"], dados.aluno_email, coorte_id)
+
+
+@app.delete("/admin/coortes/{coorte_id}/alunos")
+def remover_da_coorte_rota(
+    coorte_id: int, dados: CoorteAlunoRequest, admin: dict = Depends(usuario_admin)
+):
+    """DELETE com o aluno no corpo, igual a /admin/matriculas."""
+    return remover_da_coorte(admin["email"], dados.aluno_email, coorte_id)
+
+
+# `/admin/excecoes` e **não** `/admin/coortes/excecoes`: o segundo colide com
+# `/admin/coortes/{coorte_id}`, que é declarado antes e faria o FastAPI tentar
+# ler "excecoes" como um inteiro. Dava para resolver declarando na ordem certa,
+# e foi recusado: a correção some no primeiro dia em que alguem reorganizar o
+# arquivo, e o sintoma (422 no DELETE) não aponta para a causa. Caminho sem
+# ambiguidade não depende de ordem. Além disso, a exceção é sobre
+# (aluno, disciplina) — a coorte se descobre a partir da disciplina.
+@app.post("/admin/excecoes")
+def criar_excecao_rota(dados: ExcecaoRequest, admin: dict = Depends(usuario_admin)):
+    """Tira da disciplina um aluno que continua na turma."""
+    return criar_excecao(admin["email"], dados.aluno_email, dados.turma_id)
+
+
+@app.delete("/admin/excecoes")
+def remover_excecao_rota(dados: ExcecaoRequest, admin: dict = Depends(usuario_admin)):
+    """Desfaz a exceção: o aluno volta a cursar a disciplina."""
+    return remover_excecao(admin["email"], dados.aluno_email, dados.turma_id)
 
 
 @app.get("/admin/alunos")

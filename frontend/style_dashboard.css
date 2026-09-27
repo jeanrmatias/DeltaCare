@@ -3317,3 +3317,87 @@ dialog.visualizador:not([open]) {
         grid-template-columns: 1fr 380px;
     }
 }
+
+
+/* =========================
+   Turma de alunos: aluno com os chips de disciplina
+
+   O chip é o controle de exceção: aceso = cursa, apagado = está fora. Foi
+   escolhido em cima de uma matriz aluno × disciplina porque a matriz não cabe
+   num celular, e esta tela é usada do telefone tanto quanto do computador.
+   ========================= */
+
+.aluno-coorte {
+    /* Sobrepõe o `align-items: center` de .lista-entregas li: com os chips a
+       linha tem duas alturas, e centralizar deixaria o botão flutuando. */
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.aluno-coorte-info {
+    flex: 1;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.aluno-coorte-info > strong {
+    color: var(--color-text);
+
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.aluno-coorte-email {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.disciplina-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    margin-top: 2px;
+}
+
+.disciplina-chip {
+    padding: 5px 10px;
+
+    background: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    border-radius: 999px;
+
+    color: #FFFFFF;
+
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+
+    cursor: pointer;
+}
+
+.disciplina-chip:hover {
+    background: #245FCC;
+    border-color: #245FCC;
+}
+
+/* Fora da disciplina. O risco no texto diz "não conta" sem depender só da cor,
+   que é o que um daltônico não distinguiria. */
+.disciplina-chip--fora {
+    background: transparent;
+    border-color: var(--color-border);
+
+    color: var(--color-text-secondary);
+
+    text-decoration: line-through;
+}
+
+.disciplina-chip--fora:hover {
+    background: var(--color-bg);
+    border-color: var(--color-text-secondary);
+
+    color: var(--color-text);
+}

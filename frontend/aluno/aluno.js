@@ -49,7 +49,7 @@ async function carregarTurmas() {
         chatCartao.hidden = false;
 
         turmasDoAluno = turmas;
-        seletor.innerHTML = turmas.map((t) => `<option value="${t.id}">${t.nome} · ${t.semestre}</option>`).join("");
+        preencherSeletor(seletor, turmas);
         turmaAtual = turmas[0].id;
 
         seletor.addEventListener("change", () => {
@@ -63,6 +63,32 @@ async function carregarTurmas() {
         semTurmas.hidden = false;
         semTurmas.textContent = "Não foi possível conectar ao servidor. Tente novamente.";
     }
+}
+
+/**
+ * Monta as opções do seletor de turma.
+ *
+ * O nome do professor entra junto porque uma `turma` aqui é na verdade **uma
+ * disciplina** — com o seu professor e o seu material. Uma mesma turma de
+ * alunos pode cursar várias, e só "nome · semestre" deixaria duas opções
+ * idênticas na lista se o admin batizar as entradas pela turma em vez da
+ * matéria. Como cada opção escolhe *em qual material o assistente vai buscar*,
+ * escolher às cegas é escolher errado.
+ *
+ * Montado com textContent, e não innerHTML: nome de turma e de professor vem
+ * do banco, e aqui não existe o `esc` das outras telas.
+ */
+function preencherSeletor(seletor, turmas) {
+    seletor.textContent = "";
+
+    turmas.forEach((t) => {
+        const opcao = document.createElement("option");
+        opcao.value = t.id;
+        opcao.textContent = t.professor_nome
+            ? `${t.nome} · ${t.semestre} · Prof. ${t.professor_nome}`
+            : `${t.nome} · ${t.semestre}`;
+        seletor.appendChild(opcao);
+    });
 }
 
 async function carregarHistorico() {

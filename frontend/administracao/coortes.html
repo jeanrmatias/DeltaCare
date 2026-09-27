@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Disciplinas (Admin)</title>
+    <title>Delta Care | Turmas (Admin)</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=21">
 </head>
 <body>
@@ -23,11 +23,11 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
                     Início
                 </a>
-                <a href="coortes.html" class="sidebar-link">
+                <a href="coortes.html" class="sidebar-link ativo">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14c2.7.3 4.5 2.6 4.5 6"/></svg>
                     Turmas
                 </a>
-                <a href="adm-turmas.html" class="sidebar-link ativo">
+                <a href="adm-turmas.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2Z"/><path d="M12 6.5v13"/></svg>
                     Disciplinas
                 </a>
@@ -62,65 +62,49 @@
         </aside>
 
         <main class="conteudo">
-            <header class="topo">
-                <div class="topo-saudacao">
-                    <h1>Disciplinas</h1>
-                    <p>Cada disciplina tem um professor e o seu próprio material. Aponte para uma <a href="coortes.html">turma</a> e os alunos dela já entram matriculados.</p>
+            <header class="conteudo-topo">
+                <div>
+                    <h1>Turmas</h1>
+                    <p>A turma de alunos que cursa o semestre junto. Matricular na turma matricula em todas as disciplinas dela.</p>
                 </div>
-
-                <div class="topo-acoes">
-                    <div class="area-notificacoes">
-                        <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
-                        </button>
-                    </div>
-                    <button type="button" class="acao acao--primaria" id="botaoNovaTurma">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Nova disciplina
+                <div class="conteudo-topo-acoes">
+                    <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                        <span class="badge" id="badgeNotificacoes" hidden>0</span>
+                    </button>
+                    <button type="button" class="acao acao--primaria" id="botaoNovaCoorte">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Nova turma
                     </button>
                 </div>
             </header>
 
-            <p class="estado-vazio" id="semProfessores" hidden>
-                Ainda não há nenhum professor cadastrado. Cadastre um professor antes de criar uma disciplina.
-            </p>
-
-            <section class="cartao" id="formularioTurmaCartao" hidden>
-                <h2 class="cartao-titulo">Nova disciplina</h2>
+            <section class="cartao" id="formularioCoorteCartao" hidden>
+                <h2 class="cartao-titulo">Nova turma</h2>
                 <p class="campo-dica">
-                    Uma entrada por disciplina, com o seu professor e o seu material —
-                    é o que mantém o assistente de IA buscando no material certo.
-                    Escolhendo a turma, os alunos dela entram matriculados na hora,
-                    menos os que estiverem marcados como exceção.
+                    O grupo de alunos, não a matéria. As disciplinas entram depois,
+                    em <a href="adm-turmas.html">Disciplinas</a>, apontando para esta turma.
                 </p>
-                <form id="formularioTurma" class="formulario formulario--linha">
+                <form id="formularioCoorte" class="formulario formulario--linha">
                     <div class="campo">
-                        <label for="turmaProfessor">Professor</label>
-                        <select id="turmaProfessor" required></select>
+                        <label for="coorteNome">Nome da turma</label>
+                        <input type="text" id="coorteNome" placeholder="ex.: MED 3A" required>
                     </div>
                     <div class="campo">
-                        <label for="turmaCoorte">Turma</label>
-                        <select id="turmaCoorte"></select>
-                    </div>
-                    <div class="campo">
-                        <label for="turmaNome">Disciplina</label>
-                        <input type="text" id="turmaNome" placeholder="ex.: Cardiologia I" required>
-                    </div>
-                    <div class="campo">
-                        <label for="turmaSemestre">Semestre</label>
-                        <input type="text" id="turmaSemestre" placeholder="ex.: 2026/2" required>
+                        <label for="coorteSemestre">Semestre</label>
+                        <input type="text" id="coorteSemestre" placeholder="ex.: 2026/2" required>
                     </div>
                     <div class="campo campo--acoes">
-                        <button type="submit" class="acao acao--primaria">Criar disciplina</button>
-                        <button type="button" class="acao" id="botaoCancelarTurma">Cancelar</button>
+                        <button type="submit" class="acao acao--primaria">Criar turma</button>
+                        <button type="button" class="acao" id="botaoCancelarCoorte">Cancelar</button>
                     </div>
                 </form>
-                <p class="formulario-mensagem" id="turmaMensagem"></p>
+                <p class="formulario-mensagem" id="coorteMensagem"></p>
             </section>
 
-            <section class="lista-materiais" id="listaTurmas"></section>
-            <p class="estado-vazio" id="turmasVazio" hidden>
-                Nenhuma disciplina criada ainda. Clique em "Nova disciplina" para começar.
+            <section class="lista-materiais" id="listaCoortes"></section>
+            <p class="estado-vazio" id="coortesVazio" hidden>
+                Nenhuma turma criada ainda. Clique em "Nova turma" para começar.
             </p>
         </main>
     </div>
@@ -130,6 +114,6 @@
     <script src="../auth.js?v=21"></script>
     <script src="../perfil.js?v=21"></script>
     <script src="../notificacoes.js?v=21"></script>
-    <script src="adm-turmas.js?v=21"></script>
+    <script src="coortes.js?v=21"></script>
 </body>
 </html>

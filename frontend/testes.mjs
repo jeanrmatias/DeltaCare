@@ -706,3 +706,65 @@ test("rascunho corrompido não derruba a tela", () => {
 
     assert.equal(aplicar(), false);
 });
+
+
+// ---------------------------------------------- seletor de turma do chat
+/**
+ * Uma `turma` no banco é na prática **uma disciplina**: tem um professor e um
+ * corpo de material só dela. Uma mesma turma de alunos cursando cinco matérias
+ * são cinco entradas, e o aluno é matriculado nas cinco.
+ *
+ * Por isso o seletor precisa distinguir as opções: cada uma escolhe em qual
+ * material o assistente vai buscar. Duas opções com o mesmo rótulo fazem o
+ * aluno perguntar de Anatomia na entrada de Fisiologia e ouvir que o material
+ * não cobre — sem entender por quê.
+ */
+test("o seletor distingue disciplinas que o admin batizou com o mesmo nome", () => {
+    const seletor = new No("select");
+    const ctxAluno = montarContextoPagina("aluno/aluno.js", {
+        pathname: "/aluno/aluno.html",
+        nos: { "#seletorTurma": seletor },
+    });
+
+    // O caso real: admin seguiu o rótulo antigo e batizou as duas pela turma.
+    vm.runInContext("preencherSeletor", ctxAluno)(seletor, [
+        { id: 1, nome: "MED 3A", semestre: "2026/2", professor_nome: "Marina Duarte" },
+        { id: 2, nome: "MED 3A", semestre: "2026/2", professor_nome: "Renato Alves" },
+    ]);
+
+    const rotulos = seletor.filhos.map((o) => o.textContent);
+    assert.equal(new Set(rotulos).size, 2, `opções indistinguíveis: ${JSON.stringify(rotulos)}`);
+    assert.match(rotulos[0], /Marina Duarte/);
+    assert.match(rotulos[1], /Renato Alves/);
+});
+
+test("o seletor não escreve HTML vindo do banco", () => {
+    // Nome de turma e de professor são digitados por um admin. Esta tela não
+    // tem o `esc` das outras, então as opções são montadas com textContent.
+    const seletor = new No("select");
+    const ctxAluno = montarContextoPagina("aluno/aluno.js", {
+        pathname: "/aluno/aluno.html",
+        nos: { "#seletorTurma": seletor },
+    });
+
+    vm.runInContext("preencherSeletor", ctxAluno)(seletor, [
+        { id: 1, nome: "<img src=x onerror=alert(1)>", semestre: "2026/2", professor_nome: "Ana" },
+    ]);
+
+    assert.equal(seletor.innerHTML, "");
+    assert.match(seletor.filhos[0].textContent, /<img src=x onerror=alert\(1\)>/);
+});
+
+test("o seletor sobrevive a turma sem professor conhecido", () => {
+    const seletor = new No("select");
+    const ctxAluno = montarContextoPagina("aluno/aluno.js", {
+        pathname: "/aluno/aluno.html",
+        nos: { "#seletorTurma": seletor },
+    });
+
+    vm.runInContext("preencherSeletor", ctxAluno)(seletor, [
+        { id: 1, nome: "Cardiologia I", semestre: "2026/2" },
+    ]);
+
+    assert.equal(seletor.filhos[0].textContent, "Cardiologia I · 2026/2");
+});
