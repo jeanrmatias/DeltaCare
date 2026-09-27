@@ -11,17 +11,6 @@
  */
 
 const MODULOS = {
-    "chat-professor": {
-        titulo: "Mensagens",
-        resumo: "Conversa direta entre professor e aluno, por turma.",
-        sprint: "Sprint 4",
-        itens: [
-            "Receber dúvidas dos alunos da turma",
-            "Histórico de conversa por aluno",
-            "Aviso de mensagem nova",
-        ],
-        nota: "Hoje o aluno tira dúvidas com o assistente de IA, que responde apenas com base no material liberado. Este módulo é para o que a IA não resolve.",
-    },
     "conteudo-admin": {
         titulo: "Supervisão de conteúdo",
         resumo: "Acesso da administração ao material de qualquer turma.",

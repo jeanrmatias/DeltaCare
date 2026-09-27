@@ -70,6 +70,7 @@ from regras.denuncias import (
     tratar_denuncia,
 )
 from regras.desempenho import desempenho_da_turma, desempenho_do_aluno
+from regras.mensagens import abrir_conversa, enviar_mensagem, listar_conversas
 from regras.importacao import analisar_planilha, importar_alunos
 from regras.notificacoes import (
     listar_notificacoes,
@@ -221,6 +222,14 @@ class MatriculaRequest(BaseModel):
 class PerguntaRequest(BaseModel):
     turma_id: int
     pergunta: str
+
+
+class MensagemRequest(BaseModel):
+    turma_id: int
+    conteudo: str
+    # Só usado quando quem envia é professor: diz com qual aluno da turma é a
+    # conversa. Vindo de aluno, é ignorado (ver regras/mensagens.py).
+    aluno_email: Optional[str] = None
 
 
 class DenunciaRequest(BaseModel):
@@ -648,6 +657,31 @@ def enviar_entrega_rota(
     aluno: dict = Depends(usuario_aluno),
 ):
     return enviar_entrega(aluno["email"], atividade_id, dados.respostas)
+
+
+# ---------------------------- mensagens ----------------------------
+# Conversa entre professor e aluno, por turma. As três rotas valem para os dois
+# perfis: quem está logado define de que lado da conversa está, e o aluno nunca
+# informa quem é — senão trocar um parâmetro leria a conversa de outro.
+
+@app.get("/mensagens/conversas")
+def listar_conversas_rota(usuario: dict = Depends(usuario_logado)):
+    return listar_conversas(usuario["email"])
+
+
+@app.get("/mensagens")
+def abrir_conversa_rota(
+    turma_id: int,
+    aluno_email: Optional[str] = None,
+    usuario: dict = Depends(usuario_logado),
+):
+    """`aluno_email` só é lido quando quem chama é professor."""
+    return abrir_conversa(usuario["email"], turma_id, aluno_email)
+
+
+@app.post("/mensagens")
+def enviar_mensagem_rota(dados: MensagemRequest, usuario: dict = Depends(usuario_logado)):
+    return enviar_mensagem(usuario["email"], dados.turma_id, dados.conteudo, dados.aluno_email)
 
 
 # ---------------------------- calendário ----------------------------

@@ -51,6 +51,11 @@ from regras.atividades import (  # noqa: E402
     salvar_progresso,
 )
 from regras.calendario import eventos_do_mes  # noqa: E402
+from regras.mensagens import (  # noqa: E402
+    abrir_conversa,
+    enviar_mensagem,
+    listar_conversas,
+)
 from regras.denuncias import (  # noqa: E402
     criar_denuncia,
     listar_minhas,
@@ -1807,6 +1812,134 @@ class TestesCalendario(BaseAtividades):
         dias = [e["dia"] for e in eventos]
 
         self.assertEqual(dias, sorted(dias), "calendario fora de ordem")
+
+
+class TestesMensagens(BaseDelta):
+    """Conversa entre professor e aluno.
+
+    O risco nao e calculo, e vazamento: a conversa de duas pessoas nao pode
+    aparecer para uma terceira, e trocar um parametro na URL nao pode virar
+    leitura da conversa alheia.
+    """
+
+    def setUp(self):
+        super().setUp()
+        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
+
+    def test_aluno_escreve_e_professor_le(self):
+        self.assertTrue(enviar_mensagem(ALUNO, self.turma_id, "Professor, nao entendi a fase B.")["sucesso"])
+
+        conversa = abrir_conversa(PROFESSOR, self.turma_id, ALUNO)
+
+        self.assertTrue(conversa["sucesso"])
+        self.assertEqual(len(conversa["mensagens"]), 1)
+        self.assertFalse(conversa["mensagens"][0]["minha"])
+        self.assertIn("fase B", conversa["mensagens"][0]["conteudo"])
+
+    def test_professor_responde_e_aluno_le(self):
+        enviar_mensagem(ALUNO, self.turma_id, "Duvida.")
+        enviar_mensagem(PROFESSOR, self.turma_id, "A fase B vai de uma a tres horas.", ALUNO)
+
+        conversa = abrir_conversa(ALUNO, self.turma_id)
+
+        self.assertEqual(len(conversa["mensagens"]), 2)
+        self.assertTrue(conversa["mensagens"][1]["minha"] is False)
+
+    def test_mensagem_vazia_e_recusada(self):
+        self.assertFalse(enviar_mensagem(ALUNO, self.turma_id, "   ")["sucesso"])
+
+    def test_mensagem_gigante_e_recusada(self):
+        self.assertFalse(enviar_mensagem(ALUNO, self.turma_id, "a" * 3000)["sucesso"])
+
+    # ---------------------------------------------------------- vazamento
+
+    def test_aluno_de_outra_turma_nao_escreve(self):
+        self.assertFalse(enviar_mensagem(ALUNO_FORA, self.turma_id, "Oi")["sucesso"])
+
+    def test_aluno_de_outra_turma_nao_le(self):
+        enviar_mensagem(ALUNO, self.turma_id, "Particular.")
+        self.assertFalse(abrir_conversa(ALUNO_FORA, self.turma_id)["sucesso"])
+
+    def test_aluno_nao_le_a_conversa_de_outro_aluno(self):
+        """Mesmo matriculado na mesma turma: a conversa e dele com o professor."""
+        enviar_mensagem(ALUNO, self.turma_id, "Minha duvida particular.")
+
+        # Tenta se passar por outro informando o e-mail alheio: o parametro e
+        # ignorado para aluno, entao ele le a propria conversa, que esta vazia.
+        conversa = abrir_conversa("aluno3@teste.com", self.turma_id, ALUNO)
+
+        self.assertTrue(conversa["sucesso"])
+        self.assertEqual(conversa["mensagens"], [], "leu a conversa de outro aluno")
+
+    def test_professor_de_outra_turma_nao_le(self):
+        enviar_mensagem(ALUNO, self.turma_id, "Particular.")
+        self.assertFalse(abrir_conversa(PROFESSOR2, self.turma_id, ALUNO)["sucesso"])
+
+    def test_professor_nao_escreve_para_aluno_nao_matriculado(self):
+        self.assertFalse(enviar_mensagem(PROFESSOR, self.turma_id, "Oi", ALUNO_FORA)["sucesso"])
+
+    def test_professor_precisa_dizer_com_quem_fala(self):
+        self.assertFalse(enviar_mensagem(PROFESSOR, self.turma_id, "Oi")["sucesso"])
+
+    def test_turma_inexistente(self):
+        self.assertFalse(enviar_mensagem(ALUNO, 9999, "Oi")["sucesso"])
+
+    # ---------------------------------------------------------- nao lidas
+
+    def test_mensagem_nova_conta_como_nao_lida(self):
+        enviar_mensagem(ALUNO, self.turma_id, "Oi professor.")
+
+        conversas = listar_conversas(PROFESSOR)
+        do_aluno = [c for c in conversas["conversas"] if c["contraparte_email"] == ALUNO][0]
+
+        self.assertEqual(do_aluno["nao_lidas"], 1)
+        self.assertEqual(conversas["nao_lidas"], 1)
+
+    def test_abrir_a_conversa_marca_como_lida(self):
+        enviar_mensagem(ALUNO, self.turma_id, "Oi professor.")
+        abrir_conversa(PROFESSOR, self.turma_id, ALUNO)
+
+        self.assertEqual(listar_conversas(PROFESSOR)["nao_lidas"], 0)
+
+    def test_abrir_nao_marca_as_proprias_como_lidas(self):
+        """Marcar as proprias zeraria o contador do interlocutor."""
+        enviar_mensagem(ALUNO, self.turma_id, "Oi professor.")
+        abrir_conversa(ALUNO, self.turma_id)
+
+        self.assertEqual(listar_conversas(PROFESSOR)["nao_lidas"], 1)
+
+    def test_professor_ve_aluno_sem_conversa_iniciada(self):
+        """Ele precisa poder puxar assunto, nao so responder."""
+        conversas = listar_conversas(PROFESSOR)["conversas"]
+
+        self.assertEqual(len(conversas), 2)
+        self.assertTrue(all(c["ultima_em"] is None for c in conversas))
+
+    def test_conversa_com_mensagem_nova_vem_primeiro(self):
+        enviar_mensagem("aluno3@teste.com", self.turma_id, "Oi!")
+
+        primeira = listar_conversas(PROFESSOR)["conversas"][0]
+        self.assertEqual(primeira["contraparte_email"], "aluno3@teste.com")
+
+    def test_aluno_tem_uma_conversa_por_turma(self):
+        outra = criar_turma(ADMIN, PROFESSOR, "Clinica", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, outra)
+
+        conversas = listar_conversas(ALUNO)["conversas"]
+        self.assertEqual(len(conversas), 2)
+
+    def test_destinatario_e_avisado(self):
+        enviar_mensagem(ALUNO, self.turma_id, "Oi professor.")
+
+        tipos = [n["tipo"] for n in listar_notificacoes(PROFESSOR)["notificacoes"]]
+        self.assertIn("mensagem", tipos)
+
+    def test_quem_envia_nao_se_notifica(self):
+        enviar_mensagem(ALUNO, self.turma_id, "Oi professor.")
+
+        avisos = [n for n in listar_notificacoes(ALUNO)["notificacoes"] if n["tipo"] == "mensagem"]
+        self.assertEqual(avisos, [])
 
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")

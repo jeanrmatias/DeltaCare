@@ -329,6 +329,34 @@ def configurar_banco(silencioso: bool = False):
         "CREATE INDEX IF NOT EXISTS idx_denuncias_autor ON denuncias (autor_id)"
     )
 
+    # Conversa entre professor e aluno.
+    #
+    # Nome `mensagens` para não confundir com `chat_mensagens`, que é o
+    # histórico do assistente de IA. São coisas diferentes: lá o aluno fala com
+    # o material; aqui, com uma pessoa.
+    #
+    # A conversa é identificada por (turma_id, aluno_id) — o professor é o dono
+    # da turma. Guardar `autor_id` em vez de um campo "de/para" deixa claro
+    # quem escreveu sem duplicar a identidade dos dois lados.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS mensagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            turma_id INTEGER NOT NULL,
+            aluno_id INTEGER NOT NULL,
+            autor_id INTEGER NOT NULL,
+            conteudo TEXT NOT NULL,
+            lida INTEGER NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL,
+            FOREIGN KEY (turma_id) REFERENCES turmas (id),
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (autor_id) REFERENCES users (id)
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_mensagens_conversa"
+        "  ON mensagens (turma_id, aluno_id, criado_em)"
+    )
+
     conexao.commit()
     conexao.close()
 

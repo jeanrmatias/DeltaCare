@@ -2989,6 +2989,240 @@ dialog.visualizador:not([open]) {
 }
 
 
+/* =========================
+   Mensagens
+   ========================= */
+
+/* Lista à esquerda, conversa à direita — e uma coluna só no celular, pela
+   mesma regra do .painel. */
+.painel--conversa {
+    align-items: stretch;
+}
+
+.cartao--lista {
+    max-height: 640px;
+    overflow-y: auto;
+}
+
+.cartao--conversa {
+    display: flex;
+    flex-direction: column;
+
+    min-height: 420px;
+    max-height: 640px;
+}
+
+.conversa-topo {
+    padding-bottom: 12px;
+
+    border-bottom: 1px solid var(--color-border);
+}
+
+.conversa-subtitulo {
+    margin: 2px 0 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+}
+
+/* ---- lista ---- */
+
+.conversa-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    width: 100%;
+    padding: 10px 8px;
+
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+
+    font-family: var(--font-family);
+    text-align: left;
+
+    cursor: pointer;
+}
+
+.conversa-item:hover {
+    background: var(--color-bg);
+}
+
+.conversa-item--ativa {
+    background: var(--color-accent-suave, #EAF1FE);
+}
+
+.conversa-item-texto {
+    flex: 1;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.conversa-item-texto strong {
+    color: var(--color-text);
+
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.conversa-item-turma {
+    color: var(--color-text-secondary);
+
+    font-size: 11.5px;
+}
+
+/* A prévia corta numa linha: duas linhas fariam a lista virar um mural. */
+.conversa-item-previa {
+    overflow: hidden;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conversa-item-lado {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.conversa-item-hora {
+    color: var(--color-text-secondary);
+
+    font-size: 11px;
+}
+
+/* Nao reaproveita .badge: aquele e absoluto, feito para grudar no canto do
+   sino. Dentro da lista ele escapava do container e ia parar no topo da
+   pagina. Aqui o contador ocupa lugar no fluxo, como qualquer outro elemento. */
+.contador-nao-lidas {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--color-danger);
+    border-radius: 999px;
+
+    color: #FFFFFF;
+
+    font-size: 10px;
+    font-weight: 700;
+}
+
+/* ---- mensagens ---- */
+
+.conversa-mensagens {
+    flex: 1;
+    min-height: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    padding: 16px 4px;
+
+    overflow-y: auto;
+}
+
+.balao {
+    max-width: 78%;
+    padding: 10px 14px;
+
+    background: var(--color-bg);
+    border-radius: 14px 14px 14px 4px;
+}
+
+/* A própria mensagem vai para a direita, com a "orelha" do outro lado: é o
+   que diz de quem é o texto sem precisar escrever o nome em cada linha. */
+.balao--minha {
+    align-self: flex-end;
+
+    background: var(--color-primary);
+    border-radius: 14px 14px 4px 14px;
+}
+
+.balao p {
+    margin: 0;
+
+    color: var(--color-text);
+
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.balao--minha p {
+    color: #FFFFFF;
+}
+
+.balao-hora {
+    display: block;
+
+    margin-top: 4px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 11px;
+}
+
+.balao--minha .balao-hora {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* ---- envio ---- */
+
+.conversa-envio {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+
+    padding-top: 12px;
+
+    border-top: 1px solid var(--color-border);
+}
+
+.conversa-envio textarea {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+    line-height: 1.5;
+
+    resize: vertical;
+}
+
+.conversa-envio textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.conversa-envio .acao {
+    flex: none;
+}
+
+
 /* =======================================================================
    Mobile first
    O estilo acima e o do celular: barra lateral virando faixa horizontal no
