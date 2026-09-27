@@ -93,6 +93,11 @@ async function carregarConversas() {
         document.querySelector("#painel").hidden = false;
         desenharLista();
 
+        // Vindo do chat de estudos com uma dúvida em mãos, abre direto na
+        // conversa daquela turma — inclusive havendo mensagem por ler, porque
+        // aqui a pessoa já disse aonde quer ir.
+        if (!ativa && aplicarRascunho()) return;
+
         // Abre a primeira sozinho **só quando não há nada por ler**. Havendo
         // mensagem nova, abrir marcaria como lida antes de a pessoa olhar, e o
         // contador sumiria sem ela ter visto o aviso. Com a caixa em dia, abrir
@@ -103,6 +108,51 @@ async function carregarConversas() {
         vazio.hidden = false;
         vazio.textContent = "Não foi possível conectar ao servidor. Tente novamente.";
     }
+}
+
+/**
+ * Abre a conversa da turma que o chat de estudos indicou, com a pergunta pronta.
+ *
+ * O aluno chega aqui vindo de uma recusa do assistente: o material não cobria a
+ * dúvida dele. Fazer ele redigitar a pergunta que acabou de escrever seria
+ * atrito puro — e o mais provável é que ele desistisse no caminho.
+ *
+ * Consome de uma vez (`removeItem` antes de usar): se ele voltar para esta tela
+ * depois, é para ver a resposta, não para reabrir o mesmo rascunho.
+ *
+ * Devolve `true` quando abriu algo, para quem chamou não abrir outra conversa
+ * por cima.
+ */
+function aplicarRascunho() {
+    let rascunho = null;
+
+    try {
+        const bruto = sessionStorage.getItem("deltacare_rascunho_mensagem");
+        if (!bruto) return false;
+        sessionStorage.removeItem("deltacare_rascunho_mensagem");
+        rascunho = JSON.parse(bruto);
+    } catch (erro) {
+        // sessionStorage bloqueado ou JSON corrompido: a tela abre normal.
+        return false;
+    }
+
+    if (!rascunho || !rascunho.turma_id) return false;
+
+    // A turma vem do chat, mas quem manda é a lista do servidor: se ele saiu da
+    // turma nesse meio tempo, não há conversa para abrir.
+    const conversa = conversas.find((c) => c.turma_id === rascunho.turma_id);
+    if (!conversa) return false;
+
+    abrirConversa(conversa).then(() => {
+        const campo = document.querySelector("#campoMensagem");
+        if (!rascunho.texto) return;
+        // Não envia sozinho: a pergunta foi escrita para uma IA, e ele pode
+        // querer ajustar o tom antes de mandar para uma pessoa.
+        campo.value = rascunho.texto;
+        campo.focus();
+    });
+
+    return true;
 }
 
 function mesmaConversa(a, b) {

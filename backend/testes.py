@@ -77,7 +77,11 @@ from regras.notificacoes import (  # noqa: E402
     marcar_como_lida,
     marcar_todas_como_lidas,
 )
-from regras.matriculas import listar_alunos_da_turma, matricular_aluno  # noqa: E402
+from regras.matriculas import (  # noqa: E402
+    listar_alunos_da_turma,
+    listar_turmas_do_aluno,
+    matricular_aluno,
+)
 from regras.turmas import criar_turma, excluir_turma, listar_usuarios  # noqa: E402
 from infra.security import hash_senha, verificar_senha  # noqa: E402
 from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
@@ -1940,6 +1944,59 @@ class TestesMensagens(BaseDelta):
 
         avisos = [n for n in listar_notificacoes(ALUNO)["notificacoes"] if n["tipo"] == "mensagem"]
         self.assertEqual(avisos, [])
+
+
+# =========================================================================
+# Turmas do aluno
+#
+# A lista alimenta o seletor do chat de estudos **e** a oferta de levar a
+# dúvida ao professor quando o material não cobre a pergunta. Por isso o nome
+# do professor é dado da rota, não enfeite: sem ele a oferta sai genérica.
+# =========================================================================
+
+class TestesTurmasDoAluno(BaseDelta):
+
+    def test_traz_o_nome_do_professor_da_turma(self):
+        turma = listar_turmas_do_aluno(ALUNO)["turmas"][0]
+
+        self.assertEqual(turma["professor_nome"], "Professor Um")
+
+    def test_cada_turma_traz_o_seu_proprio_professor(self):
+        outra = criar_turma(ADMIN, PROFESSOR2, "Clinica", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, outra)
+
+        por_nome = {t["nome"]: t["professor_nome"] for t in listar_turmas_do_aluno(ALUNO)["turmas"]}
+
+        self.assertEqual(por_nome["Cardiologia"], "Professor Um")
+        self.assertEqual(por_nome["Clinica"], "Professor Dois")
+
+    def test_professor_sem_nome_cai_no_email(self):
+        """Banco anterior à coluna `nome`: a oferta precisa dizer *algo*.
+
+        `criar_conta_staff` exige nome, então o produto não cria essa linha. Mas
+        `nome` entrou por migração (ver infra/database.py) e é anulável, logo
+        contas de antes dela existirem vêm com NULL. Por isso o INSERT direto:
+        é o único jeito de reproduzir o dado que o fallback protege.
+        """
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute(
+            "INSERT INTO users (email, senha, tipo) VALUES (?, ?, ?)",
+            ("anonimo@teste.com", hash_senha(SENHA), "professor"),
+        )
+        conexao.commit()
+        conexao.close()
+
+        turma = criar_turma(ADMIN, "anonimo@teste.com", "Anatomia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, turma)
+
+        achada = [t for t in listar_turmas_do_aluno(ALUNO)["turmas"] if t["nome"] == "Anatomia"][0]
+
+        self.assertEqual(achada["professor_nome"], "anonimo@teste.com")
+
+    def test_turma_de_outro_aluno_nao_aparece(self):
+        """A junção com users não pode ter afrouxado o filtro de matrícula."""
+        self.assertEqual(listar_turmas_do_aluno(ALUNO_FORA)["turmas"], [])
+
 
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")

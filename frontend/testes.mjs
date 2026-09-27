@@ -30,6 +30,7 @@ class No {
         this.style = {};
         this._texto = "";
         this.hidden = false;
+        this.eventos = {};
     }
 
     appendChild(no) {
@@ -38,7 +39,18 @@ class No {
     }
 
     remove() {}
-    addEventListener() {}
+
+    // Guarda os ouvintes para os testes poderem disparar o clique. Sem isso
+    // dá para verificar que o botão existe, mas não o que ele faz — e o que
+    // ele faz é o comportamento que importa.
+    addEventListener(tipo, funcao) {
+        (this.eventos[tipo] = this.eventos[tipo] || []).push(funcao);
+    }
+
+    disparar(tipo) {
+        (this.eventos[tipo] || []).forEach((funcao) => funcao({ preventDefault() {} }));
+    }
+    focus() {}
     setAttribute(nome, valor) { this.atributos[nome] = valor; }
     getAttribute(nome) { return this.atributos[nome]; }
     insertAdjacentElement() {}
@@ -524,4 +536,173 @@ test("o que foi digitado volta igual depois de formatar e reler", () => {
         const segunda = data(calendario.formatarParaCampo(primeira));
         assert.equal(segunda.getTime(), primeira.getTime(), `ida e volta mudou ${texto}`);
     }
+});
+
+
+// ---------------------------------------------- oferta de falar com o professor
+/**
+ * Quando o assistente recusa uma pergunta (volta sem fonte citada), o chat
+ * oferece levar a dúvida ao professor da turma e leva o texto junto.
+ *
+ * Duas telas, um caminho: `aluno.js` monta a oferta e guarda o rascunho,
+ * `mensagens.js` consome. Testados juntos porque o contrato entre eles é uma
+ * chave de sessionStorage — o tipo de acordo que quebra em silêncio quando um
+ * dos lados muda o nome ou o formato.
+ *
+ * Os dois arquivos rodam código no topo, mas só dentro de `if (usuario)`. Com
+ * `exigirAcesso` devolvendo null nada dispara, e as funções ficam disponíveis
+ * para o teste chamar uma a uma.
+ */
+function montarContextoPagina(arquivo, { pathname, nos }) {
+    const contexto = {
+        console, JSON, Date, Math, String, Number, Array, Object, Boolean, Promise,
+        setInterval: () => 0,
+        setTimeout: () => 0,
+        exigirAcesso: () => null,
+        document: {
+            createElement: (tag) => new No(tag),
+            querySelector: (seletor) => nos[seletor] || null,
+            querySelectorAll: () => [],
+            addEventListener: () => {},
+        },
+        window: { location: { pathname, href: "" } },
+        sessionStorage: {
+            _dados: {},
+            getItem(chave) { return this._dados[chave] ?? null; },
+            setItem(chave, valor) { this._dados[chave] = String(valor); },
+            removeItem(chave) { delete this._dados[chave]; },
+        },
+    };
+
+    contexto.globalThis = contexto;
+    vm.createContext(contexto);
+    vm.runInContext(fs.readFileSync(arquivo, "utf-8"), contexto, { filename: arquivo });
+
+    return contexto;
+}
+
+/** Contexto novo por teste: sessionStorage e DOM sujos contaminariam o seguinte. */
+function contextoChat() {
+    const chatMensagens = new No("div");
+    const ctxAluno = montarContextoPagina("aluno/aluno.js", {
+        pathname: "/aluno/aluno.html",
+        nos: { "#chatMensagens": chatMensagens },
+    });
+
+    vm.runInContext(
+        `turmasDoAluno = [{ id: 7, nome: "Cardiologia", semestre: "2026.2", professor_nome: "Marina Duarte" }];
+         turmaAtual = 7;`,
+        ctxAluno
+    );
+
+    return { ctxAluno, chatMensagens, oferecer: vm.runInContext("oferecerProfessor", ctxAluno) };
+}
+
+test("a oferta nomeia a turma e o professor, e fala no condicional", () => {
+    const { chatMensagens, oferecer } = contextoChat();
+    oferecer("O que é tetralogia de Fallot?");
+
+    const texto = chatMensagens.textContent;
+    // O "se" é a razão de a oferta existir nesta forma: a plataforma não sabe
+    // se a pergunta tem a ver com a matéria. Afirmar seria dar conselho errado
+    // para quem perguntou qualquer coisa.
+    assert.match(texto, /^Se isso for matéria de Cardiologia/);
+    assert.match(texto, /Prof\. Marina Duarte/);
+});
+
+test("a oferta não aparece sem professor conhecido", () => {
+    // Turma sem professor_nome: a oferta sairia "leve ao Prof. undefined".
+    const { ctxAluno, chatMensagens, oferecer } = contextoChat();
+    vm.runInContext("turmasDoAluno = [{ id: 7, nome: \"Cardiologia\" }];", ctxAluno);
+
+    oferecer("Qualquer pergunta.");
+
+    assert.equal(chatMensagens.filhos.length, 0);
+});
+
+test("clicar na oferta guarda a pergunta e a turma para a tela de mensagens", () => {
+    const { ctxAluno, chatMensagens, oferecer } = contextoChat();
+    const pergunta = "O que é tetralogia de Fallot?";
+    oferecer(pergunta);
+
+    chatMensagens.querySelectorAll("button")[0].disparar("click");
+
+    const guardado = JSON.parse(ctxAluno.sessionStorage.getItem("deltacare_rascunho_mensagem"));
+    assert.equal(guardado.turma_id, 7);
+    assert.equal(guardado.texto, pergunta);
+    assert.match(ctxAluno.window.location.href, /mensagens\.html$/);
+});
+
+/** Lado de mensagens.js: recebe o rascunho e abre a conversa certa. */
+function contextoMensagens(rascunho, conversas) {
+    const campo = new No("textarea");
+    const ctx = montarContextoPagina("mensagens.js", {
+        pathname: "/aluno/mensagens.html",
+        nos: { "#campoMensagem": campo },
+    });
+
+    if (rascunho !== null) {
+        ctx.sessionStorage.setItem("deltacare_rascunho_mensagem", JSON.stringify(rascunho));
+    }
+
+    const abertas = [];
+    ctx.abertas = abertas;
+    // Substitui abrirConversa: a de verdade fala com o servidor. O que este
+    // teste verifica é *qual* conversa foi escolhida.
+    vm.runInContext(
+        `conversas = ${JSON.stringify(conversas)};
+         abrirConversa = (c) => { abertas.push(c); return Promise.resolve(); };`,
+        ctx
+    );
+
+    return { ctx, campo, aplicar: vm.runInContext("aplicarRascunho", ctx) };
+}
+
+const CONVERSAS = [
+    { turma_id: 3, titulo: "Prof. Outro" },
+    { turma_id: 7, titulo: "Prof. Marina Duarte" },
+];
+
+test("o rascunho abre a conversa da turma certa, não a primeira da lista", async () => {
+    const { campo, aplicar, ctx } = contextoMensagens({ turma_id: 7, texto: "O que é tetralogia de Fallot?" }, CONVERSAS);
+
+    assert.equal(aplicar(), true);
+    await Promise.resolve();
+
+    assert.equal(ctx.abertas.length, 1);
+    assert.equal(ctx.abertas[0].turma_id, 7);
+    assert.equal(campo.value, "O que é tetralogia de Fallot?");
+});
+
+test("o rascunho é consumido de uma vez", async () => {
+    // Voltar para esta tela depois é para ver a resposta, não para reabrir a
+    // mesma pergunta por cima do que a pessoa tiver escrito.
+    const { aplicar, ctx } = contextoMensagens({ turma_id: 7, texto: "Pergunta." }, CONVERSAS);
+
+    assert.equal(aplicar(), true);
+    assert.equal(ctx.sessionStorage.getItem("deltacare_rascunho_mensagem"), null);
+    assert.equal(aplicar(), false);
+});
+
+test("sem rascunho a tela segue o caminho normal", () => {
+    const { aplicar, ctx } = contextoMensagens(null, CONVERSAS);
+
+    assert.equal(aplicar(), false);
+    assert.equal(ctx.abertas.length, 0);
+});
+
+test("rascunho de turma sem conversa não abre nada", () => {
+    // Aluno desmatriculado entre o chat e o clique: quem manda é a lista do
+    // servidor, não o que ficou guardado no navegador.
+    const { aplicar, ctx } = contextoMensagens({ turma_id: 99, texto: "Pergunta." }, CONVERSAS);
+
+    assert.equal(aplicar(), false);
+    assert.equal(ctx.abertas.length, 0);
+});
+
+test("rascunho corrompido não derruba a tela", () => {
+    const { ctx, aplicar } = contextoMensagens(null, CONVERSAS);
+    ctx.sessionStorage.setItem("deltacare_rascunho_mensagem", "{isso não é json");
+
+    assert.equal(aplicar(), false);
 });

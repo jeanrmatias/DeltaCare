@@ -65,6 +65,41 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Oferta de levar a dúvida ao professor, quando o material não cobriu a
+   pergunta. Deliberadamente **não** é uma bolha: não é o assistente falando,
+   é a plataforma oferecendo um caminho. Parece um aviso da tela, alinhado à
+   esquerda como as respostas, mas sem o fundo de bolha.
+   --------------------------------------------------------------------------- */
+
+.chat-oferta {
+    align-self: flex-start;
+    max-width: 70%;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+
+    padding: 12px 14px;
+
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.chat-oferta p {
+    margin: 0;
+
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.chat-oferta .acao {
+    padding: 8px 14px;
+    font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------------
    Bolha de "pensando": o modelo roda local e leva de 10 a 20s por resposta.
    --------------------------------------------------------------------------- */
 

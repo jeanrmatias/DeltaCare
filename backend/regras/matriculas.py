@@ -135,17 +135,29 @@ def listar_turmas_do_aluno(aluno_email: str) -> dict:
         return {"sucesso": False, "mensagem": "Aluno não encontrado.", "turmas": []}
 
     cursor = conexao.cursor()
+    # O nome do professor vem junto para a tela poder oferecer "leve ao Prof.
+    # Fulano" quando o assistente recusa uma pergunta. Sem ele, a oferta seria
+    # genérica — e genérica ninguém clica.
     cursor.execute(
         '''
-        SELECT t.id, t.nome, t.semestre
+        SELECT t.id, t.nome, t.semestre, u.nome, u.email
         FROM matriculas m
         JOIN turmas t ON t.id = m.turma_id
+        JOIN users u ON u.id = t.professor_id
         WHERE m.aluno_id = ?
         ORDER BY t.nome
         ''',
         (aluno[0],),
     )
-    turmas = [{"id": linha[0], "nome": linha[1], "semestre": linha[2]} for linha in cursor.fetchall()]
+    turmas = [
+        {
+            "id": linha[0],
+            "nome": linha[1],
+            "semestre": linha[2],
+            "professor_nome": linha[3] or linha[4],
+        }
+        for linha in cursor.fetchall()
+    ]
     conexao.close()
 
     return {"sucesso": True, "turmas": turmas}

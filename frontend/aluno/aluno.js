@@ -7,6 +7,9 @@
 const usuario = exigirAcesso("aluno");
 
 let turmaAtual = null;
+// Guardadas para a oferta de falar com o professor saber o nome dele e o da
+// turma — oferta genérica ninguém clica.
+let turmasDoAluno = [];
 
 if (usuario) {
     montarRodapePerfil(usuario);
@@ -45,6 +48,7 @@ async function carregarTurmas() {
         seletorCampo.hidden = false;
         chatCartao.hidden = false;
 
+        turmasDoAluno = turmas;
         seletor.innerHTML = turmas.map((t) => `<option value="${t.id}">${t.nome} · ${t.semestre}</option>`).join("");
         turmaAtual = turmas[0].id;
 
@@ -104,6 +108,56 @@ function adicionarMensagem(papel, texto, fontes) {
     }
 
     mensagensEl.appendChild(bolha);
+    mensagensEl.scrollTop = mensagensEl.scrollHeight;
+}
+
+/**
+ * Oferece levar a dúvida ao professor quando o material não cobriu a pergunta.
+ *
+ * **O "se" não é enfeite.** A plataforma não tem como saber se a pergunta tem
+ * a ver com a matéria: o aluno pode ter perguntado qualquer coisa. Afirmar
+ * "pergunte ao professor" daria um conselho sem sentido metade das vezes, e é
+ * justamente o que o modelo fazia antes de tirarmos isso do prompt. Com a
+ * condicional, quem decide se a oferta se aplica é quem escreveu a pergunta.
+ *
+ * Só aparece na resposta recém-chegada. No histórico recarregado seria um
+ * apelo permanente a uma conversa que talvez já tenha acontecido.
+ */
+function oferecerProfessor(pergunta) {
+    const turma = turmasDoAluno.find((t) => t.id === turmaAtual);
+    if (!turma || !turma.professor_nome) return;
+
+    const mensagensEl = document.querySelector("#chatMensagens");
+
+    const oferta = document.createElement("div");
+    oferta.className = "chat-oferta";
+
+    const texto = document.createElement("p");
+    texto.textContent =
+        `Se isso for matéria de ${turma.nome}, você pode levar a dúvida ao Prof. ${turma.professor_nome}.`;
+
+    const botao = document.createElement("button");
+    botao.type = "button";
+    botao.className = "acao";
+    botao.textContent = "Perguntar ao professor";
+    botao.addEventListener("click", () => {
+        try {
+            // A pergunta vai junto para ele não redigitar. sessionStorage e não
+            // URL: a pergunta pode ser longa e não tem por que ficar no
+            // histórico do navegador.
+            sessionStorage.setItem("deltacare_rascunho_mensagem", JSON.stringify({
+                turma_id: turmaAtual,
+                texto: pergunta,
+            }));
+        } catch (erro) {
+            /* sem sessionStorage a conversa abre igual, só sem o texto pronto */
+        }
+        window.location.href = "mensagens.html";
+    });
+
+    oferta.appendChild(texto);
+    oferta.appendChild(botao);
+    mensagensEl.appendChild(oferta);
     mensagensEl.scrollTop = mensagensEl.scrollHeight;
 }
 
@@ -195,6 +249,13 @@ function ligarFormularioChat() {
 
             if (dados.sucesso) {
                 adicionarMensagem("assistant", dados.resposta, dados.fontes);
+
+                // Sem fonte citada é o sinal de que o material não cobriu a
+                // pergunta — é o mesmo dado que o backend usa para decidir se
+                // ela conta XP.
+                if (!dados.fontes || dados.fontes.length === 0) {
+                    oferecerProfessor(pergunta);
+                }
             } else {
                 adicionarMensagem("assistant", dados.mensagem || "Não foi possível responder agora.");
             }
