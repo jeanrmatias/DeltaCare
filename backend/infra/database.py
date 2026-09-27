@@ -368,6 +368,30 @@ def configurar_banco(silencioso: bool = False):
         "CREATE INDEX IF NOT EXISTS idx_entregas_aluno ON entregas (aluno_id)"
     )
 
+    # Migração: entrega em documento.
+    #
+    # Nem toda atividade cabe numa caixa de texto — relatório de caso clínico,
+    # foto de peça anatômica, traçado de ECG. O anexo é propriedade da
+    # **atividade**, e não um terceiro tipo: "entregue o PDF e escreva um
+    # resumo" é uma atividade só, e `dissertativa` já quer dizer "quem corrige
+    # é gente". Valores: 'nenhum' (padrão), 'opcional', 'obrigatorio'.
+    cursor.execute("PRAGMA table_info(atividades)")
+    colunas_atividades = {linha[1] for linha in cursor.fetchall()}
+    if "anexo" not in colunas_atividades:
+        cursor.execute(
+            "ALTER TABLE atividades ADD COLUMN anexo TEXT NOT NULL DEFAULT 'nenhum'"
+        )
+
+    # O nome original fica no banco e o arquivo no disco com nome de uuid: nome
+    # vindo do cliente traz "../" e colide entre dois alunos que chamaram o
+    # trabalho de "relatorio.pdf".
+    cursor.execute("PRAGMA table_info(entregas)")
+    colunas_entregas = {linha[1] for linha in cursor.fetchall()}
+    if "arquivo_nome" not in colunas_entregas:
+        cursor.execute("ALTER TABLE entregas ADD COLUMN arquivo_nome TEXT")
+    if "arquivo_caminho" not in colunas_entregas:
+        cursor.execute("ALTER TABLE entregas ADD COLUMN arquivo_caminho TEXT")
+
     # Conteúdo reportado por aluno ou professor.
     #
     # `material_id` aceita NULL porque o material pode ser excluído depois da

@@ -20,6 +20,10 @@ let atividades = [];
 // Atividade aberta no painel, com as questões e o que o aluno já respondeu.
 let aberta = null;
 let respostas = null;
+// O arquivo escolhido nesta sessão, ainda não enviado. Fora de `respostas`
+// porque `respostas` é salvo como progresso a cada rascunho, e mandar um PDF
+// de 15MB a cada tecla digitada não é opção.
+let arquivoEscolhido = null;
 
 if (usuario) {
     montarRodapePerfil(usuario);
@@ -284,6 +288,10 @@ function desenharAtividade(dados) {
         corpo.appendChild(campo);
     }
 
+    if (dados.atividade.anexo && dados.atividade.anexo !== "nenhum" && !entregue) {
+        corpo.appendChild(criarSeletorDeArquivo(dados.atividade.anexo));
+    }
+
     // Entregue não volta atrás: o aluno vê o que mandou e a devolutiva.
     rodape.hidden = entregue;
 
@@ -302,6 +310,17 @@ function desenharAtividade(dados) {
                 ? `<p class="entrega-devolutiva">${esc(dados.entrega.devolutiva)}</p>`
                 : ""}
         `;
+
+        // O aluno consegue rever o que entregou. Sem isto ele mandaria o
+        // arquivo e nunca teria como confirmar que foi o certo.
+        if (dados.entrega.arquivo_nome && dados.entrega.entrega_id) {
+            const link = document.createElement("a");
+            link.className = "entrega-anexo";
+            link.href = `${API_URL}/entregas/${dados.entrega.entrega_id}/arquivo`;
+            link.textContent = `Anexo enviado: ${dados.entrega.arquivo_nome}`;
+            resultado.appendChild(link);
+        }
+
         corpo.appendChild(resultado);
     } else if (prazoVencido(dados.atividade.prazo)) {
         mostrarMensagem("O prazo já venceu. A entrega será registrada como atrasada.");
@@ -347,14 +366,85 @@ function mostrarMensagem(texto, sucesso = false) {
     mensagem.className = "formulario-mensagem" + (sucesso ? " formulario-mensagem--sucesso" : "");
 }
 
+/**
+ * Campo de arquivo da entrega.
+ *
+ * O aviso de limite fica escrito na tela, e não só na recusa do servidor: o
+ * aluno descobrir os 15MB depois de esperar o upload de um vídeo é o tipo de
+ * frustração que dá para evitar com uma linha de texto.
+ */
+function criarSeletorDeArquivo(anexo) {
+    arquivoEscolhido = null;
+
+    const bloco = document.createElement("div");
+    bloco.className = "campo entrega-anexo-campo";
+
+    const rotulo = document.createElement("label");
+    rotulo.textContent = anexo === "obrigatorio"
+        ? "Arquivo da entrega (obrigatório)"
+        : "Arquivo da entrega (opcional)";
+    bloco.appendChild(rotulo);
+
+    const campo = document.createElement("input");
+    campo.type = "file";
+    campo.accept = ".pdf,.doc,.docx,.odt,.txt,.rtf,.png,.jpg,.jpeg,.webp,.xlsx,.csv,.ppt,.pptx,.odp";
+    bloco.appendChild(campo);
+
+    const dica = document.createElement("span");
+    dica.className = "campo-dica";
+    dica.textContent = "Até 15MB. PDF, documento, imagem, planilha ou apresentação.";
+    bloco.appendChild(dica);
+
+    campo.addEventListener("change", () => {
+        const arquivo = campo.files && campo.files[0];
+        if (!arquivo) {
+            arquivoEscolhido = null;
+            return;
+        }
+
+        // Barrado aqui **e** no servidor. Aqui é cortesia; a regra é lá, porque
+        // o cliente é do aluno e o servidor não pode confiar nele.
+        if (arquivo.size > 15 * 1024 * 1024) {
+            arquivoEscolhido = null;
+            campo.value = "";
+            mostrarMensagem(`"${arquivo.name}" passa de 15MB. Escolha um arquivo menor.`);
+            return;
+        }
+
+        const leitor = new FileReader();
+        leitor.onload = () => {
+            arquivoEscolhido = { nome: arquivo.name, base64: leitor.result };
+            mostrarMensagem(`Anexo pronto: ${arquivo.name}`, true);
+        };
+        leitor.onerror = () => {
+            arquivoEscolhido = null;
+            mostrarMensagem("Não foi possível ler o arquivo. Tente escolher de novo.");
+        };
+        leitor.readAsDataURL(arquivo);
+    });
+
+    return bloco;
+}
+
 async function enviar(definitivo) {
     if (!aberta) return;
 
+    const anexo = aberta.atividade.anexo || "nenhum";
+
     if (definitivo) {
+        // Recusa antes de confirmar: o servidor também recusa, mas descobrir
+        // isso depois de dizer "Entregar" é um passo a mais para nada.
+        if (anexo === "obrigatorio" && !arquivoEscolhido) {
+            mostrarMensagem("Esta atividade exige um arquivo. Escolha o arquivo antes de entregar.");
+            return;
+        }
+
         const objetiva = aberta.atividade.tipo === "objetiva";
+        // Com anexo obrigatório o documento é a entrega, e o texto é comentário
+        // — cobrar "resposta em branco" ali seria falso alarme.
         const faltando = objetiva
             ? respostas.filter((r) => r === null || r === undefined).length
-            : (String(respostas).trim() ? 0 : 1);
+            : (String(respostas).trim() || anexo === "obrigatorio" ? 0 : 1);
 
         const texto = faltando > 0
             ? `Você deixou ${faltando} ${objetiva ? "questão(ões) sem responder" : "a resposta em branco"}. Entregar assim mesmo?`
@@ -371,10 +461,19 @@ async function enviar(definitivo) {
         ? `/aluno/atividades/${aberta.atividade.id}/entrega`
         : `/aluno/atividades/${aberta.atividade.id}/progresso`;
 
+    const corpo = { respostas };
+
+    // Só vai junto na entrega definitiva. No progresso salvo seria reenviar o
+    // arquivo inteiro a cada clique em "Salvar".
+    if (definitivo && arquivoEscolhido) {
+        corpo.arquivo_base64 = arquivoEscolhido.base64;
+        corpo.arquivo_nome = arquivoEscolhido.nome;
+    }
+
     try {
         const resposta = await api(caminho, {
             method: "POST",
-            body: JSON.stringify({ respostas }),
+            body: JSON.stringify(corpo),
         });
         const dados = await resposta.json();
 

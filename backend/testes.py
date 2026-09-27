@@ -39,6 +39,7 @@ from regras.aluno import (  # noqa: E402
     resumo_do_aluno,
 )
 from regras.atividades import (  # noqa: E402
+    obter_arquivo_entrega,
     corrigir_entrega,
     criar_atividade_em_turmas,
     enviar_entrega,
@@ -2440,6 +2441,319 @@ class TestesRotasCoorte(BaseDelta):
 
     def test_sem_token_nao_alcanca(self):
         self.assertIn(self.cliente.get("/admin/coortes").status_code, (401, 403))
+
+
+
+# =========================================================================
+# Entrega em documento
+#
+# Nem toda atividade cabe numa caixa de texto: relatório de caso clínico, foto
+# de peça anatômica, traçado de ECG. O anexo é propriedade da **atividade**
+# ('nenhum' / 'opcional' / 'obrigatorio'), e não um terceiro tipo.
+#
+# O que mais importa aqui é quem pode baixar: o aluno que entregou e o
+# professor dono da atividade, e mais ninguém. Trabalho de aluno não é
+# material de turma.
+# =========================================================================
+
+# Um PDF minúsculo, porém válido: base64 de um arquivo de verdade, para o
+# caminho de gravação ser exercitado como em produção.
+PDF_BASE64 = (
+    "JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK"
+    "MiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbXS9Db3VudCAwPj4KZW5kb2JqCnRyYWlsZXIK"
+    "PDwvUm9vdCAxIDAgUj4+CiUlRU9G"
+)
+
+
+class BaseAnexo(BaseAtividades):
+
+    def criar_com_anexo(self, anexo, tipo="dissertativa", pontos=10):
+        resultado = criar_atividade_em_turmas(
+            PROFESSOR,
+            [self.turma_id],
+            titulo=f"Caso clinico ({anexo})",
+            tipo=tipo,
+            enunciado="Descreva o caso.",
+            pontos=pontos,
+            rascunho=False,
+            anexo=anexo,
+        )
+        return resultado
+
+    def tearDown(self):
+        # Os arquivos gravados no disco não são do banco e não somem com ele.
+        import shutil
+
+        from infra.arquivos import PASTA_ENTREGAS
+
+        shutil.rmtree(PASTA_ENTREGAS, ignore_errors=True)
+        super().tearDown()
+
+
+class TestesAtividadeComAnexo(BaseAnexo):
+
+    def test_anexo_invalido_e_recusado(self):
+        resultado = self.criar_com_anexo("talvez")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_objetiva_nao_aceita_anexo(self):
+        """O sistema corrige pelo gabarito — ninguém leria o arquivo.
+
+        Aceitar aqui criaria promessa que a plataforma não cumpre: o aluno
+        anexa o trabalho e ele nunca chega a ser visto por ninguém.
+        """
+        resultado = criar_atividade_em_turmas(
+            PROFESSOR,
+            [self.turma_id],
+            titulo="Quiz",
+            tipo="objetiva",
+            rascunho=False,
+            anexo="obrigatorio",
+            questoes=[{"enunciado": "1+1?", "alternativas": ["1", "2"], "correta": 1}],
+        )
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_atividade_antiga_continua_sem_anexo(self):
+        """Quem já existia não muda de comportamento por causa da migração."""
+        atividade = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Resenha", tipo="dissertativa", rascunho=False
+        )["atividade_ids"][0]
+
+        vista = obter_atividade_do_aluno(ALUNO, atividade)["atividade"]
+
+        self.assertEqual(vista["anexo"], "nenhum")
+
+    def test_a_listagem_do_professor_traz_o_anexo(self):
+        """O formulário de edição lê daqui.
+
+        Sem isto ele lia `undefined`, caía no padrão 'nenhum', e salvar a
+        edição de uma atividade com anexo obrigatório o apagava em silêncio.
+        """
+        self.criar_com_anexo("obrigatorio")
+
+        atividade = [
+            a for a in listar_atividades(PROFESSOR)["atividades"]
+            if a["titulo"] == "Caso clinico (obrigatorio)"
+        ][0]
+
+        self.assertEqual(atividade["anexo"], "obrigatorio")
+
+    def test_o_aluno_sabe_que_precisa_anexar(self):
+        atividade = self.criar_com_anexo("obrigatorio")["atividade_ids"][0]
+
+        vista = obter_atividade_do_aluno(ALUNO, atividade)["atividade"]
+
+        self.assertEqual(vista["anexo"], "obrigatorio")
+
+
+class TestesEntregaComArquivo(BaseAnexo):
+
+    def test_entrega_com_arquivo_guarda_o_nome_original(self):
+        atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
+
+        resultado = enviar_entrega(
+            ALUNO, atividade, "Segue o relatorio.", PDF_BASE64, "caso-clinico.pdf"
+        )
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        entrega = obter_atividade_do_aluno(ALUNO, atividade)["entrega"]
+        self.assertEqual(entrega["arquivo_nome"], "caso-clinico.pdf")
+
+    def test_arquivo_vai_para_o_disco_com_nome_de_uuid(self):
+        """Nome vindo do cliente traz '../' e colide entre dois alunos que
+        chamaram o trabalho de 'relatorio.pdf'."""
+        import os
+
+        atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "relatorio.pdf")
+
+        entrega_id = obter_atividade_do_aluno(ALUNO, atividade)["entrega"]["entrega_id"]
+        caminho, nome = obter_arquivo_entrega(ALUNO, entrega_id)
+
+        self.assertTrue(os.path.isfile(caminho))
+        self.assertNotIn("relatorio", os.path.basename(caminho))
+        self.assertEqual(nome, "relatorio.pdf")
+
+    def test_anexo_obrigatorio_recusa_entrega_sem_arquivo(self):
+        atividade = self.criar_com_anexo("obrigatorio")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "Segue em anexo.")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_anexo_obrigatorio_dispensa_o_texto(self):
+        """O documento **é** a entrega. Exigir texto também faria o aluno
+        escrever 'segue em anexo' só para o formulário deixar enviar."""
+        atividade = self.criar_com_anexo("obrigatorio")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "", PDF_BASE64, "monografia.pdf")
+
+        self.assertTrue(resultado["sucesso"], resultado)
+
+    def test_atividade_sem_anexo_recusa_arquivo(self):
+        atividade = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "arquivo.pdf")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_formato_proibido_e_recusado(self):
+        atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "virus.exe")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_arquivo_recusado_nao_deixa_entrega_gravada(self):
+        """A recusa acontece antes de gravar qualquer coisa.
+
+        Gravando a entrega primeiro, o aluno ficaria com "já entregou" e sem
+        arquivo — e sem poder tentar de novo.
+        """
+        atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "virus.exe")
+
+        entrega = obter_atividade_do_aluno(ALUNO, atividade)["entrega"]
+        self.assertIsNone(entrega["enviado_em"])
+
+        # E a segunda tentativa, agora com formato válido, passa.
+        segunda = enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "relatorio.pdf")
+        self.assertTrue(segunda["sucesso"], segunda)
+
+    def test_professor_ve_o_nome_do_arquivo_na_lista_de_entregas(self):
+        atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "caso-clinico.pdf")
+
+        entregas = listar_entregas(atividade, PROFESSOR)["entregas"]
+        minha = [e for e in entregas if e["aluno_email"] == ALUNO][0]
+
+        self.assertEqual(minha["arquivo_nome"], "caso-clinico.pdf")
+
+
+class TestesPermissaoDoArquivo(BaseAnexo):
+    """Quem pode baixar o trabalho do aluno."""
+
+    def setUp(self):
+        super().setUp()
+        self.atividade = self.criar_com_anexo("obrigatorio")["atividade_ids"][0]
+        enviar_entrega(ALUNO, self.atividade, "", PDF_BASE64, "caso-clinico.pdf")
+        self.entrega_id = obter_atividade_do_aluno(ALUNO, self.atividade)["entrega"]["entrega_id"]
+
+    def test_quem_entregou_baixa(self):
+        self.assertIsNotNone(obter_arquivo_entrega(ALUNO, self.entrega_id))
+
+    def test_o_professor_da_atividade_baixa(self):
+        self.assertIsNotNone(obter_arquivo_entrega(PROFESSOR, self.entrega_id))
+
+    def test_outro_aluno_da_mesma_turma_nao_baixa(self):
+        """Trabalho de aluno não é material de turma."""
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+
+        self.assertIsNone(obter_arquivo_entrega(ALUNO_FORA, self.entrega_id))
+
+    def test_outro_professor_nao_baixa(self):
+        self.assertIsNone(obter_arquivo_entrega(PROFESSOR2, self.entrega_id))
+
+    def test_o_admin_nao_baixa(self):
+        """Ele governa contas e turmas; não lê o que o aluno escreveu."""
+        self.assertIsNone(obter_arquivo_entrega(ADMIN, self.entrega_id))
+
+    def test_entrega_que_nao_existe_devolve_nada(self):
+        self.assertIsNone(obter_arquivo_entrega(PROFESSOR, 99999))
+
+    def test_entrega_sem_arquivo_devolve_nada(self):
+        outra = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+        enviar_entrega(ALUNO, outra, "so texto")
+        entrega_id = obter_atividade_do_aluno(ALUNO, outra)["entrega"]["entrega_id"]
+
+        self.assertIsNone(obter_arquivo_entrega(ALUNO, entrega_id))
+
+
+
+# =========================================================================
+# A rota de download da entrega
+#
+# Uma rota para os dois perfis (`usuario_logado`, não `usuario_aluno`), porque
+# quem pode baixar é o aluno que entregou **ou** o professor dono da atividade.
+# Vale exercitar pelo HTTP: a permissão de unidade já está coberta, o que se
+# testa aqui é o 404 chegar como 404 e o arquivo voltar com o nome certo.
+# =========================================================================
+
+class TestesRotaDoAnexo(BaseAtividades):
+
+    def setUp(self):
+        super().setUp()
+
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+        self.atividade = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Caso clinico",
+            tipo="dissertativa", rascunho=False, anexo="obrigatorio",
+        )["atividade_ids"][0]
+        enviar_entrega(ALUNO, self.atividade, "", PDF_BASE64, "caso-clinico.pdf")
+        self.entrega_id = obter_atividade_do_aluno(
+            ALUNO, self.atividade
+        )["entrega"]["entrega_id"]
+
+    def tearDown(self):
+        import shutil
+
+        from infra.arquivos import PASTA_ENTREGAS
+
+        shutil.rmtree(PASTA_ENTREGAS, ignore_errors=True)
+        super().tearDown()
+
+    def _token(self, email):
+        return self.cliente.post(
+            "/login", json={"email": email, "senha": SENHA}
+        ).json()["token"]
+
+    def _baixar(self, email):
+        return self.cliente.get(
+            f"/entregas/{self.entrega_id}/arquivo",
+            headers={"Authorization": f"Bearer {self._token(email)}"},
+        )
+
+    def test_quem_entregou_recebe_o_arquivo_com_o_nome_original(self):
+        resposta = self._baixar(ALUNO)
+
+        self.assertEqual(resposta.status_code, 200, resposta.text)
+        self.assertIn("caso-clinico.pdf", resposta.headers.get("content-disposition", ""))
+        self.assertTrue(resposta.content.startswith(b"%PDF"))
+
+    def test_o_professor_da_atividade_recebe(self):
+        self.assertEqual(self._baixar(PROFESSOR).status_code, 200)
+
+    def test_colega_de_turma_recebe_404(self):
+        """404 e não 403: distinguir "não existe" de "não é seu" revelaria quem
+        entregou o quê para quem tentasse ids na mão."""
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+
+        self.assertEqual(self._baixar(ALUNO_FORA).status_code, 404)
+
+    def test_outro_professor_recebe_404(self):
+        self.assertEqual(self._baixar(PROFESSOR2).status_code, 404)
+
+    def test_admin_recebe_404(self):
+        self.assertEqual(self._baixar(ADMIN).status_code, 404)
+
+    def test_sem_token_nao_passa(self):
+        resposta = self.cliente.get(f"/entregas/{self.entrega_id}/arquivo")
+
+        self.assertIn(resposta.status_code, (401, 403))
+
+    def test_entrega_inexistente_e_404(self):
+        resposta = self.cliente.get(
+            "/entregas/99999/arquivo",
+            headers={"Authorization": f"Bearer {self._token(PROFESSOR)}"},
+        )
+
+        self.assertEqual(resposta.status_code, 404)
 
 
 if __name__ == "__main__":

@@ -3401,3 +3401,61 @@ dialog.visualizador:not([open]) {
 
     color: var(--color-text);
 }
+
+
+/* =========================
+   Entrega em documento
+   ========================= */
+
+.entrega-anexo-campo {
+    margin-top: 16px;
+}
+
+.entrega-anexo-campo input[type="file"] {
+    padding: 10px;
+
+    background: var(--color-bg);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-text);
+    font-size: 13px;
+    font-family: inherit;
+
+    cursor: pointer;
+}
+
+/* O anexo entregue, dos dois lados: o aluno revê o que mandou, o professor
+   baixa para corrigir. Com clipe, porque um link solto no meio do texto da
+   resposta não se distingue do resto. */
+.entrega-anexo {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    margin-top: 8px;
+    padding: 6px 12px;
+
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    color: var(--color-primary);
+    text-decoration: none;
+
+    font-size: 13px;
+    font-weight: 600;
+
+    /* Nome de arquivo longo não empurra o cartão: quebra e continua clicável. */
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.entrega-anexo::before {
+    content: "📎";
+    font-size: 12px;
+}
+
+.entrega-anexo:hover {
+    border-color: var(--color-primary);
+}

@@ -26,9 +26,19 @@ campo `atrasada` é calculado comparando `enviado_em` com `prazo`.
 import json
 from datetime import datetime, timezone
 
+from infra.arquivos import PASTA_ENTREGAS, salvar_arquivo_base64
 from regras.turmas import buscar_usuario, conectar, turma_pertence_ao_professor
 
 TIPOS_VALIDOS = ("objetiva", "dissertativa")
+
+# O que a atividade aceita de arquivo junto da resposta escrita.
+#
+# É propriedade da atividade, e não um terceiro tipo: "entregue o relatório em
+# PDF e escreva um resumo" é uma atividade só, e `dissertativa` já quer dizer
+# "quem corrige é gente". Um terceiro tipo espalharia ramificação por
+# _validar_questoes, enviar_entrega, listar_entregas, desempenho e as duas
+# telas, para descrever o recipiente e não a natureza da atividade.
+ANEXOS_VALIDOS = ("nenhum", "opcional", "obrigatorio")
 
 
 def _agora() -> str:
@@ -93,6 +103,20 @@ def _validar_questoes(tipo: str, questoes) -> str | None:
     return None
 
 
+def _validar_anexo(tipo: str, anexo: str) -> str:
+    """Devolve a mensagem de erro, ou "" se estiver tudo certo."""
+    if anexo not in ANEXOS_VALIDOS:
+        return "Opção de anexo inválida."
+
+    # Numa objetiva o sistema corrige contra o gabarito e ninguém lê arquivo
+    # nenhum. Aceitar o anexo ali criaria uma promessa que a plataforma não
+    # cumpre: o aluno anexa, e o documento nunca chega a ser visto.
+    if tipo == "objetiva" and anexo != "nenhum":
+        return "Atividade objetiva não aceita anexo — o sistema corrige pelo gabarito."
+
+    return ""
+
+
 def criar_atividade_em_turmas(professor_email: str, turma_ids: list, **campos) -> dict:
     """Cria a mesma atividade em várias turmas.
 
@@ -115,6 +139,11 @@ def criar_atividade_em_turmas(professor_email: str, turma_ids: list, **campos) -
 
     questoes = campos.get("questoes") or []
     erro = _validar_questoes(tipo, questoes)
+    if erro:
+        return {"sucesso": False, "mensagem": erro}
+
+    anexo = campos.get("anexo") or "nenhum"
+    erro = _validar_anexo(tipo, anexo)
     if erro:
         return {"sucesso": False, "mensagem": erro}
 
@@ -143,8 +172,9 @@ def criar_atividade_em_turmas(professor_email: str, turma_ids: list, **campos) -
             """
             INSERT INTO atividades (
                 professor_id, turma_id, titulo, enunciado, tipo, assunto, topico,
-                pontos, rascunho, data_liberacao, prazo, criado_em, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                pontos, rascunho, data_liberacao, prazo, criado_em, atualizado_em,
+                anexo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 professor[0],
@@ -160,6 +190,7 @@ def criar_atividade_em_turmas(professor_email: str, turma_ids: list, **campos) -
                 campos.get("prazo") or None,
                 agora,
                 agora,
+                anexo,
             ),
         )
         atividade_id = cursor.lastrowid
@@ -228,7 +259,7 @@ def listar_atividades(professor_email: str, turma_id: int | None = None) -> dict
     consulta = """
         SELECT a.id, a.titulo, a.enunciado, a.tipo, a.assunto, a.topico, a.pontos,
                a.rascunho, a.data_liberacao, a.prazo, a.criado_em, a.atualizado_em,
-               a.turma_id, t.nome,
+               a.turma_id, t.nome, a.anexo,
                (SELECT COUNT(*) FROM questoes q WHERE q.atividade_id = a.id),
                (SELECT COUNT(*) FROM entregas e
                  WHERE e.atividade_id = a.id AND e.enviado_em IS NOT NULL),
@@ -255,7 +286,7 @@ def listar_atividades(professor_email: str, turma_id: int | None = None) -> dict
     for linha in linhas:
         (id_, titulo, enunciado, tipo, assunto, topico, pontos, rascunho,
          data_liberacao, prazo, criado_em, atualizado_em, turma, turma_nome,
-         total_questoes, entregues, a_corrigir, total_alunos) = linha
+         anexo, total_questoes, entregues, a_corrigir, total_alunos) = linha
 
         atividades.append({
             "id": id_,
@@ -273,6 +304,7 @@ def listar_atividades(professor_email: str, turma_id: int | None = None) -> dict
             "atualizado_em": atualizado_em,
             "turma_id": turma,
             "turma_nome": turma_nome,
+            "anexo": anexo,
             "total_questoes": total_questoes,
             "entregues": entregues,
             "a_corrigir": a_corrigir,
@@ -343,12 +375,18 @@ def atualizar_atividade(atividade_id: int, professor_email: str, **campos) -> di
         return {"sucesso": False, "mensagem": "Atividade não encontrada."}
 
     permitidos = ("titulo", "enunciado", "assunto", "topico", "pontos",
-                  "rascunho", "data_liberacao", "prazo")
+                  "rascunho", "data_liberacao", "prazo", "anexo")
     mudancas = {c: v for c, v in campos.items() if c in permitidos and v is not None}
 
     if not mudancas:
         conexao.close()
         return {"sucesso": False, "mensagem": "Nada para atualizar."}
+
+    if "anexo" in mudancas:
+        erro = _validar_anexo(atividade[3], mudancas["anexo"])
+        if erro:
+            conexao.close()
+            return {"sucesso": False, "mensagem": erro}
 
     if "rascunho" in mudancas:
         mudancas["rascunho"] = 1 if mudancas["rascunho"] else 0
@@ -441,7 +479,8 @@ def listar_entregas(atividade_id: int, professor_email: str) -> dict:
     linhas = conexao.execute(
         """
         SELECT u.id, u.email, u.nome,
-               e.id, e.respostas, e.enviado_em, e.nota, e.devolutiva, e.corrigido_em
+               e.id, e.respostas, e.enviado_em, e.nota, e.devolutiva, e.corrigido_em,
+               e.arquivo_nome
           FROM matriculas m
           JOIN users u ON u.id = m.aluno_id
           LEFT JOIN entregas e ON e.aluno_id = u.id AND e.atividade_id = ?
@@ -454,7 +493,7 @@ def listar_entregas(atividade_id: int, professor_email: str) -> dict:
 
     entregas = []
     for (aluno_id, email, nome, entrega_id, respostas, enviado_em,
-         nota, devolutiva, corrigido_em) in linhas:
+         nota, devolutiva, corrigido_em, arquivo_nome) in linhas:
         entregas.append({
             "aluno_id": aluno_id,
             "aluno_email": email,
@@ -467,6 +506,7 @@ def listar_entregas(atividade_id: int, professor_email: str) -> dict:
             "nota": nota,
             "devolutiva": devolutiva,
             "corrigido_em": corrigido_em,
+            "arquivo_nome": arquivo_nome,
         })
 
     return {
@@ -667,7 +707,7 @@ def _atividade_liberada_para(conexao, aluno_id: int, atividade_id: int):
     marcadores = ",".join("?" for _ in turmas)
     return conexao.execute(
         f"""
-        SELECT id, titulo, enunciado, tipo, pontos, prazo, turma_id
+        SELECT id, titulo, enunciado, tipo, pontos, prazo, turma_id, anexo
           FROM atividades
          WHERE id = ?
            AND turma_id IN ({marcadores})
@@ -694,7 +734,7 @@ def obter_atividade_do_aluno(aluno_email: str, atividade_id: int) -> dict:
         return {"sucesso": False, "mensagem": "Atividade não encontrada."}
 
     entrega = conexao.execute(
-        "SELECT respostas, enviado_em, nota, devolutiva FROM entregas"
+        "SELECT respostas, enviado_em, nota, devolutiva, arquivo_nome, id FROM entregas"
         "  WHERE atividade_id = ? AND aluno_id = ?",
         (int(atividade_id), aluno[0]),
     ).fetchone()
@@ -712,6 +752,7 @@ def obter_atividade_do_aluno(aluno_email: str, atividade_id: int) -> dict:
             "pontos": atividade[4],
             "prazo": atividade[5],
             "turma_id": atividade[6],
+            "anexo": atividade[7],
         },
         "questoes": questoes,
         "entrega": {
@@ -720,6 +761,11 @@ def obter_atividade_do_aluno(aluno_email: str, atividade_id: int) -> dict:
             "nota": entrega[2] if entrega else None,
             "devolutiva": entrega[3] if entrega else None,
             "atrasada": _atrasada(entrega[1] if entrega else None, atividade[5]),
+            # Só o nome e o id: o conteúdo sai pela rota de download, que
+            # confere a permissão de novo. Devolver o caminho no disco aqui
+            # daria ao cliente uma informação que ele não usa para nada.
+            "arquivo_nome": entrega[4] if entrega else None,
+            "entrega_id": entrega[5] if entrega else None,
         },
     }
 
@@ -782,8 +828,19 @@ def salvar_progresso(aluno_email: str, atividade_id: int, respostas) -> dict:
     return {"sucesso": True, "mensagem": "Progresso salvo."}
 
 
-def enviar_entrega(aluno_email: str, atividade_id: int, respostas) -> dict:
-    """Entrega a atividade. Objetiva é corrigida na hora."""
+def enviar_entrega(
+    aluno_email: str,
+    atividade_id: int,
+    respostas,
+    arquivo_base64: str = "",
+    arquivo_nome: str = "",
+) -> dict:
+    """Entrega a atividade. Objetiva é corrigida na hora.
+
+    O arquivo é gravado em disco **depois** de todas as recusas, e não antes:
+    salvar primeiro deixaria lixo órfão em uploads/entregas toda vez que a
+    entrega fosse recusada por prazo, duplicidade ou texto em branco.
+    """
     conexao = conectar()
     aluno = buscar_usuario(conexao, aluno_email)
 
@@ -807,15 +864,45 @@ def enviar_entrega(aluno_email: str, atividade_id: int, respostas) -> dict:
         return {"sucesso": False, "mensagem": "Você já entregou esta atividade."}
 
     tipo = atividade[3]
+    anexo = atividade[7] if len(atividade) > 7 else "nenhum"
+    tem_arquivo = bool(arquivo_base64 and arquivo_nome)
+
+    if anexo == "nenhum" and tem_arquivo:
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Esta atividade não aceita anexo."}
+
+    if anexo == "obrigatorio" and not tem_arquivo:
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Esta atividade exige um arquivo anexado."}
 
     if tipo == "dissertativa":
         texto = (respostas or "").strip() if isinstance(respostas, str) else ""
-        if not texto:
+        # Com anexo obrigatório o documento **é** a entrega, e exigir também um
+        # texto obrigaria o aluno a escrever "segue em anexo" para o formulário
+        # deixar enviar.
+        if not texto and anexo != "obrigatorio":
             conexao.close()
             return {"sucesso": False, "mensagem": "Escreva a resposta antes de enviar."}
         respostas = texto
 
+    caminho_arquivo = None
+    if tem_arquivo:
+        salvo = salvar_arquivo_base64(
+            arquivo_base64, arquivo_nome, "entrega", pasta=PASTA_ENTREGAS
+        )
+        if not salvo["sucesso"]:
+            conexao.close()
+            return {"sucesso": False, "mensagem": salvo["mensagem"]}
+        caminho_arquivo = salvo["caminho"]
+
     entrega_id, _ = _gravar_entrega(conexao, atividade_id, aluno[0], respostas, enviar=True)
+
+    if caminho_arquivo:
+        conexao.execute(
+            "UPDATE entregas SET arquivo_nome = ?, arquivo_caminho = ? WHERE id = ?",
+            (arquivo_nome, caminho_arquivo, entrega_id),
+        )
+        conexao.commit()
 
     resultado = {"sucesso": True, "mensagem": "Atividade entregue."}
 
@@ -853,3 +940,54 @@ def enviar_entrega(aluno_email: str, atividade_id: int, respostas) -> dict:
 
     resultado["atrasada"] = _atrasada(_agora(), prazo)
     return resultado
+
+
+def obter_arquivo_entrega(email: str, entrega_id: int):
+    """(caminho_no_disco, nome_original) se esta pessoa pode baixar a entrega.
+
+    **Duas pessoas podem, e só elas:** o aluno que entregou, e o professor dono
+    da atividade. Nem outro aluno da mesma turma, nem outro professor da mesma
+    disciplina — trabalho de aluno não é material de turma.
+
+    Devolve None em todos os outros casos, sem distinguir "não existe" de "não
+    é seu". A diferença revelaria quem entregou o quê para quem perguntasse com
+    ids na mão.
+    """
+    conexao = conectar()
+    usuario = buscar_usuario(conexao, email)
+
+    if not usuario:
+        conexao.close()
+        return None
+
+    linha = conexao.execute(
+        """
+        SELECT e.arquivo_caminho, e.arquivo_nome, e.aluno_id, a.professor_id
+          FROM entregas e
+          JOIN atividades a ON a.id = e.atividade_id
+         WHERE e.id = ?
+        """,
+        (int(entrega_id),),
+    ).fetchone()
+    conexao.close()
+
+    if not linha:
+        return None
+
+    caminho, nome_original, aluno_id, professor_id = linha
+
+    if not caminho:
+        return None
+
+    usuario_id, tipo = usuario[0], usuario[1]
+
+    if tipo == "aluno" and usuario_id != aluno_id:
+        return None
+    if tipo == "professor" and usuario_id != professor_id:
+        return None
+    # O admin não entra: ele governa contas e turmas, não lê o trabalho que o
+    # aluno escreveu. Precisando, que peça ao professor.
+    if tipo not in ("aluno", "professor"):
+        return None
+
+    return caminho, nome_original

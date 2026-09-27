@@ -12,6 +12,7 @@ import os
 import uuid
 
 PASTA_UPLOADS = os.path.join("uploads", "materiais")
+PASTA_ENTREGAS = os.path.join("uploads", "entregas")
 TAMANHO_MAXIMO_MB = 15
 TAMANHO_MAXIMO_BYTES = TAMANHO_MAXIMO_MB * 1024 * 1024
 
@@ -19,6 +20,15 @@ EXTENSOES_PERMITIDAS = {
     "pdf": {".pdf"},
     "documento": {".pdf", ".doc", ".docx", ".txt", ".odt"},
     "video": {".mp4", ".mov", ".webm", ".mkv"},
+    # Entrega de aluno. Mais largo que "documento" porque em medicina o
+    # trabalho pode ser a foto de uma peça anatômica, um traçado de ECG
+    # digitalizado ou a planilha de um estudo — e recusar isso obrigaria o
+    # aluno a converter tudo para PDF antes de entregar.
+    "entrega": {
+        ".pdf", ".doc", ".docx", ".odt", ".txt", ".rtf",
+        ".png", ".jpg", ".jpeg", ".webp",
+        ".xlsx", ".csv", ".ppt", ".pptx", ".odp",
+    },
 }
 
 
@@ -27,8 +37,17 @@ def extensao_valida(tipo: str, nome_arquivo: str) -> bool:
     return extensao in EXTENSOES_PERMITIDAS.get(tipo, set())
 
 
-def salvar_arquivo_base64(conteudo_base64: str, nome_original: str, tipo: str) -> dict:
-    """Decodifica e salva o arquivo. Retorna {sucesso, mensagem, caminho}."""
+def salvar_arquivo_base64(
+    conteudo_base64: str, nome_original: str, tipo: str, pasta: str = PASTA_UPLOADS
+) -> dict:
+    """Decodifica e salva o arquivo. Retorna {sucesso, mensagem, caminho}.
+
+    `pasta` separa material de entrega no disco. Não é segurança — quem
+    autoriza o download é a regra de negócio, nunca o caminho — mas um
+    diretório só com trabalho de aluno é o que torna possível dar backup,
+    expurgar por semestre ou responder a um pedido de exclusão de dados sem
+    varrer o resto.
+    """
 
     if not extensao_valida(tipo, nome_original):
         extensoes = ", ".join(sorted(EXTENSOES_PERMITIDAS.get(tipo, [])))
@@ -52,11 +71,15 @@ def salvar_arquivo_base64(conteudo_base64: str, nome_original: str, tipo: str) -
     if len(dados) == 0:
         return {"sucesso": False, "mensagem": "O arquivo está vazio."}
 
-    os.makedirs(PASTA_UPLOADS, exist_ok=True)
+    os.makedirs(pasta, exist_ok=True)
 
+    # O nome no disco é um uuid, e não o que o aluno mandou: nome de arquivo
+    # vindo do cliente carrega "../", caractere de caminho e colisão entre dois
+    # alunos que chamaram o trabalho de "relatorio.pdf". O nome original volta
+    # para a pessoa na hora do download, guardado à parte no banco.
     _, extensao = os.path.splitext(nome_original)
     nome_no_disco = f"{uuid.uuid4().hex}{extensao.lower()}"
-    caminho = os.path.join(PASTA_UPLOADS, nome_no_disco)
+    caminho = os.path.join(pasta, nome_no_disco)
 
     with open(caminho, "wb") as arquivo:
         arquivo.write(dados)

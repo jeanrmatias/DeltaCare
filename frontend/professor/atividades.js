@@ -218,6 +218,10 @@ function ligarFormulario() {
 function aplicarTipo() {
     const objetiva = document.querySelector("#campoTipo").value === "objetiva";
     document.querySelector("#blocoQuestoes").hidden = !objetiva;
+
+    // Numa objetiva o sistema corrige pelo gabarito: arquivo anexado ali nunca
+    // seria lido por ninguem. O servidor recusa, e aqui nem chega a oferecer.
+    document.querySelector("#campoAnexoBloco").hidden = objetiva;
 }
 
 function abrirFormulario(atividade) {
@@ -233,6 +237,7 @@ function abrirFormulario(atividade) {
         document.querySelector("#campoTitulo").value = atividade.titulo;
         document.querySelector("#campoEnunciado").value = atividade.enunciado || "";
         document.querySelector("#campoTipo").value = atividade.tipo;
+        document.querySelector("#campoAnexo").value = atividade.anexo || "nenhum";
         document.querySelector("#campoPontos").value = atividade.pontos;
         document.querySelector("#campoAssunto").value = atividade.assunto || "";
         document.querySelector("#campoTopico").value = atividade.topico || "";
@@ -245,6 +250,10 @@ function abrirFormulario(atividade) {
         campoTurmas.hidden = true;
         document.querySelector("#campoTipo").disabled = true;
         document.querySelector("#blocoQuestoes").hidden = true;
+        // Ajustado à mão, sem chamar aplicarTipo(): ele reabriria o bloco de
+        // questões, que na edição fica fechado de propósito — mudar o gabarito
+        // com entregas corrigidas bagunçaria nota que o aluno já viu.
+        document.querySelector("#campoAnexoBloco").hidden = atividade.tipo === "objetiva";
         questoes = [];
     } else {
         titulo.textContent = "Nova atividade";
@@ -445,6 +454,9 @@ async function salvar(rascunho) {
 
             corpo.turma_ids = alvos;
             corpo.tipo = document.querySelector("#campoTipo").value;
+            corpo.anexo = corpo.tipo === "objetiva"
+                ? "nenhum"
+                : document.querySelector("#campoAnexo").value;
 
             if (corpo.tipo === "objetiva") {
                 corpo.questoes = questoes.map((q) => ({
@@ -603,11 +615,18 @@ function criarLinhaEntrega(entrega, atividade, questoes) {
         resposta = gabaritoDoAluno(questoes, entrega.respostas);
     }
 
+    // Com anexo obrigatorio o arquivo **e** o trabalho: sem o link o professor
+    // veria "entregou" e nao teria o que corrigir.
+    const anexo = entrega.arquivo_nome
+        ? `<a class="entrega-anexo" href="${API_URL}/entregas/${entrega.entrega_id}/arquivo">${esc(entrega.arquivo_nome)}</a>`
+        : "";
+
     linha.innerHTML = `
         <div class="entrega-info">
             <strong>${esc(entrega.aluno_nome)}</strong>
             <span>${situacao} ${entrega.enviado_em ? `· ${formatarData(entrega.enviado_em)}` : ""} ${atraso}</span>
             ${resposta}
+            ${anexo}
             ${entrega.devolutiva ? `<p class="entrega-devolutiva">${esc(entrega.devolutiva)}</p>` : ""}
         </div>
         ${entrega.entregue

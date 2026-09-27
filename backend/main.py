@@ -68,6 +68,7 @@ from regras.atividades import (
     listar_atividades,
     listar_atividades_do_aluno,
     listar_entregas,
+    obter_arquivo_entrega,
     obter_atividade,
     obter_atividade_do_aluno,
     salvar_progresso,
@@ -282,6 +283,18 @@ class QuestaoRequest(BaseModel):
     correta: int
 
 
+class EntregaRequest(BaseModel):
+    """O que o aluno envia ao entregar.
+
+    `respostas` é a lista de escolhas (objetiva) ou o texto (dissertativa). O
+    arquivo vai em base64 dentro do JSON, como nos materiais, para não depender
+    de python-multipart.
+    """
+    respostas: Any = None
+    arquivo_base64: Optional[str] = None
+    arquivo_nome: Optional[str] = None
+
+
 class AtividadeRequest(BaseModel):
     # Mesmo par turma_id/turma_ids dos materiais: o segundo publica em várias
     # turmas de uma vez, o primeiro fica para não quebrar quem já integra.
@@ -297,6 +310,9 @@ class AtividadeRequest(BaseModel):
     data_liberacao: Optional[str] = None
     prazo: Optional[str] = None
     questoes: Optional[list[QuestaoRequest]] = None
+    # 'nenhum' (padrão), 'opcional' ou 'obrigatorio'. Só vale em dissertativa —
+    # numa objetiva o sistema corrige pelo gabarito e ninguém leria o arquivo.
+    anexo: str = "nenhum"
 
 
 class AtividadeAtualizacaoRequest(BaseModel):
@@ -308,6 +324,7 @@ class AtividadeAtualizacaoRequest(BaseModel):
     rascunho: Optional[bool] = None
     data_liberacao: Optional[str] = None
     prazo: Optional[str] = None
+    anexo: Optional[str] = None
 
 
 class CorrecaoRequest(BaseModel):
@@ -683,6 +700,7 @@ def criar_atividade_rota(dados: AtividadeRequest, professor: dict = Depends(usua
         data_liberacao=dados.data_liberacao,
         prazo=dados.prazo,
         questoes=[q.model_dump() for q in (dados.questoes or [])],
+        anexo=dados.anexo,
     )
 
 
@@ -754,10 +772,37 @@ def salvar_progresso_rota(
 @app.post("/aluno/atividades/{atividade_id}/entrega")
 def enviar_entrega_rota(
     atividade_id: int,
-    dados: RespostaRequest,
+    dados: EntregaRequest,
     aluno: dict = Depends(usuario_aluno),
 ):
-    return enviar_entrega(aluno["email"], atividade_id, dados.respostas)
+    return enviar_entrega(
+        aluno["email"],
+        atividade_id,
+        dados.respostas,
+        dados.arquivo_base64 or "",
+        dados.arquivo_nome or "",
+    )
+
+
+@app.get("/entregas/{entrega_id}/arquivo")
+def baixar_arquivo_entrega(entrega_id: int, usuario: dict = Depends(usuario_logado)):
+    """O documento que o aluno entregou.
+
+    Uma rota para os dois perfis, e não uma por perfil: quem pode baixar é o
+    aluno que entregou **ou** o professor dono da atividade, e essa regra mora
+    inteira em `obter_arquivo_entrega`. Duas rotas dariam dois lugares para a
+    mesma verificação divergir.
+
+    404 para todo o resto, sem distinguir "não existe" de "não é seu" — a
+    diferença revelaria quem entregou o quê para quem tentasse ids na mão.
+    """
+    resultado = obter_arquivo_entrega(usuario["email"], entrega_id)
+
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+
+    caminho, nome_original = resultado
+    return FileResponse(caminho, filename=nome_original)
 
 
 # ---------------------------- mensagens ----------------------------

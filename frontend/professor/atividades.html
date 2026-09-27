@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Atividades</title>
-    <link rel="stylesheet" href="../style_dashboard.css?v=21">
+    <link rel="stylesheet" href="../style_dashboard.css?v=22">
 </head>
 <body>
     <div class="app">
@@ -128,6 +128,15 @@
                             <label for="campoPontos">Vale quantos pontos</label>
                             <input type="number" id="campoPontos" min="1" max="1000" value="10">
                         </div>
+                        <div class="campo" id="campoAnexoBloco">
+                            <label for="campoAnexo">Arquivo do aluno</label>
+                            <select id="campoAnexo">
+                                <option value="nenhum">Não aceita arquivo</option>
+                                <option value="opcional">Pode anexar (opcional)</option>
+                                <option value="obrigatorio">Tem que anexar</option>
+                            </select>
+                            <span class="campo-dica">Relatório, foto de peça, traçado, planilha — até 15MB.</span>
+                        </div>
                         <div class="campo">
                             <label for="campoAssunto">Assunto</label>
                             <input type="text" id="campoAssunto" placeholder="ex.: Cardiologia">
@@ -196,13 +205,13 @@
         </main>
     </div>
 
-    <script src="../config.js?v=21"></script>
-    <script src="../dialogo.js?v=21"></script>
-    <script src="../visualizador.js?v=21"></script>
-    <script src="../calendario.js?v=21"></script>
-    <script src="../auth.js?v=21"></script>
-    <script src="../perfil.js?v=21"></script>
-    <script src="../notificacoes.js?v=21"></script>
-    <script src="atividades.js?v=21"></script>
+    <script src="../config.js?v=22"></script>
+    <script src="../dialogo.js?v=22"></script>
+    <script src="../visualizador.js?v=22"></script>
+    <script src="../calendario.js?v=22"></script>
+    <script src="../auth.js?v=22"></script>
+    <script src="../perfil.js?v=22"></script>
+    <script src="../notificacoes.js?v=22"></script>
+    <script src="atividades.js?v=22"></script>
 </body>
 </html>
