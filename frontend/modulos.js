@@ -11,16 +11,6 @@
  */
 
 const MODULOS = {
-    "calendario-professor": {
-        titulo: "Calendário",
-        resumo: "Visão do semestre com material e atividades por data.",
-        sprint: "Sprint 4",
-        itens: [
-            "Lançar material ou atividade direto por uma data",
-            "Ver num mês o que já está agendado",
-            "Indicadores de entrega próxima e prazo vencido",
-        ],
-    },
     "chat-professor": {
         titulo: "Mensagens",
         resumo: "Conversa direta entre professor e aluno, por turma.",

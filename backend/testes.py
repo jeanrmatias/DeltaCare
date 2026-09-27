@@ -50,6 +50,7 @@ from regras.atividades import (  # noqa: E402
     obter_atividade_do_aluno,
     salvar_progresso,
 )
+from regras.calendario import eventos_do_mes  # noqa: E402
 from regras.denuncias import (  # noqa: E402
     criar_denuncia,
     listar_minhas,
@@ -1677,6 +1678,135 @@ class TestesRetiradaDeDenuncia(BaseDelta):
         # E aparece no proprio contador: denuncia que esta na lista e nao e
         # contada em lugar nenhum faz o admin desconfiar do painel.
         self.assertEqual(resumo["retiradas"], 1)
+
+
+class TestesCalendario(BaseAtividades):
+    """O calendario junta o que ja existe espalhado. O risco e de omissao:
+    evento que nao aparece no mes certo, ou que aparece sem dever."""
+
+    def _mes_de_hoje(self):
+        hoje = datetime.now(timezone.utc)
+        return hoje.year, hoje.month
+
+    def _dias(self, resultado):
+        return {e["dia"] for e in resultado["eventos"]}
+
+    def test_mes_vazio_nao_inventa_evento(self):
+        ano, mes = self._mes_de_hoje()
+        resultado = eventos_do_mes(PROFESSOR, ano, mes)
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(resultado["eventos"], [])
+
+    def test_material_publicado_entra_no_dia(self):
+        self.criar_material_simples("Aula de hoje")
+        ano, mes = self._mes_de_hoje()
+
+        eventos = eventos_do_mes(PROFESSOR, ano, mes)["eventos"]
+
+        self.assertEqual(len(eventos), 1)
+        self.assertEqual(eventos[0]["tipo"], "material")
+        self.assertEqual(eventos[0]["titulo"], "Aula de hoje")
+
+    def test_rascunho_nao_aparece(self):
+        """Rascunho nao tem data no calendario: nao acontece nada nele."""
+        self.criar_material_simples("Rascunho", rascunho=True)
+        ano, mes = self._mes_de_hoje()
+
+        self.assertEqual(eventos_do_mes(PROFESSOR, ano, mes)["eventos"], [])
+
+    def test_material_agendado_cai_no_dia_da_liberacao(self):
+        """O material pertence ao dia em que o aluno vai ve-lo."""
+        futuro = datetime.now(timezone.utc) + timedelta(days=3)
+        self.criar_material_simples("Agendado", data_liberacao=futuro.isoformat())
+
+        eventos = eventos_do_mes(PROFESSOR, futuro.year, futuro.month)["eventos"]
+        agendados = [e for e in eventos if e["titulo"] == "Agendado"]
+
+        self.assertEqual(len(agendados), 1)
+        self.assertEqual(agendados[0]["tipo"], "material_agendado")
+        self.assertEqual(agendados[0]["dia"], futuro.date().isoformat())
+
+    def test_atividade_com_prazo_gera_dois_eventos(self):
+        """Liberacao e prazo sao coisas diferentes em dias diferentes."""
+        prazo = datetime.now(timezone.utc) + timedelta(days=5)
+        self.criar_objetiva(titulo="Quiz", prazo=prazo.isoformat())
+
+        ano, mes = self._mes_de_hoje()
+        eventos = eventos_do_mes(PROFESSOR, ano, mes)["eventos"]
+        tipos = {e["tipo"] for e in eventos}
+
+        # Se o prazo cair no mes seguinte, so a liberacao aparece aqui.
+        self.assertIn("atividade", tipos)
+        if prazo.month == mes:
+            self.assertIn("prazo", tipos)
+
+    def test_prazo_aparece_no_mes_do_prazo(self):
+        prazo = datetime.now(timezone.utc) + timedelta(days=40)
+        self.criar_objetiva(titulo="Com prazo longe", prazo=prazo.isoformat())
+
+        eventos = eventos_do_mes(PROFESSOR, prazo.year, prazo.month)["eventos"]
+        prazos = [e for e in eventos if e["tipo"] == "prazo"]
+
+        self.assertEqual(len(prazos), 1)
+        self.assertEqual(prazos[0]["dia"], prazo.date().isoformat())
+
+    def test_evento_de_outro_mes_fica_de_fora(self):
+        self.criar_material_simples("Deste mes")
+        outro = datetime.now(timezone.utc) + timedelta(days=70)
+
+        eventos = eventos_do_mes(PROFESSOR, outro.year, outro.month)["eventos"]
+        self.assertEqual(eventos, [])
+
+    def test_professor_nao_ve_turma_alheia(self):
+        outra = criar_turma(ADMIN, PROFESSOR2, "Clinica", "2026.2")["turma"]["id"]
+        criar_material(
+            professor_email=PROFESSOR2, turma_id=outra, titulo="Da outra turma",
+            tipo="link", link_url="https://exemplo.com", rascunho=False,
+        )
+
+        ano, mes = self._mes_de_hoje()
+        titulos = [e["titulo"] for e in eventos_do_mes(PROFESSOR, ano, mes)["eventos"]]
+
+        self.assertNotIn("Da outra turma", titulos)
+
+    def test_filtro_por_turma_recusa_turma_alheia(self):
+        outra = criar_turma(ADMIN, PROFESSOR2, "Clinica", "2026.2")["turma"]["id"]
+        ano, mes = self._mes_de_hoje()
+
+        self.assertFalse(eventos_do_mes(PROFESSOR, ano, mes, outra)["sucesso"])
+
+    def test_mes_invalido_e_recusado(self):
+        self.assertFalse(eventos_do_mes(PROFESSOR, 2026, 13)["sucesso"])
+        self.assertFalse(eventos_do_mes(PROFESSOR, 2026, 0)["sucesso"])
+
+    def test_avisa_quando_ha_dois_prazos_no_mesmo_dia(self):
+        """E o aviso que o professor nao tem hoje: duas entregas no mesmo dia."""
+        prazo = datetime.now(timezone.utc) + timedelta(days=6)
+        self.criar_objetiva(titulo="Quiz A", prazo=prazo.isoformat())
+        self.criar_objetiva(titulo="Quiz B", prazo=prazo.isoformat())
+
+        resumo = eventos_do_mes(PROFESSOR, prazo.year, prazo.month)["resumo"]
+
+        self.assertIn(prazo.date().isoformat(), resumo["dias_com_dois_prazos"])
+
+    def test_um_prazo_no_dia_nao_gera_aviso(self):
+        prazo = datetime.now(timezone.utc) + timedelta(days=6)
+        self.criar_objetiva(titulo="Quiz unico", prazo=prazo.isoformat())
+
+        resumo = eventos_do_mes(PROFESSOR, prazo.year, prazo.month)["resumo"]
+        self.assertEqual(resumo["dias_com_dois_prazos"], [])
+
+    def test_eventos_vem_ordenados_por_dia(self):
+        self.criar_material_simples("Hoje")
+        depois = datetime.now(timezone.utc) + timedelta(days=4)
+        self.criar_material_simples("Depois", data_liberacao=depois.isoformat())
+
+        ano, mes = self._mes_de_hoje()
+        eventos = eventos_do_mes(PROFESSOR, ano, mes)["eventos"]
+        dias = [e["dia"] for e in eventos]
+
+        self.assertEqual(dias, sorted(dias), "calendario fora de ordem")
 
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")

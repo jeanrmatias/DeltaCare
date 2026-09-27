@@ -35,4 +35,9 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Arquivos gerados a partir do codigo: o .zip da entrega, o PDF do documento
+# e a concatenacao do fonte. Todos sao recriaveis e nenhum rende diff.
 SPRINT_3.pdf
+CODIGO_COMPLETO.md
+DeltaCare_Sprint3_WebDevelopment.zip

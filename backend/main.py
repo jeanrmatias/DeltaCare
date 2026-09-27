@@ -61,6 +61,7 @@ from regras.atividades import (
     obter_atividade_do_aluno,
     salvar_progresso,
 )
+from regras.calendario import eventos_do_mes
 from regras.denuncias import (
     criar_denuncia,
     listar_minhas,
@@ -647,6 +648,19 @@ def enviar_entrega_rota(
     aluno: dict = Depends(usuario_aluno),
 ):
     return enviar_entrega(aluno["email"], atividade_id, dados.respostas)
+
+
+# ---------------------------- calendário ----------------------------
+
+@app.get("/calendario")
+def calendario_rota(
+    ano: int,
+    mes: int,
+    turma_id: Optional[int] = None,
+    professor: dict = Depends(usuario_professor),
+):
+    """Materiais, atividades e prazos que caem no mês, nas turmas do professor."""
+    return eventos_do_mes(professor["email"], ano, mes, turma_id)
 
 
 # ---------------------------- denúncias ----------------------------
