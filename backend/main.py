@@ -175,6 +175,9 @@ class RecuperacaoSenhaRequest(BaseModel):
 
 
 class RedefinicaoSenhaRequest(BaseModel):
+    # `email` amarra o código a uma conta. Sem ele a busca era global e um
+    # atacante tentava códigos contra qualquer recuperação pendente.
+    email: str
     token: str
     nova_senha: str
 
@@ -364,7 +367,7 @@ def recuperar_senha(dados: RecuperacaoSenhaRequest):
 
 @app.post("/redefinir-senha")
 def redefinicao_senha(dados: RedefinicaoSenhaRequest):
-    return redefinir_senha(dados.token, dados.nova_senha)
+    return redefinir_senha(dados.email, dados.token, dados.nova_senha)
 
 
 # ---------------------------- sessão ----------------------------

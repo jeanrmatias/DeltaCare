@@ -34,12 +34,6 @@ function montarRodapePerfil(usuario) {
         usuario.tipo === "professor" ? `Prof. ${nome}` : nome;
 }
 
-function esc(texto) {
-    return String(texto ?? "").replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-}
-
 /** Data curta para a lista, hora para a conversa aberta. */
 function quando(iso, comHora = false) {
     if (!iso) return "";

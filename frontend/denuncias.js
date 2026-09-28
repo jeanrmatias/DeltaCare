@@ -36,12 +36,6 @@ function montarRodapePerfil(usuario) {
         usuario.tipo === "professor" ? `Prof. ${nome}` : nome;
 }
 
-function esc(texto) {
-    return String(texto ?? "").replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-}
-
 function formatarData(iso) {
     if (!iso) return "";
     const data = new Date(iso);

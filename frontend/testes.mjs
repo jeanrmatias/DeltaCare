@@ -768,3 +768,48 @@ test("o seletor sobrevive a turma sem professor conhecido", () => {
 
     assert.equal(seletor.filhos[0].textContent, "Cardiologia I · 2026/2");
 });
+
+
+// ---------------------------------------------------------------- escape de HTML
+/**
+ * `esc` é a única defesa contra XSS nas telas que montam HTML por template.
+ *
+ * Estava copiado idêntico em três arquivos, enquanto outros três precisavam
+ * dele e não tinham — e foi assim que nome de disciplina digitado pelo admin
+ * chegava cru ao navegador do professor. Agora mora em auth.js, carregado em
+ * toda página, e é testado num lugar só.
+ */
+test("esc neutraliza os cinco caracteres que abrem tag e atributo", () => {
+    assert.equal(ctx.esc("<script>"), "&lt;script&gt;");
+    assert.equal(ctx.esc('"'), "&quot;");
+    assert.equal(ctx.esc("'"), "&#39;");
+    assert.equal(ctx.esc("&"), "&amp;");
+});
+
+test("esc escapa o & primeiro, senão desfaz o próprio escape", () => {
+    // Trocando `<` antes de `&`, o "&lt;" produzido viraria "&amp;lt;" e o
+    // texto apareceria literalmente errado na tela.
+    assert.equal(ctx.esc("&lt;"), "&amp;lt;");
+});
+
+test("esc barra o payload clássico de injeção por atributo", () => {
+    const escapado = ctx.esc('" onerror="alert(1)');
+
+    assert.ok(!escapado.includes('"'), `sobrou aspa: ${escapado}`);
+});
+
+test("esc trata null e undefined como texto vazio", () => {
+    // Campo opcional do banco chega como null. Sem isto a tela mostraria a
+    // palavra "null" onde deveria estar vazio.
+    assert.equal(ctx.esc(null), "");
+    assert.equal(ctx.esc(undefined), "");
+});
+
+test("esc não estraga texto comum", () => {
+    assert.equal(ctx.esc("Cardiologia I · 2026/2"), "Cardiologia I · 2026/2");
+    assert.equal(ctx.esc("Anatomia — Prof. Marina Duarte"), "Anatomia — Prof. Marina Duarte");
+});
+
+test("esc converte número sem reclamar", () => {
+    assert.equal(ctx.esc(42), "42");
+});

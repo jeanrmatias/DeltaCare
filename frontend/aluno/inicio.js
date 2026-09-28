@@ -98,6 +98,11 @@ function montarProgresso(progresso) {
     const percentual = Math.round((progresso.xp_no_nivel / progresso.xp_para_proximo_nivel) * 100);
     document.querySelector("#progressoBarra").style.width = `${percentual}%`;
 
+    // O anel do escudo mostra o mesmo avanço, e é o que faz a forma informar em
+    // vez de enfeitar. Vai por variável CSS: o conic-gradient lê daqui, e assim
+    // o desenho fica todo no CSS e o JS só entrega o número.
+    document.querySelector("#progressoAnel").style.setProperty("--avanco", `${percentual}%`);
+
     // A sequência só aparece quando existe: "0 dias seguidos" é um lembrete
     // de fracasso, não um incentivo.
     const sequencia = document.querySelector("#progressoSequencia");

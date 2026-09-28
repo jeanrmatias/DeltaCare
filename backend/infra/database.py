@@ -45,6 +45,14 @@ def configurar_banco(silencioso: bool = False):
         cursor.execute("ALTER TABLE users ADD COLUMN reset_token TEXT")
     if "reset_expira" not in colunas:
         cursor.execute("ALTER TABLE users ADD COLUMN reset_expira TEXT")
+    # Quantas vezes o código de recuperação já foi errado.
+    #
+    # O código tem 6 dígitos — 900 mil combinações. Sem contar tentativa, e sem
+    # limite de requisição por IP, isso se percorre em minutos. O contador
+    # limita o ataque a 5 palpites: na sexta, o código morre e a pessoa pede
+    # outro. Quem esqueceu a senha erra o código uma ou duas vezes, não cinco.
+    if "reset_tentativas" not in colunas:
+        cursor.execute("ALTER TABLE users ADD COLUMN reset_tentativas INTEGER NOT NULL DEFAULT 0")
 
     # Migração: identificação e dados acadêmicos.
     #
@@ -240,6 +248,28 @@ def configurar_banco(silencioso: bool = False):
         )
     ''')
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessoes_user ON sessoes (user_id)")
+
+    # Indices medidos, nao adivinhados.
+    #
+    # Com 360 alunos e 9.600 trechos de material, EXPLAIN QUERY PLAN mostrava
+    # SCAN (varredura da tabela inteira) em seis consultas destes caminhos. Em
+    # milissegundos isso ainda nao aparecia, porque a tabela e pequena; a conta
+    # muda quando a base cresce, e a busca do chat de IA e a mais exposta, ja
+    # que percorre todos os trechos da disciplina a cada pergunta.
+    #
+    # `matriculas` e `matriculas_coorte` ja tem UNIQUE, mas com o aluno na
+    # frente: da para buscar por aluno, nao por turma. E "quem esta nesta
+    # disciplina" e exatamente a pergunta mais feita no sistema.
+    for indice, tabela, colunas in [
+        ("idx_materiais_turma", "materiais", "turma_id"),
+        ("idx_chunks_material", "material_chunks", "material_id"),
+        ("idx_matriculas_turma", "matriculas", "turma_id"),
+        ("idx_turmas_coorte", "turmas", "coorte_id"),
+        ("idx_matriculas_coorte_coorte", "matriculas_coorte", "coorte_id"),
+        ("idx_excecoes_turma", "excecoes_coorte", "turma_id"),
+        ("idx_chat_aluno_turma", "chat_mensagens", "aluno_id, turma_id"),
+    ]:
+        cursor.execute(f"CREATE INDEX IF NOT EXISTS {indice} ON {tabela} ({colunas})")
 
     # Notificações geradas por eventos reais (ver regras/notificacoes.py).
     cursor.execute('''

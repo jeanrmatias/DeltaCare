@@ -30,12 +30,6 @@ function montarRodapePerfil(usuario) {
     document.querySelector("#nomeRodape").textContent = nome;
 }
 
-function esc(texto) {
-    return String(texto ?? "").replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-}
-
 /** "1 aluno" / "4 alunos" — plural errado numa tela de gestão irrita. */
 function contar(quantidade, singular, plural) {
     return `${quantidade} ${quantidade === 1 ? singular : plural}`;

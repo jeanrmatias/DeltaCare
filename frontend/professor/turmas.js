@@ -39,9 +39,12 @@ async function carregarTurmas() {
         dados.turmas.forEach((turma) => {
             const cartao = document.createElement("article");
             cartao.className = "cartao turma-cartao";
+            // Nome e semestre sao digitados pelo admin e renderizados aqui, no
+            // navegador do professor. Sem escape, `<img src=x onerror=...>` no
+            // nome da disciplina executa na sessao de quem abrir a tela.
             cartao.innerHTML = `
-                <h2>${turma.nome}</h2>
-                <span class="turma-semestre">${turma.semestre}</span>
+                <h2>${esc(turma.nome)}</h2>
+                <span class="turma-semestre">${esc(turma.semestre)}</span>
                 <p>${turma.materiais_publicados} material(is) publicado(s)</p>
             `;
             const botao = document.createElement("a");

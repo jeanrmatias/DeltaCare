@@ -74,7 +74,10 @@ esqueciSenha.addEventListener("click", async function (event) {
 
         const dados = await resposta.json();
 
-        if (!resposta.ok || !dados.mensagem || !dados.mensagem.startsWith("Enviamos")) {
+        // Segue adiante mesmo sem saber se a conta existe: a rota responde igual
+        // nos dois casos de propósito, para não virar verificador de cadastro.
+        // Quem digitou um e-mail que não é seu simplesmente não recebe código.
+        if (!resposta.ok) {
             await avisarErro(dados.mensagem || "Não foi possível iniciar a recuperação.");
             return;
         }
@@ -96,7 +99,11 @@ esqueciSenha.addEventListener("click", async function (event) {
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ token: redefinicao.token, nova_senha: redefinicao.senha })
+            body: JSON.stringify({
+                email: email,
+                token: redefinicao.token,
+                nova_senha: redefinicao.senha,
+            })
         });
 
         const dadosReset = await respostaReset.json();

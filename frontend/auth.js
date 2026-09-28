@@ -108,6 +108,25 @@ async function api(caminho, opcoes = {}) {
  * esse dado, e aí o e-mail vira um nome aproximado ("ana.paula@x" -> "Ana
  * Paula") — melhor do que mostrar o endereço cru no rodapé.
  */
+/**
+ * Escapa texto para interpolar em HTML.
+ *
+ * Mora aqui porque `auth.js` é carregado em toda página autenticada, ao lado de
+ * `nomeExibicao` e `iniciaisDe` — e porque estava copiado idêntico em três
+ * arquivos enquanto outros três precisavam dele e não tinham. Ter uma cópia por
+ * tela é como um XSS entra: basta a tela nova esquecer de trazer a sua.
+ *
+ * Onde der, prefira `textContent` — ele não escapa, ele simplesmente não
+ * interpreta HTML, e isso não tem como dar errado. `esc` é para os casos em que
+ * o HTML já é montado por template (uma linha de cartão, por exemplo).
+ */
+function esc(texto) {
+    return String(texto ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+}
+
+
 function nomeExibicao(usuario) {
     if (usuario && usuario.nome && usuario.nome.trim()) {
         return usuario.nome.trim();

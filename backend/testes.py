@@ -29,7 +29,14 @@ os.environ["DELTACARE_DB"] = _ARQUIVO_TEMP
 import sqlite3  # noqa: E402
 
 from infra.database import CAMINHO_DB, configurar_banco  # noqa: E402
-from regras.autenticacao import cadastrar_usuario, criar_conta_staff, realizar_login  # noqa: E402
+from regras.autenticacao import (  # noqa: E402
+    MAX_TENTATIVAS_RESET,
+    cadastrar_usuario,
+    criar_conta_staff,
+    realizar_login,
+    redefinir_senha,
+    solicitar_recuperacao,
+)
 from regras.aluno import (  # noqa: E402
     MAX_PERGUNTAS_QUE_PONTUAM_POR_DIA,
     XP_POR_ATIVIDADE_ENTREGUE,
@@ -2754,6 +2761,156 @@ class TestesRotaDoAnexo(BaseAtividades):
         )
 
         self.assertEqual(resposta.status_code, 404)
+
+
+
+# =========================================================================
+# Recuperação de senha
+#
+# Não havia teste nenhum aqui, e era onde estava o furo mais sério do sistema:
+# o código tem 6 dígitos e a busca era `WHERE reset_token = ?` — **global**.
+# Um atacante tentava códigos contra qualquer conta com recuperação pendente,
+# sem limite de tentativa. 900 mil combinações se percorrem em minutos.
+#
+# Duas defesas, e as duas precisam de teste porque nenhuma é visível de fora:
+# o código agora está amarrado ao e-mail, e cinco erros o descartam.
+# =========================================================================
+
+class TestesRecuperacaoDeSenha(BaseDelta):
+
+    def _codigo_de(self, email):
+        """Lê o código direto do banco — em produção ele vai por e-mail."""
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linha = conexao.execute(
+            "SELECT reset_token FROM users WHERE email = ?", (email,)
+        ).fetchone()
+        conexao.close()
+        return linha[0] if linha else None
+
+    def test_o_fluxo_normal_funciona(self):
+        solicitar_recuperacao(ALUNO)
+        codigo = self._codigo_de(ALUNO)
+
+        resultado = redefinir_senha(ALUNO, codigo, "senhanova123")
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertTrue(realizar_login(ALUNO, "senhanova123")["sucesso"])
+
+    def test_a_senha_antiga_para_de_valer(self):
+        solicitar_recuperacao(ALUNO)
+        redefinir_senha(ALUNO, self._codigo_de(ALUNO), "senhanova123")
+
+        self.assertFalse(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_o_codigo_de_um_nao_serve_para_outro(self):
+        """O furo principal.
+
+        Antes a busca era global: com o código do Aluno Um em mãos, este
+        mesmo chamado trocava a senha do Aluno Dois. Era o que transformava
+        900 mil palpites contra *o sistema* em invasão de *alguma* conta.
+        """
+        solicitar_recuperacao(ALUNO)
+        codigo_do_aluno = self._codigo_de(ALUNO)
+        solicitar_recuperacao(ALUNO_FORA)
+
+        resultado = redefinir_senha(ALUNO_FORA, codigo_do_aluno, "invadida123")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertFalse(realizar_login(ALUNO_FORA, "invadida123")["sucesso"])
+
+    def test_cinco_erros_queimam_o_codigo(self):
+        """Sem teto, os 6 dígitos são 900 mil palpites livres."""
+        solicitar_recuperacao(ALUNO)
+        codigo = self._codigo_de(ALUNO)
+
+        errado = "000000" if codigo != "000000" else "111111"
+        for _ in range(MAX_TENTATIVAS_RESET):
+            redefinir_senha(ALUNO, errado, "tentativa123")
+
+        # O código certo também não vale mais: ele foi descartado.
+        resultado = redefinir_senha(ALUNO, codigo, "senhanova123")
+
+        self.assertFalse(resultado["sucesso"], resultado)
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_antes_do_teto_o_codigo_certo_ainda_vale(self):
+        """Quem esqueceu a senha erra uma ou duas vezes e não pode ser punido."""
+        solicitar_recuperacao(ALUNO)
+        codigo = self._codigo_de(ALUNO)
+        errado = "000000" if codigo != "000000" else "111111"
+
+        redefinir_senha(ALUNO, errado, "tentativa123")
+        redefinir_senha(ALUNO, errado, "tentativa123")
+
+        self.assertTrue(redefinir_senha(ALUNO, codigo, "senhanova123")["sucesso"])
+
+    def test_pedir_codigo_novo_devolve_as_tentativas(self):
+        solicitar_recuperacao(ALUNO)
+        errado = "000000" if self._codigo_de(ALUNO) != "000000" else "111111"
+        for _ in range(MAX_TENTATIVAS_RESET - 1):
+            redefinir_senha(ALUNO, errado, "tentativa123")
+
+        solicitar_recuperacao(ALUNO)
+        codigo = self._codigo_de(ALUNO)
+        for _ in range(MAX_TENTATIVAS_RESET - 1):
+            redefinir_senha(ALUNO, errado, "tentativa123")
+
+        self.assertTrue(redefinir_senha(ALUNO, codigo, "senhanova123")["sucesso"])
+
+    def test_a_resposta_nao_diz_se_a_conta_existe(self):
+        """Senão a rota vira verificador de cadastro: com uma lista de e-mails,
+        descobre-se quem é aluno desta instituição, um por requisição."""
+        existe = solicitar_recuperacao(ALUNO)["mensagem"]
+        nao_existe = solicitar_recuperacao("ninguem@lugar.com")["mensagem"]
+
+        self.assertEqual(existe, nao_existe)
+
+    def test_redefinir_sem_recuperacao_pendente_e_recusado(self):
+        resultado = redefinir_senha(ALUNO, "123456", "senhanova123")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_codigo_expirado_e_recusado(self):
+        solicitar_recuperacao(ALUNO)
+        codigo = self._codigo_de(ALUNO)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute(
+            "UPDATE users SET reset_expira = ? WHERE email = ?",
+            ("2020-01-01T00:00:00", ALUNO),
+        )
+        conexao.commit()
+        conexao.close()
+
+        self.assertFalse(redefinir_senha(ALUNO, codigo, "senhanova123")["sucesso"])
+
+    def test_senha_curta_e_recusada(self):
+        solicitar_recuperacao(ALUNO)
+
+        resultado = redefinir_senha(ALUNO, self._codigo_de(ALUNO), "123")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_trocar_a_senha_derruba_as_sessoes_abertas(self):
+        """Conta tomada: a senha nova não serve para nada enquanto o token do
+        invasor continuar valendo por 12 horas."""
+        token = realizar_login(ALUNO, SENHA)["token"]
+        self.assertIsNotNone(buscar_usuario_da_sessao(token))
+
+        solicitar_recuperacao(ALUNO)
+        redefinir_senha(ALUNO, self._codigo_de(ALUNO), "senhanova123")
+
+        self.assertIsNone(buscar_usuario_da_sessao(token))
+
+    def test_o_codigo_usado_nao_serve_duas_vezes(self):
+        solicitar_recuperacao(ALUNO)
+        codigo = self._codigo_de(ALUNO)
+        redefinir_senha(ALUNO, codigo, "senhanova123")
+
+        segunda = redefinir_senha(ALUNO, codigo, "outra123456")
+
+        self.assertFalse(segunda["sucesso"])
+        self.assertTrue(realizar_login(ALUNO, "senhanova123")["sucesso"])
 
 
 if __name__ == "__main__":

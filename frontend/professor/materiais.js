@@ -232,10 +232,10 @@ function criarLinhaMaterial(material) {
                 <span class="badge-tipo">${RUTULOS_TIPO[material.tipo] ?? material.tipo}</span>
                 <span class="badge-status badge-status--${material.status}">${RUTULOS_STATUS[material.status]}</span>
             </div>
-            <h3>${material.titulo}</h3>
-            ${classificacao ? `<p class="material-classificacao">${classificacao}</p>` : ""}
-            ${material.descricao ? `<p class="material-descricao">${material.descricao}</p>` : ""}
-            ${referencia ? `<p class="material-referencia">${referencia}</p>` : ""}
+            <h3>${esc(material.titulo)}</h3>
+            ${classificacao ? `<p class="material-classificacao">${esc(classificacao)}</p>` : ""}
+            ${material.descricao ? `<p class="material-descricao">${esc(material.descricao)}</p>` : ""}
+            ${referencia ? `<p class="material-referencia">${esc(referencia)}</p>` : ""}
         </div>
         <div class="material-linha-acoes">
             <button type="button" class="acao acao--discreta" data-acao-reportar>Reportar</button>

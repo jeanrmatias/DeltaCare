@@ -33,7 +33,9 @@ async function carregarProfessoresETurmas() {
         } else {
             semProfessores.hidden = true;
             botaoNovaTurma.disabled = false;
-            seletor.innerHTML = professores.map((email) => `<option value="${email}">${email}</option>`).join("");
+            seletor.innerHTML = professores
+                .map((email) => `<option value="${esc(email)}">${esc(email)}</option>`)
+                .join("");
         }
 
         await carregarTurmas();
@@ -97,8 +99,8 @@ async function carregarTurmas() {
             linha.className = "cartao material-linha";
             linha.innerHTML = `
                 <div class="material-linha-info">
-                    <h3>${turma.nome} · ${turma.semestre}</h3>
-                    <p class="material-classificacao">Professor: ${turma.professor_email}</p>
+                    <h3>${esc(turma.nome)} · ${esc(turma.semestre)}</h3>
+                    <p class="material-classificacao">Professor: ${esc(turma.professor_email)}</p>
                     <p class="material-classificacao">${turma.total_materiais} material(is) cadastrado(s)</p>
                 </div>
                 <div class="material-linha-acoes">
@@ -209,7 +211,7 @@ function montarPainelAlunos(turma) {
     painel.className = "cartao";
     painel.hidden = true;
     painel.innerHTML = `
-        <h3 class="cartao-titulo">Alunos matriculados · ${turma.nome}</h3>
+        <h3 class="cartao-titulo">Alunos matriculados · ${esc(turma.nome)}</h3>
         <div class="formulario--linha">
             <div class="campo">
                 <label>Matricular aluno</label>
@@ -248,7 +250,7 @@ async function carregarAlunosDaTurma(turma, painel) {
             matriculados.forEach((email) => {
                 const item = document.createElement("li");
                 item.innerHTML = `
-                    <span class="entrega-info"><strong>${email}</strong></span>
+                    <span class="entrega-info"><strong>${esc(email)}</strong></span>
                 `;
                 const botao = document.createElement("button");
                 botao.type = "button";
@@ -262,7 +264,7 @@ async function carregarAlunosDaTurma(turma, painel) {
 
         const disponiveis = todos.filter((email) => !matriculados.includes(email));
         seletor.innerHTML = disponiveis.length
-            ? disponiveis.map((email) => `<option value="${email}">${email}</option>`).join("")
+            ? disponiveis.map((email) => `<option value="${esc(email)}">${esc(email)}</option>`).join("")
             : `<option value="">Nenhum aluno disponível</option>`;
     } catch (erro) {
         console.error("Erro ao carregar alunos da turma:", erro);

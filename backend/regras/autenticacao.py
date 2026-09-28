@@ -4,6 +4,7 @@ Fica separado do main.py de propósito, sem depender do FastAPI, para poder
 ser testado sozinho (com sqlite3 puro).
 """
 
+import hmac
 import secrets
 import sqlite3
 from datetime import datetime, timedelta
@@ -21,6 +22,14 @@ PAGINAS = {
     "aluno": "aluno/inicio.html",
 }
 VALIDADE_TOKEN_MINUTOS = 15
+
+# Palpites errados antes de o código de recuperação ser descartado.
+#
+# São 6 dígitos, 900 mil combinações. Sem este teto, e sem limite por IP na
+# frente, um atacante percorre o espaço inteiro em minutos. Com o teto, a chance
+# de acertar em 5 tentativas é de 1 em 180 mil — e a pessoa que de fato esqueceu
+# a senha erra uma ou duas vezes, não cinco.
+MAX_TENTATIVAS_RESET = 5
 
 
 def _conectar():
@@ -179,6 +188,12 @@ def criar_conta_staff(
     return {"sucesso": True, "mensagem": "Conta criada com sucesso!"}
 
 
+# Uma frase só, para os dois casos. Ver a nota em solicitar_recuperacao.
+RESPOSTA_RECUPERACAO = (
+    "Se houver uma conta com esse e-mail, enviamos um código de recuperação para ela."
+)
+
+
 def solicitar_recuperacao(email: str) -> dict:
     email = email.strip().lower()
 
@@ -188,15 +203,22 @@ def solicitar_recuperacao(email: str) -> dict:
     cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
     usuario = cursor.fetchone()
 
+    # **A mesma resposta para conta que existe e conta que não existe.**
+    #
+    # Dizer "não encontramos essa conta" transforma esta rota num verificador de
+    # cadastro: quem tiver uma lista de e-mails descobre quais são alunos desta
+    # instituição, um por requisição. Numa faculdade de medicina isso é a lista
+    # de matriculados, e é dado pessoal.
     if not usuario:
         conexao.close()
-        return {"mensagem": "Não encontramos uma conta com esse e-mail."}
+        return {"mensagem": RESPOSTA_RECUPERACAO}
 
     token = f"{secrets.randbelow(900000) + 100000}"
     expira = (datetime.utcnow() + timedelta(minutes=VALIDADE_TOKEN_MINUTOS)).isoformat()
 
+    # O contador zera junto: pedir um código novo devolve as 5 tentativas.
     cursor.execute(
-        "UPDATE users SET reset_token = ?, reset_expira = ? WHERE id = ?",
+        "UPDATE users SET reset_token = ?, reset_expira = ?, reset_tentativas = 0 WHERE id = ?",
         (token, expira, usuario[0]),
     )
     conexao.commit()
@@ -208,33 +230,83 @@ def solicitar_recuperacao(email: str) -> dict:
     # houver um serviço disponível.
     print(f"[Delta Care] Código de recuperação para {email}: {token} (válido por {VALIDADE_TOKEN_MINUTOS} min)")
 
-    return {"mensagem": "Enviamos um código de recuperação para seu e-mail."}
+    return {"mensagem": RESPOSTA_RECUPERACAO}
 
 
-def redefinir_senha(token: str, nova_senha: str) -> dict:
+def redefinir_senha(email: str, token: str, nova_senha: str) -> dict:
+    """Troca a senha usando o código enviado por e-mail.
+
+    **`email` é obrigatório, e é o que fecha o furo principal.** Antes a busca
+    era `WHERE reset_token = ?` — global. Um atacante tentava códigos contra
+    *qualquer* conta com recuperação pendente, e acertar bastava para entrar em
+    alguma. Amarrando ao e-mail, ele precisa acertar o código **daquela** pessoa,
+    e o contador de tentativas limita isso a 5 palpites.
+    """
+    email = (email or "").strip().lower()
+    token = (token or "").strip()
+
     if len(nova_senha) < 6:
         return {"sucesso": False, "mensagem": "A nova senha precisa ter pelo menos 6 caracteres."}
+
+    if not email or not token:
+        return {"sucesso": False, "mensagem": "Código inválido."}
 
     conexao = _conectar()
     cursor = conexao.cursor()
 
-    cursor.execute("SELECT id, reset_expira FROM users WHERE reset_token = ?", (token,))
+    cursor.execute(
+        "SELECT id, reset_token, reset_expira, reset_tentativas FROM users WHERE email = ?",
+        (email,),
+    )
     usuario = cursor.fetchone()
 
-    if not usuario:
+    # Conta inexistente e conta sem recuperação pendente dão a mesma resposta de
+    # código errado — a rota não conta a ninguém quem tem cadastro aqui.
+    if not usuario or not usuario[1]:
         conexao.close()
         return {"sucesso": False, "mensagem": "Código inválido."}
 
-    id_usuario, expira = usuario
+    id_usuario, token_guardado, expira, tentativas = usuario
 
     if not expira or datetime.utcnow() > datetime.fromisoformat(expira):
         conexao.close()
         return {"sucesso": False, "mensagem": "Código expirado. Solicite um novo."}
 
+    if not hmac.compare_digest(token, token_guardado):
+        tentativas = (tentativas or 0) + 1
+
+        # Estourou o teto: o código morre. Continuar aceitando palpites depois
+        # de cinco erros é o mesmo que não ter teto.
+        if tentativas >= MAX_TENTATIVAS_RESET:
+            cursor.execute(
+                "UPDATE users SET reset_token = NULL, reset_expira = NULL, reset_tentativas = 0"
+                " WHERE id = ?",
+                (id_usuario,),
+            )
+            conexao.commit()
+            conexao.close()
+            return {
+                "sucesso": False,
+                "mensagem": "Código errado muitas vezes. Solicite um novo código.",
+            }
+
+        cursor.execute(
+            "UPDATE users SET reset_tentativas = ? WHERE id = ?", (tentativas, id_usuario)
+        )
+        conexao.commit()
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Código inválido."}
+
     cursor.execute(
-        "UPDATE users SET senha = ?, reset_token = NULL, reset_expira = NULL WHERE id = ?",
+        "UPDATE users SET senha = ?, reset_token = NULL, reset_expira = NULL,"
+        " reset_tentativas = 0 WHERE id = ?",
         (hash_senha(nova_senha), id_usuario),
     )
+
+    # Trocar a senha derruba as sessões abertas. Se a conta foi tomada, a senha
+    # nova não serve para nada enquanto o token antigo do invasor continuar
+    # valendo por 12 horas.
+    cursor.execute("DELETE FROM sessoes WHERE user_id = ?", (id_usuario,))
     conexao.commit()
     conexao.close()
 
