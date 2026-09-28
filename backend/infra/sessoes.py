@@ -20,7 +20,7 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-from infra.database import CAMINHO_DB
+from infra.database import CAMINHO_DB, abrir_conexao
 
 # Uma sessão dura o suficiente para uma aula ou uma demonstração sem obrigar
 # o usuário a logar de novo no meio.
@@ -28,7 +28,7 @@ DURACAO_SESSAO = timedelta(hours=12)
 
 
 def _conectar():
-    return sqlite3.connect(CAMINHO_DB)
+    return abrir_conexao()
 
 
 def _agora() -> datetime:

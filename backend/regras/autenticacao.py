@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from infra.security import hash_senha, verificar_senha
 
 from infra.database import CAMINHO_DB as DB_PATH
+from infra.database import abrir_conexao
 TIPOS_VALIDOS = ("adm", "professor", "aluno")
 # Os caminhos precisam bater com as pastas reais em frontend/ — a pasta do
 # administrador chama-se "administracao", não "adm" (que é o valor do campo
@@ -33,7 +34,7 @@ MAX_TENTATIVAS_RESET = 5
 
 
 def _conectar():
-    return sqlite3.connect(DB_PATH)
+    return abrir_conexao()
 
 
 def realizar_login(email: str, senha: str) -> dict:

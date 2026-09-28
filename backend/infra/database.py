@@ -11,6 +11,51 @@ from infra.security import hash_senha
 CAMINHO_DB = os.environ.get("DELTACARE_DB", "deltacare.db")
 
 
+# Segundos que uma escrita espera pela trava antes de desistir.
+#
+# O SQLite aceita **um escritor por vez**, sempre. Medido com 60 alunos
+# entregando ao mesmo tempo: as escritas se enfileiram e a última espera ~2s.
+# O padrão do módulo é 5s, e com ele nenhuma falhou. 10s dá folga para o dobro
+# desse pico, e é aqui que se ajusta se um dia "database is locked" aparecer no
+# log — o que seria o sinal de que SQLite deixou de servir.
+TIMEOUT_ESCRITA = 10.0
+
+
+def abrir_conexao(caminho: str = None):
+    """Abre conexão com o banco. **Todo módulo passa por aqui.**
+
+    Antes cada módulo chamava `sqlite3.connect` por conta própria, em quatro
+    lugares, e configurar qualquer coisa significava lembrar dos quatro. Dois
+    motivos para centralizar:
+
+    1. **Chave estrangeira.** O SQLite não cobra por padrão, e a configuração é
+       por conexão — não dá para ligar uma vez no arquivo. Sem centralizar, cada
+       módulo teria que lembrar, e o que um esquecesse gravaria órfão em
+       silêncio.
+
+       (O WAL **não** está aqui: ele fica gravado no arquivo, então basta ligar
+       uma vez, em `configurar_banco`. Rodar o PRAGMA a cada abertura custava
+       3x no tempo de `resumo_do_aluno`, que abre várias conexões.)
+
+    2. **O dia da migração.** Se algum dia sair de SQLite, o ponto de troca é
+       esta função, e não 245 chamadas de `execute` espalhadas. Não resolve a
+       migração — os `?` continuam sendo sintaxe do SQLite — mas tira a parte
+       que não precisa doer.
+
+    **`synchronous` fica no padrão (FULL), e isso é escolha.** NORMAL é 17,9x
+    mais rápido por commit — e isso é 0,51ms contra 0,03ms, ou 96 milissegundos
+    somados em 200 entregas, ao lado de uma busca de material de 219ms e de uma
+    resposta da IA de 10 segundos. O que NORMAL custa é a última transação numa
+    queda de energia, e a última transação aqui é a entrega de um trabalho ou a
+    nota de uma prova. Não vale 96ms.
+    """
+    conexao = sqlite3.connect(caminho or CAMINHO_DB, timeout=TIMEOUT_ESCRITA)
+    # O SQLite não cobra chave estrangeira por padrão. O esquema declara todas,
+    # e sem isto elas são documentação.
+    conexao.execute("PRAGMA foreign_keys=ON")
+    return conexao
+
+
 def configurar_banco(silencioso: bool = False):
     """Cria as tabelas que ainda não existem. Seguro chamar várias vezes.
 
@@ -20,8 +65,18 @@ def configurar_banco(silencioso: bool = False):
     if not silencioso:
         print("Python está procurando o banco em:", os.path.abspath(CAMINHO_DB))
 
-    conexao = sqlite3.connect(CAMINHO_DB)
+    conexao = abrir_conexao()
     cursor = conexao.cursor()
+
+    # WAL: a maior diferença de desempenho disponível por uma linha neste
+    # projeto. Sem ele, leitura e escrita se excluem — medido com um professor
+    # salvando material e 20 alunos lendo, **as 20 leituras falharam** com
+    # "database is locked". Com WAL, nenhuma falhou e as 20 levaram 67ms. E
+    # leitura é a esmagadora maioria do tráfego.
+    #
+    # Fica aqui, e não em `abrir_conexao`, porque o modo é gravado no arquivo:
+    # uma vez basta, e banco antigo se converte na primeira abertura.
+    cursor.execute("PRAGMA journal_mode=WAL")
 
     if not silencioso:
         print("Conexão com o banco de dados estabelecida com sucesso!")

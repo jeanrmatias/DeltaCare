@@ -10,10 +10,11 @@ import sqlite3
 from datetime import datetime, timezone
 
 from infra.database import CAMINHO_DB as DB_PATH
+from infra.database import abrir_conexao
 
 
 def conectar():
-    return sqlite3.connect(DB_PATH)
+    return abrir_conexao()
 
 
 def buscar_usuario(conexao, email: str):

@@ -14,6 +14,10 @@ env/
 # guarda hash de senha das contas de teste.
 *.db
 *.db-journal
+# O banco esta em modo WAL (ver infra/database.py): ele mantem dois
+# arquivos ao lado do .db enquanto ha conexao aberta.
+*.db-wal
+*.db-shm
 
 # Arquivos enviados pelos professores (PDFs dos materiais).
 # Em produção isso vai para storage em nuvem; em desenvolvimento fica só local.
