@@ -82,6 +82,40 @@ async function carregarResumo() {
  * composição fica visível de propósito: XP sem explicação de origem não
  * engaja, irrita.
  */
+/**
+ * Pinta o escudo com a cor da faixa e escreve o nome dela.
+ *
+ * Bronze, Prata, Ouro, Platina. A faixa vem pronta do servidor
+ * (regras/aluno.faixa_do_nivel) — aqui não há nenhum limite de nível escrito,
+ * de propósito: os limites são regra de produto, e se a tela também os
+ * soubesse, mudar a regra exigiria mudar os dois e lembrar dos dois.
+ *
+ * O `faltam N níveis` importa mais do que o nome: uma faixa sem próximo degrau
+ * visível é só um adjetivo. Em Platina o servidor manda `proxima: null`, e a
+ * frase muda em vez de prometer um degrau que não existe.
+ */
+function montarFaixa(progresso, anel) {
+    const faixa = progresso.faixa;
+    const nome = document.querySelector("#progressoFaixa");
+    if (!faixa || !nome) return;
+
+    anel.dataset.faixa = faixa.chave;
+    nome.textContent = faixa.nome;
+
+    const rodape = document.querySelector("#progressoFaixaMeta");
+    if (!rodape) return;
+
+    if (!faixa.proxima) {
+        rodape.textContent = "Faixa máxima — e o nível continua subindo.";
+        return;
+    }
+
+    const faltam = faixa.nivel_da_proxima - progresso.nivel;
+    rodape.textContent = faltam === 1
+        ? `Falta 1 nível para ${faixa.proxima}.`
+        : `Faltam ${faltam} níveis para ${faixa.proxima}.`;
+}
+
 function montarProgresso(progresso) {
     const cartao = document.querySelector("#cartaoProgresso");
     if (!cartao || !progresso) return;
@@ -101,7 +135,10 @@ function montarProgresso(progresso) {
     // O anel do escudo mostra o mesmo avanço, e é o que faz a forma informar em
     // vez de enfeitar. Vai por variável CSS: o conic-gradient lê daqui, e assim
     // o desenho fica todo no CSS e o JS só entrega o número.
-    document.querySelector("#progressoAnel").style.setProperty("--avanco", `${percentual}%`);
+    const anel = document.querySelector("#progressoAnel");
+    anel.style.setProperty("--avanco", `${percentual}%`);
+
+    montarFaixa(progresso, anel);
 
     // A sequência só aparece quando existe: "0 dias seguidos" é um lembrete
     // de fracasso, não um incentivo.

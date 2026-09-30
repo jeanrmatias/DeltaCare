@@ -437,6 +437,81 @@
     }
 }
 
+/* ---------------------------------------------------------------------------
+   Faixas: bronze, prata, ouro, platina.
+   ---------------------------------------------------------------------------
+   Cada faixa repinta o escudo e o anel por dois tokens, e nada mais. Quem vem
+   depois trocar as cores mexe em dois valores, não em dois blocos de regra.
+
+   Os limites de nível **não estão aqui nem no JS**: vêm prontos do servidor
+   (regras/aluno.FAIXAS), porque são regra de produto. O CSS só sabe pintar o
+   que o `data-faixa` mandar.
+
+   As quatro se distinguem por luminosidade, e não só por matiz — prata e
+   platina são ambas frias e claras, e num monitor ruim ou para quem não
+   distingue cor, o nome escrito embaixo é que resolve. É por isso que ele
+   existe, e não é redundância.
+   --------------------------------------------------------------------------- */
+
+.progresso-faixa {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.progresso-faixa-nome {
+    color: var(--faixa-clara, var(--color-text-secondary));
+
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.progresso-faixa-meta {
+    display: block;
+    margin-top: 6px;
+
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.progresso-nivel[data-faixa="bronze"] {
+    --faixa-escura: #7A4420;
+    --faixa-clara: #C87C3C;
+}
+
+.progresso-nivel[data-faixa="prata"] {
+    --faixa-escura: #5A6672;
+    --faixa-clara: #9FAEBC;
+}
+
+.progresso-nivel[data-faixa="ouro"] {
+    --faixa-escura: #8A6410;
+    --faixa-clara: #E0A62A;
+}
+
+.progresso-nivel[data-faixa="platina"] {
+    --faixa-escura: #2E5F63;
+    --faixa-clara: #6FD3D8;
+}
+
+/* O anel usa a cor clara da faixa; o vazio continua sendo a borda neutra, para
+   o quanto falta ficar legível nas quatro. */
+.progresso-nivel[data-faixa] {
+    background:
+        conic-gradient(
+            var(--faixa-clara) var(--avanco),
+            var(--color-border) var(--avanco)
+        );
+}
+
+.progresso-nivel[data-faixa] .progresso-nivel-escudo {
+    background: linear-gradient(150deg, var(--faixa-clara), var(--faixa-escura));
+}
+
 .progresso-barra-area {
     flex: 1;
     min-width: 0;

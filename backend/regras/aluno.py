@@ -180,7 +180,64 @@ MAX_PERGUNTAS_QUE_PONTUAM_POR_DIA = 5
 # depois de um semestre de uso.
 XP_POR_NIVEL = 150
 
+# Faixas do nível: bronze, prata, ouro, platina.
+#
+# **Os limites foram calculados, não escolhidos por gosto.** Rodando os pesos
+# acima sobre um semestre de 20 semanas:
+#
+#     só entra, não estuda (1 dia/sem)      575 XP  ->  nível  4
+#     regular (3 dias/sem)                 3.460 XP  ->  nível 24
+#     dedicado (5 dias/sem)                8.108 XP  ->  nível 55
+#     teto prático (6 dias/sem, tudo)     12.800 XP  ->  nível 86
+#
+# Daí as faixas: quem só aparece fica em Bronze o semestre inteiro, o aluno
+# regular termina em Ouro, e Platina exige um semestre dedicado. O teto prático
+# é 86, bem acima de Platina — chegar na última faixa não é o fim da linha, o
+# nível continua subindo dentro dela.
+#
+# Ordem decrescente de propósito: `faixa_do_nivel` devolve a primeira que couber.
+FAIXAS = (
+    {"chave": "platina", "nome": "Platina", "nivel_minimo": 45},
+    {"chave": "ouro", "nome": "Ouro", "nivel_minimo": 20},
+    {"chave": "prata", "nome": "Prata", "nivel_minimo": 10},
+    {"chave": "bronze", "nome": "Bronze", "nivel_minimo": 1},
+)
+
 DIAS_ACOMPANHAMENTO = 14
+
+
+def faixa_do_nivel(nivel: int) -> dict:
+    """A faixa do nível, e o que falta para a seguinte.
+
+    `proxima` vem junto porque a tela mostra "faltam 3 níveis para Ouro": uma
+    faixa sem próximo degrau visível é só um adjetivo. Em Platina vem `None`, e
+    aí a tela não promete um degrau que não existe.
+
+    Nível abaixo de 1 não deveria acontecer — `nivel` é `1 + xp // 150` e XP
+    nunca é negativo — mas é limitado a 1 em vez de estourar, porque uma tela
+    de progresso quebrada por um número estranho é pior que uma faixa errada.
+    """
+    # Com o piso em 1 e a última faixa começando em 1, o laço abaixo **sempre**
+    # encontra alguma. Não há caminho de saída sem faixa, e é por isso que não
+    # existe um `return` de reserva aqui: o que havia repetia "Bronze, próxima
+    # Prata no nível 10" à mão, e passaria a mentir calado no dia em que os
+    # limites de FAIXAS mudassem — sem nenhum teste capaz de notar.
+    nivel = max(int(nivel), 1)
+
+    for indice, faixa in enumerate(FAIXAS):
+        if nivel >= faixa["nivel_minimo"]:
+            anterior = FAIXAS[indice - 1] if indice > 0 else None
+            return {
+                "chave": faixa["chave"],
+                "nome": faixa["nome"],
+                "nivel_minimo": faixa["nivel_minimo"],
+                "proxima": anterior["nome"] if anterior else None,
+                "nivel_da_proxima": anterior["nivel_minimo"] if anterior else None,
+            }
+
+    raise AssertionError(
+        f"FAIXAS não cobre o nível {nivel}: a última precisa ter nivel_minimo = 1"
+    )
 
 
 def registrar_acesso_material(aluno_email: str, material_id: int) -> None:
@@ -376,11 +433,17 @@ def _calcular_progresso(aluno_id: int) -> dict:
         sequencia += 1
         referencia -= timedelta(days=1)
 
+    nivel = 1 + xp // XP_POR_NIVEL
+
     return {
         "xp": xp,
-        "nivel": 1 + xp // XP_POR_NIVEL,
+        "nivel": nivel,
         "xp_no_nivel": xp % XP_POR_NIVEL,
         "xp_para_proximo_nivel": XP_POR_NIVEL,
+        # A faixa é calculada aqui, e não na tela: é regra de produto, e duas
+        # telas decidindo sozinhas divergiriam na primeira vez que os limites
+        # mudassem.
+        "faixa": faixa_do_nivel(nivel),
         "perguntas": perguntas,
         "materiais_acessados": materiais_acessados,
         "atividades_entregues": entregas,

@@ -44,6 +44,8 @@ from regras.aluno import (  # noqa: E402
     obter_arquivo_material_do_aluno,
     registrar_acesso_material,
     resumo_do_aluno,
+    FAIXAS,
+    faixa_do_nivel,
 )
 from regras.atividades import (  # noqa: E402
     obter_arquivo_entrega,
@@ -2911,6 +2913,123 @@ class TestesRecuperacaoDeSenha(BaseDelta):
 
         self.assertFalse(segunda["sucesso"])
         self.assertTrue(realizar_login(ALUNO, "senhanova123")["sucesso"])
+
+
+
+# =========================================================================
+# Faixas do nível: bronze, prata, ouro, platina
+#
+# Os limites não são gosto: saíram de rodar os pesos de XP sobre um semestre de
+# 20 semanas. Quem só aparece fica em Bronze o semestre inteiro, o aluno regular
+# termina em Ouro, e Platina exige um semestre dedicado.
+#
+# A faixa é calculada no servidor de propósito. Se a tela também soubesse os
+# limites, mudar a regra exigiria mudar os dois lugares — e o que ficasse para
+# trás mostraria a faixa errada sem nenhum sintoma.
+# =========================================================================
+
+class TestesFaixas(unittest.TestCase):
+    """Função pura: não precisa de banco."""
+
+    def test_cada_faixa_nos_seus_limites(self):
+        esperado = [
+            (1, "Bronze"), (9, "Bronze"),
+            (10, "Prata"), (19, "Prata"),
+            (20, "Ouro"), (44, "Ouro"),
+            (45, "Platina"), (86, "Platina"),
+        ]
+        for nivel, nome in esperado:
+            with self.subTest(nivel=nivel):
+                self.assertEqual(faixa_do_nivel(nivel)["nome"], nome)
+
+    def test_a_faixa_nunca_desce_quando_o_nivel_sobe(self):
+        """Monotonia: subir de nível não pode rebaixar ninguém.
+
+        Um `>=` trocado por `>` numa comparação, ou a lista de FAIXAS fora de
+        ordem, produziria exatamente isso — e o sintoma é o aluno abrir a tela
+        e ver que perdeu Ouro por ter estudado.
+        """
+        ordem = {f["chave"]: i for i, f in enumerate(reversed(FAIXAS))}
+        anterior = -1
+
+        for nivel in range(1, 200):
+            posicao = ordem[faixa_do_nivel(nivel)["chave"]]
+            self.assertGreaterEqual(posicao, anterior, f"faixa caiu no nível {nivel}")
+            anterior = posicao
+
+    def test_todo_nivel_tem_faixa(self):
+        for nivel in range(1, 500):
+            with self.subTest(nivel=nivel):
+                self.assertIn(faixa_do_nivel(nivel)["chave"], {f["chave"] for f in FAIXAS})
+
+    def test_a_proxima_faixa_aponta_para_a_de_cima(self):
+        self.assertEqual(faixa_do_nivel(1)["proxima"], "Prata")
+        self.assertEqual(faixa_do_nivel(10)["proxima"], "Ouro")
+        self.assertEqual(faixa_do_nivel(20)["proxima"], "Platina")
+
+    def test_platina_nao_promete_proxima(self):
+        """A tela escreve 'faltam N níveis para X'. Em Platina não há X, e
+        inventar um degrau seria mentir para quem chegou no topo."""
+        platina = faixa_do_nivel(45)
+
+        self.assertIsNone(platina["proxima"])
+        self.assertIsNone(platina["nivel_da_proxima"])
+
+    def test_o_nivel_da_proxima_e_o_limite_dela(self):
+        """Senão o 'faltam N níveis' dá um número que não corresponde à
+        promoção que de fato acontece."""
+        for nivel in (1, 15, 30):
+            faixa = faixa_do_nivel(nivel)
+            with self.subTest(nivel=nivel):
+                # Chegando no nível anunciado, a faixa tem que ser a prometida.
+                self.assertEqual(
+                    faixa_do_nivel(faixa["nivel_da_proxima"])["nome"], faixa["proxima"]
+                )
+
+    def test_nivel_estranho_cai_em_bronze_sem_estourar(self):
+        """Não deveria acontecer (nível é 1 + xp//150 e XP nunca é negativo),
+        mas uma tela de progresso quebrada é pior que uma faixa errada."""
+        for nivel in (0, -5):
+            with self.subTest(nivel=nivel):
+                self.assertEqual(faixa_do_nivel(nivel)["nome"], "Bronze")
+
+    def test_as_faixas_estao_em_ordem_decrescente(self):
+        """`faixa_do_nivel` devolve a primeira que couber, então a ordem da
+        constante É a lógica. Fora de ordem, todo mundo viraria Bronze."""
+        minimos = [f["nivel_minimo"] for f in FAIXAS]
+
+        self.assertEqual(minimos, sorted(minimos, reverse=True))
+
+    def test_bronze_comeca_no_primeiro_nivel(self):
+        """Senão um aluno novo cairia no fallback em vez da faixa de verdade."""
+        self.assertEqual(FAIXAS[-1]["nivel_minimo"], 1)
+
+
+class TestesFaixaNoProgresso(BaseDelta):
+    """A faixa tem que chegar junto do progresso — é de lá que a tela lê."""
+
+    def test_aluno_novo_comeca_em_bronze(self):
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+
+        self.assertEqual(progresso["nivel"], 1)
+        self.assertEqual(progresso["faixa"]["nome"], "Bronze")
+
+    def test_a_faixa_acompanha_o_nivel_que_veio_no_mesmo_dicionario(self):
+        """Faixa e nível calculados do mesmo XP: divergir seria mostrar 'Nível
+        30' dentro de um escudo de Bronze."""
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+
+        self.assertEqual(
+            progresso["faixa"]["nome"], faixa_do_nivel(progresso["nivel"])["nome"]
+        )
+
+    def test_a_faixa_traz_a_chave_que_o_css_usa(self):
+        """A tela faz `anel.dataset.faixa = faixa.chave`. Sem a chave, o escudo
+        fica sem cor nenhuma."""
+        faixa = resumo_do_aluno(ALUNO)["progresso"]["faixa"]
+
+        self.assertIn("chave", faixa)
+        self.assertEqual(faixa["chave"], "bronze")
 
 
 if __name__ == "__main__":
