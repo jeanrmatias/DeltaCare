@@ -44,6 +44,36 @@ def criar_notificacao(user_id: int, tipo: str, titulo: str, mensagem: str, link:
         pass
 
 
+def criar_notificacoes(destinos: list, tipo: str, titulo: str, mensagem: str) -> int:
+    """Grava a mesma notificação para muitos usuários, numa conexão só.
+
+    `destinos` é uma lista de (user_id, link): o link muda com o perfil — o
+    aluno abre a tela dele, o professor a dele.
+
+    Existe porque avisar um por um abria uma conexão por pessoa: um aviso para
+    a instituição inteira, com 600 alunos, eram 600 aberturas de banco dentro
+    da mesma requisição. Não lança, pelo mesmo motivo de criar_notificacao.
+    Devolve quantas gravou.
+    """
+    if not destinos:
+        return 0
+    try:
+        agora = _agora()
+        conexao = conectar()
+        conexao.executemany(
+            '''
+            INSERT INTO notificacoes (user_id, tipo, titulo, mensagem, link, lida, criado_em)
+            VALUES (?, ?, ?, ?, ?, 0, ?)
+            ''',
+            [(user_id, tipo, titulo, mensagem, link, agora) for user_id, link in destinos],
+        )
+        conexao.commit()
+        conexao.close()
+        return len(destinos)
+    except Exception:
+        return 0
+
+
 def notificar_professor_da_turma(turma_id: int, tipo: str, titulo: str, mensagem: str, link: str = "") -> None:
     conexao = conectar()
     linha = conexao.execute("SELECT professor_id FROM turmas WHERE id = ?", (turma_id,)).fetchone()
@@ -60,8 +90,7 @@ def notificar_alunos_da_turma(turma_id: int, tipo: str, titulo: str, mensagem: s
     ).fetchall()
     conexao.close()
 
-    for (aluno_id,) in alunos:
-        criar_notificacao(aluno_id, tipo, titulo, mensagem, link)
+    criar_notificacoes([(aluno_id, link) for (aluno_id,) in alunos], tipo, titulo, mensagem)
 
 
 def _liberar_agendados_pendentes(user_id: int) -> None:

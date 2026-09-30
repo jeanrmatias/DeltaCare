@@ -51,6 +51,23 @@ class No {
         (this.eventos[tipo] || []).forEach((funcao) => funcao({ preventDefault() {} }));
     }
     focus() {}
+
+    // classList mínimo, lendo e escrevendo o próprio className — assim quem
+    // testa por className e quem testa por classList enxergam a mesma coisa.
+    get classList() {
+        const no = this;
+        const lista = () => no.className.split(/\s+/).filter(Boolean);
+        return {
+            contains: (c) => lista().includes(c),
+            add: (...cs) => { no.className = [...new Set([...lista(), ...cs])].join(" "); },
+            remove: (...cs) => { no.className = lista().filter((x) => !cs.includes(x)).join(" "); },
+            toggle: (c, forcar) => {
+                const ligar = forcar === undefined ? !lista().includes(c) : Boolean(forcar);
+                if (ligar) no.classList.add(c); else no.classList.remove(c);
+                return ligar;
+            },
+        };
+    }
     setAttribute(nome, valor) { this.atributos[nome] = valor; }
     getAttribute(nome) { return this.atributos[nome]; }
     insertAdjacentElement() {}
@@ -855,4 +872,47 @@ test("sem a marca de vigente, o seletor fica como era", () => {
     ]);
 
     assert.ok(seletor.filhos.every((f) => f.tagName === "OPTION"));
+});
+
+
+// ---------------------------------------------------------------- estrela de favorito
+/**
+ * A estrela só muda depois que o servidor confirma. Acender antes e apagar se
+ * falhar faria o aluno achar, por um instante ou para sempre (se a resposta
+ * nunca chegar), que guardou o que não guardou.
+ */
+function contextoEstrela(respostaDoServidor) {
+    const ctx = montarContextoPagina("aluno/estudo.js", { pathname: "/aluno/materiais.html", nos: {} });
+    ctx.erros = [];
+    ctx.api = async () => ({ json: async () => respostaDoServidor });
+    ctx.avisarErro = async (mensagem) => { ctx.erros.push(mensagem); };
+    return ctx;
+}
+
+const esperarRespostas = () => new Promise((resolver) => setImmediate(resolver));
+
+test("a estrela acende quando o servidor confirma", async () => {
+    const ctx = contextoEstrela({ sucesso: true, favorito: true });
+    const material = { id: 1, favorito: false };
+    const botao = vm.runInContext("botaoFavorito", ctx)(material);
+
+    assert.equal(botao.textContent, "☆");
+    botao.disparar("click");
+    await esperarRespostas();
+
+    assert.equal(botao.textContent, "★");
+    assert.equal(material.favorito, true);
+});
+
+test("a estrela não acende quando o servidor recusa", async () => {
+    const ctx = contextoEstrela({ sucesso: false, mensagem: "Material não encontrado." });
+    const material = { id: 1, favorito: false };
+    const botao = vm.runInContext("botaoFavorito", ctx)(material);
+
+    botao.disparar("click");
+    await esperarRespostas();
+
+    assert.equal(botao.textContent, "☆");
+    assert.equal(material.favorito, false);
+    assert.deepEqual(ctx.erros, ["Material não encontrado."]);
 });

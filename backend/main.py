@@ -39,6 +39,19 @@ from regras.turmas import (
     listar_usuarios,
     perfil_do_usuario,
 )
+from regras.anotacoes import (
+    criar_anotacao,
+    editar_anotacao,
+    excluir_anotacao,
+    listar_anotacoes,
+)
+from regras.favoritos import desmarcar_favorito, listar_favoritos, marcar_favorito
+from regras.avisos import (
+    excluir_aviso,
+    listar_avisos_enviados,
+    listar_avisos_recebidos,
+    publicar_aviso,
+)
 from regras.ranking import definir_visibilidade, ranking_da_turma
 from regras.semestres import (
     definir_semestre_vigente,
@@ -1012,6 +1025,88 @@ def historico_do_aluno_rota(busca: str = "", aluno: dict = Depends(usuario_aluno
 @app.get("/historico")
 def historico_do_professor_rota(busca: str = "", professor: dict = Depends(usuario_professor)):
     return historico_do_professor(professor["email"], busca)
+
+
+# ---------------------------- avisos ----------------------------
+# Uma rota para professor e administração escreverem: a diferença de quem pode
+# o quê (disciplina própria, qualquer disciplina, instituição inteira) mora
+# inteira em regras/avisos.py.
+
+class AvisoRequest(BaseModel):
+    titulo: str
+    conteudo: str
+    turma_ids: Optional[list[int]] = None
+    geral: bool = False
+    urgente: bool = False
+
+
+@app.post("/avisos")
+def publicar_aviso_rota(dados: AvisoRequest, usuario: dict = Depends(usuario_logado)):
+    return publicar_aviso(
+        usuario["email"], dados.titulo, dados.conteudo, dados.turma_ids, dados.geral, dados.urgente
+    )
+
+
+@app.get("/avisos/recebidos")
+def avisos_recebidos_rota(usuario: dict = Depends(usuario_logado)):
+    return listar_avisos_recebidos(usuario["email"])
+
+
+@app.get("/avisos/enviados")
+def avisos_enviados_rota(usuario: dict = Depends(usuario_logado)):
+    return listar_avisos_enviados(usuario["email"])
+
+
+@app.delete("/avisos/{aviso_id}")
+def excluir_aviso_rota(aviso_id: int, usuario: dict = Depends(usuario_logado)):
+    return excluir_aviso(usuario["email"], aviso_id)
+
+
+# ---------------------------- favoritos e anotações ----------------------------
+# Só do aluno. Anotação não tem rota nenhuma para professor ou administração:
+# a privacidade é a ausência da rota, e não um filtro que alguém esqueça.
+
+class AnotacaoRequest(BaseModel):
+    material_id: Optional[int] = None
+    texto: str
+    trecho: str = ""
+
+
+@app.get("/aluno/favoritos")
+def listar_favoritos_rota(aluno: dict = Depends(usuario_aluno)):
+    return listar_favoritos(aluno["email"])
+
+
+@app.put("/aluno/favoritos/{material_id}")
+def marcar_favorito_rota(material_id: int, aluno: dict = Depends(usuario_aluno)):
+    return marcar_favorito(aluno["email"], material_id)
+
+
+@app.delete("/aluno/favoritos/{material_id}")
+def desmarcar_favorito_rota(material_id: int, aluno: dict = Depends(usuario_aluno)):
+    return desmarcar_favorito(aluno["email"], material_id)
+
+
+@app.get("/aluno/anotacoes")
+def listar_anotacoes_rota(material_id: Optional[int] = None, aluno: dict = Depends(usuario_aluno)):
+    return listar_anotacoes(aluno["email"], material_id)
+
+
+@app.post("/aluno/anotacoes")
+def criar_anotacao_rota(dados: AnotacaoRequest, aluno: dict = Depends(usuario_aluno)):
+    if dados.material_id is None:
+        raise HTTPException(status_code=400, detail="Informe o material.")
+    return criar_anotacao(aluno["email"], dados.material_id, dados.texto, dados.trecho)
+
+
+@app.put("/aluno/anotacoes/{anotacao_id}")
+def editar_anotacao_rota(anotacao_id: int, dados: AnotacaoRequest, aluno: dict = Depends(usuario_aluno)):
+    return editar_anotacao(aluno["email"], anotacao_id, dados.texto, dados.trecho)
+
+
+@app.delete("/aluno/anotacoes/{anotacao_id}")
+def excluir_anotacao_rota(anotacao_id: int, aluno: dict = Depends(usuario_aluno)):
+    return excluir_anotacao(aluno["email"], anotacao_id)
 
 
 # ---------------------------- ranking ----------------------------

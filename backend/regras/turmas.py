@@ -176,6 +176,10 @@ def excluir_turma(admin_email: str, turma_id: int) -> dict:
 
     for sql in (
         f"DELETE FROM acessos_material WHERE material_id IN ({subconsulta_materiais})",
+        f"DELETE FROM favoritos WHERE material_id IN ({subconsulta_materiais})",
+        # Anotação é do aluno: perde o vínculo, não o conteúdo (ver
+        # regras/anotacoes.py).
+        f"UPDATE anotacoes SET material_id = NULL WHERE material_id IN ({subconsulta_materiais})",
         f"DELETE FROM material_chunks WHERE material_id IN ({subconsulta_materiais})",
         "DELETE FROM materiais WHERE turma_id = ?",
         f"DELETE FROM questoes WHERE atividade_id IN ({subconsulta_atividades})",
@@ -183,11 +187,19 @@ def excluir_turma(admin_email: str, turma_id: int) -> dict:
         "DELETE FROM atividades WHERE turma_id = ?",
         "DELETE FROM mensagens WHERE turma_id = ?",
         "DELETE FROM chat_mensagens WHERE turma_id = ?",
+        "DELETE FROM avisos_turmas WHERE turma_id = ?",
         "DELETE FROM excecoes_coorte WHERE turma_id = ?",
         "DELETE FROM matriculas WHERE turma_id = ?",
         "DELETE FROM turmas WHERE id = ?",
     ):
         cursor.execute(sql, (turma_id,))
+
+    # Aviso que ia só para esta disciplina ficou sem destino: ninguém mais o
+    # vê, e ele só ocuparia o histórico de quem escreveu. O aviso que ia para
+    # outras disciplinas também continua, para elas.
+    cursor.execute(
+        "DELETE FROM avisos WHERE geral = 0 AND id NOT IN (SELECT aviso_id FROM avisos_turmas)"
+    )
 
     conexao.commit()
 
@@ -235,6 +247,9 @@ def listar_turmas(professor_email: str) -> dict:
     linhas = cursor.fetchall()
     conexao.close()
 
+    from regras.semestres import semestre_vigente
+
+    vigente = semestre_vigente()
     turmas = [
         {
             "id": linha[0],
@@ -243,9 +258,16 @@ def listar_turmas(professor_email: str) -> dict:
             "criado_em": linha[3],
             "materiais_publicados": linha[4],
             "total_alunos": linha[5],
+            # Para as telas porem as de agora na frente: escolher destinatário
+            # de aviso ou de atividade numa lista que mistura quatro semestres
+            # é pedir para mandar para a turma errada.
+            "vigente": linha[2] == vigente,
         }
         for linha in linhas
     ]
+    # Ordenação estável: as vigentes sobem e, dentro de cada grupo, a ordem
+    # de criação (mais recente primeiro) continua a mesma.
+    turmas.sort(key=lambda t: not t["vigente"])
 
     return {"sucesso": True, "turmas": turmas}
 

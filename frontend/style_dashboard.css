@@ -3580,3 +3580,139 @@ dialog.visualizador:not([open]) {
         transition: none;
     }
 }
+
+
+/* =========================
+   Avisos
+   ========================= */
+
+.avisos-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.aviso {
+    padding: 12px 14px;
+
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+}
+
+/* Urgente e recente: a borda âmbar diz "leia primeiro" sem gritar em
+   vermelho, que o painel reserva para erro e perigo. */
+.aviso--urgente {
+    background: var(--color-amber-bg);
+    box-shadow: inset 3px 0 0 var(--color-amber);
+}
+
+.aviso-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.aviso-topo h3 {
+    margin: 0;
+
+    color: var(--color-text);
+
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.aviso-selo {
+    padding: 2px 8px;
+
+    border-radius: 999px;
+    background: var(--color-amber);
+
+    color: #FFFFFF;
+
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* pre-wrap: o professor escreve em parágrafos, e o texto tem que chegar como
+   foi escrito. */
+.aviso-conteudo {
+    margin: 6px 0 0;
+
+    color: var(--color-text);
+
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.aviso-rodape {
+    margin: 8px 0 0;
+
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.aviso .acao--discreta {
+    margin-top: 8px;
+}
+
+.aviso-disciplinas-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.aviso-disciplinas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    margin-top: 6px;
+}
+
+@media (min-width: 640px) {
+    .aviso-disciplinas {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+    }
+}
+
+.aviso-disciplina,
+.aviso-marca {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    color: var(--color-text);
+    font-size: 14px;
+
+    cursor: pointer;
+}
+
+.aviso-marca {
+    margin: 8px 0;
+    font-weight: 600;
+}
+
+#formularioAviso textarea {
+    width: 100%;
+    padding: 10px 12px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: inherit;
+    font-size: 14px;
+
+    resize: vertical;
+}

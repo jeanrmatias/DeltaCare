@@ -107,6 +107,9 @@ backend/
     coortes.py               turma de alunos (MED 3A) e exceções por disciplina
     semestres.py             semestre vigente e histórico dos anteriores
     ranking.py               ranking da turma pelo XP do semestre
+    avisos.py                professor e coordenação escrevendo para as turmas
+    favoritos.py             material guardado pelo aluno, entre semestres
+    anotacoes.py             caderno do aluno — privado, sem rota para mais ninguém
     materiais.py             materiais na visão do PROFESSOR
     aluno.py                 materiais na visão do ALUNO, XP e acompanhamento
     atividades.py            atividades, entregas e correção

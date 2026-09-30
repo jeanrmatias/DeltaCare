@@ -38,6 +38,24 @@ _LITERAL = re.compile(r"([`\"'])(/[^`\"']*)\1")
 _METODO = re.compile(r"method:\s*([^,}\n]+)")
 
 
+def _sem_comentarios(texto: str) -> str:
+    """O JS sem comentários de bloco nem linhas só de comentário.
+
+    Comentário não é código: `api("/x")` citado num comentário não pode contar
+    como chamada — nem para acusar rota inexistente, nem para esconder uma
+    rota órfã atrás de uma chamada comentada. Troca cada comentário por
+    quebras de linha, para a numeração das mensagens continuar certa.
+
+    Comentário no fim de uma linha de código fica: separar `//` de comentário
+    de `//` dentro de uma URL exigiria interpretar o JS.
+    """
+    def em_branco(achado):
+        return "\n" * achado.group(0).count("\n")
+
+    texto = re.sub(r"/\*.*?\*/", em_branco, texto, flags=re.S)
+    return re.sub(r"(?m)^[ \t]*//.*$", "", texto)
+
+
 def _arquivos_js():
     for caminho in sorted(glob.glob(os.path.join(FRONT, "**", "*.js"), recursive=True)):
         if not caminho.endswith("testes.mjs"):
@@ -91,7 +109,7 @@ def chamadas_do_front() -> list:
     """(arquivo, linha, verbo, caminho no fonte, caminho concreto)."""
     resultado = []
     for arquivo in _arquivos_js():
-        texto = open(arquivo, encoding="utf-8").read()
+        texto = _sem_comentarios(open(arquivo, encoding="utf-8").read())
         relativo = os.path.relpath(arquivo, RAIZ)
 
         for achado in _CHAMADA.finditer(texto):
@@ -117,7 +135,7 @@ def links_de_api_no_front() -> list:
     """Rotas usadas como link (`${API_URL}/entregas/${id}/arquivo`), sempre GET."""
     resultado = []
     for arquivo in _arquivos_js():
-        texto = open(arquivo, encoding="utf-8").read()
+        texto = _sem_comentarios(open(arquivo, encoding="utf-8").read())
         for achado in re.finditer(r"\$\{API_URL\}(/[^`\"'\s]*)", texto):
             for concreto in _normalizar(achado.group(1), texto):
                 resultado.append((os.path.relpath(arquivo, RAIZ), "GET", concreto))
@@ -171,7 +189,7 @@ def ids_ausentes() -> list:
             if not os.path.exists(caminho_js):
                 problemas.append(f"{os.path.relpath(pagina, RAIZ)}: script inexistente {src}")
                 continue
-            texto = open(caminho_js, encoding="utf-8").read()
+            texto = _sem_comentarios(open(caminho_js, encoding="utf-8").read())
             # Ids criados pelo próprio JS também existem na página.
             ids |= set(re.findall(r'\bid="([\w-]+)"', texto))
             ids |= set(re.findall(r'\.id\s*=\s*"([\w-]+)"', texto))

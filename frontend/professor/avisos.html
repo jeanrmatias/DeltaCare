@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Denúncias</title>
+    <title>Delta Care | Avisos</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=27">
 </head>
 <body>
@@ -47,11 +47,11 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>
                     Desempenho
                 </a>
-                <a href="denuncias.html" class="sidebar-link ativo">
+                <a href="denuncias.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"/><path d="M10.3 4.3 2.8 17a1.7 1.7 0 0 0 1.5 2.5h15.4a1.7 1.7 0 0 0 1.5-2.5L13.7 4.3a1.7 1.7 0 0 0-3 0Z"/></svg>
                     Denúncias
                 </a>
-                <a href="avisos.html" class="sidebar-link">
+                <a href="avisos.html" class="sidebar-link ativo">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1Z"/><path d="M17 9a4 4 0 0 1 0 6"/></svg>
                     Avisos
                 </a>
@@ -76,8 +76,8 @@
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1>Denúncias</h1>
-                    <p>Reporte conteúdo com problema e acompanhe o que a administração respondeu.</p>
+                    <h1>Avisos</h1>
+                    <p>Escreva para as suas disciplinas. Quem recebe é avisado pelo sino.</p>
                 </div>
 
                 <div class="topo-acoes">
@@ -86,52 +86,58 @@
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
                         </button>
                     </div>
-                    <button type="button" class="acao acao--primaria" id="botaoNova">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"/><path d="M10.3 4.3 2.8 17a1.7 1.7 0 0 0 1.5 2.5h15.4a1.7 1.7 0 0 0 1.5-2.5L13.7 4.3a1.7 1.7 0 0 0-3 0Z"/></svg>
-                        Reportar conteúdo
-                    </button>
                 </div>
             </header>
 
-            <section class="cartao" id="formularioCartao" hidden>
-                <h2 class="cartao-titulo">Reportar conteúdo</h2>
-                <form id="formulario" class="formulario">
-                    <div class="campo campo--larga">
-                        <label for="campoMaterial">Material</label>
-                        <select id="campoMaterial"></select>
-                        <span class="campo-dica">Só aparecem os materiais que você tem acesso.</span>
+            <section class="cartao">
+                <h2 class="cartao-titulo">Novo aviso</h2>
+                <form id="formularioAviso" class="formulario">
+                    <div id="blocoDestino">
+                        <div class="campo" id="blocoDisciplinas">
+                            <div class="aviso-disciplinas-topo">
+                                <span>Para quais disciplinas</span>
+                                <button type="button" class="acao acao--discreta" id="marcarTodas">Todas</button>
+                            </div>
+                            <div class="aviso-disciplinas" id="listaDisciplinas">Carregando...</div>
+                        </div>
                     </div>
-
-                    <div class="campo campo--larga">
-                        <label for="campoMotivo">Motivo</label>
-                        <select id="campoMotivo"></select>
+                    <div class="campo">
+                        <label for="avisoTitulo">Título</label>
+                        <input type="text" id="avisoTitulo" maxlength="120" required>
                     </div>
-
-                    <div class="campo campo--larga">
-                        <label for="campoDescricao">O que está errado</label>
-                        <textarea id="campoDescricao" placeholder="Descreva o problema. Quanto mais específico, mais rápido a administração resolve."></textarea>
+                    <div class="campo">
+                        <label for="avisoConteudo">Texto</label>
+                        <textarea id="avisoConteudo" rows="4" maxlength="4000" required></textarea>
                     </div>
-
+                    <label class="aviso-marca">
+                        <input type="checkbox" id="avisoUrgente">
+                        Urgente <span class="campo-dica">— fica no topo do mural por 7 dias</span>
+                    </label>
                     <div class="campo campo--acoes">
-                        <button type="submit" class="acao acao--primaria">Enviar denúncia</button>
-                        <button type="button" class="acao" id="botaoCancelar">Cancelar</button>
+                        <button type="submit" class="acao acao--primaria">Enviar aviso</button>
                     </div>
                 </form>
-                <p class="formulario-mensagem" id="mensagem"></p>
+                <p class="formulario-mensagem" id="avisoMensagem"></p>
             </section>
 
-            <section class="lista-materiais" id="lista"></section>
-            <p class="estado-vazio" id="vazio" hidden>
-                Você ainda não reportou nenhum conteúdo. Use o botão acima, ou o link "Reportar" no próprio material.
-            </p>
+            <section class="cartao">
+                <h2 class="cartao-titulo">Enviados</h2>
+                <div class="avisos-lista" id="listaEnviados"></div>
+            </section>
+
+            <section class="cartao">
+                <h2 class="cartao-titulo">Recebidos</h2>
+                <div class="avisos-lista" id="listaRecebidos"></div>
+            </section>
         </main>
     </div>
 
     <script src="../config.js?v=27"></script>
     <script src="../dialogo.js?v=27"></script>
+    <script src="../visualizador.js?v=27"></script>
     <script src="../auth.js?v=27"></script>
     <script src="../perfil.js?v=27"></script>
     <script src="../notificacoes.js?v=27"></script>
-    <script src="../denuncias.js?v=27"></script>
+    <script src="../avisos.js?v=27"></script>
 </body>
 </html>

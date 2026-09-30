@@ -50,6 +50,28 @@ def _buscar_aluno(conexao, aluno_email: str):
     return aluno
 
 
+def material_visivel_para(conexao, aluno_id: int, material_id: int):
+    """(titulo, turma_id) do material, se o aluno pode vê-lo. Senão, None.
+
+    A mesma regra do download: matriculado na disciplina, e material publicado
+    (não rascunho, e já liberado se agendado). Favoritar e anotar passam por
+    aqui — senão dava para marcar, por id, um material que o aluno nem vê, e
+    descobrir pelo título devolvido que ele existe.
+    """
+    linha = conexao.execute(
+        """
+        SELECT m.titulo, m.turma_id, m.rascunho, m.data_liberacao
+          FROM materiais m JOIN matriculas mt ON mt.turma_id = m.turma_id
+         WHERE m.id = ? AND mt.aluno_id = ?
+        """,
+        (int(material_id), aluno_id),
+    ).fetchone()
+
+    if not linha or not _esta_publicado(linha[2], linha[3]):
+        return None
+    return linha[0], linha[1]
+
+
 def listar_materiais_do_aluno(aluno_email: str, turma_id: int | None = None) -> dict:
     """Materiais publicados das turmas em que o aluno está matriculado.
 
@@ -84,6 +106,19 @@ def listar_materiais_do_aluno(aluno_email: str, turma_id: int | None = None) -> 
     cursor = conexao.cursor()
     cursor.execute(consulta, parametros)
     linhas = cursor.fetchall()
+
+    # Estrela e contagem de anotações vêm junto, para a lista não precisar de
+    # uma chamada por material. Só as do próprio aluno, claro.
+    favoritos = {
+        linha[0] for linha in cursor.execute(
+            "SELECT material_id FROM favoritos WHERE aluno_id = ?", (aluno[0],)
+        ).fetchall()
+    }
+    anotacoes = dict(cursor.execute(
+        "SELECT material_id, COUNT(*) FROM anotacoes"
+        " WHERE aluno_id = ? AND material_id IS NOT NULL GROUP BY material_id",
+        (aluno[0],),
+    ).fetchall())
     conexao.close()
 
     materiais = []
@@ -112,6 +147,8 @@ def listar_materiais_do_aluno(aluno_email: str, turma_id: int | None = None) -> 
             "turma_id": turma,
             "turma_nome": turma_nome,
             "professor_email": professor_email,
+            "favorito": id_ in favoritos,
+            "total_anotacoes": anotacoes.get(id_, 0),
         })
 
     return {"sucesso": True, "materiais": materiais}

@@ -309,6 +309,22 @@ function montarLinha(material) {
         acoes.appendChild(botao);
     }
 
+    // Anotar e favoritar ficam no próprio material pelo mesmo motivo do
+    // Reportar abaixo: o gesto tem que estar onde o aluno está estudando.
+    const anotacoes = document.createElement("button");
+    anotacoes.type = "button";
+    anotacoes.className = "acao";
+    const rotuloAnotacoes = (total) => (total ? `Anotações (${total})` : "Anotar");
+    anotacoes.textContent = rotuloAnotacoes(material.total_anotacoes);
+    anotacoes.addEventListener("click", () =>
+        abrirAnotacoes(material, (total) => {
+            material.total_anotacoes = total;
+            anotacoes.textContent = rotuloAnotacoes(total);
+        })
+    );
+    acoes.appendChild(anotacoes);
+    topo.appendChild(botaoFavorito(material));
+
     // Reportar fica no próprio material, e não só na tela de Denúncias: uma
     // denúncia que exige lembrar o nome do arquivo e navegar até outro lugar é
     // uma denúncia que ninguém faz.

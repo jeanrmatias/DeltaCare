@@ -341,6 +341,75 @@ def configurar_banco(silencioso: bool = False):
             except sqlite3.IntegrityError:
                 pass
 
+    # Avisos: uma pessoa escrevendo para outras (regras/avisos.py). Diferente
+    # das notificações, que nascem sozinhas de eventos do sistema.
+    #
+    # `geral` = para a instituição inteira (só a administração). Os demais vão
+    # para as disciplinas de avisos_turmas. Tabela à parte em vez de uma linha
+    # por disciplina: "para todas as minhas disciplinas" é um aviso só no
+    # histórico de quem escreveu, e não oito cópias do mesmo texto.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS avisos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            autor_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            conteudo TEXT NOT NULL,
+            urgente INTEGER NOT NULL DEFAULT 0,
+            geral INTEGER NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL,
+            FOREIGN KEY (autor_id) REFERENCES users (id)
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS avisos_turmas (
+            aviso_id INTEGER NOT NULL,
+            turma_id INTEGER NOT NULL,
+            PRIMARY KEY (aviso_id, turma_id),
+            FOREIGN KEY (aviso_id) REFERENCES avisos (id),
+            FOREIGN KEY (turma_id) REFERENCES turmas (id)
+        )
+    ''')
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_avisos_turmas_turma ON avisos_turmas (turma_id)")
+
+    # Favoritos do aluno (regras/favoritos.py). Valem entre semestres: o
+    # material marcado no 3º período continua à mão no 6º, quando a matéria
+    # volta na revisão para a residência.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS favoritos (
+            aluno_id INTEGER NOT NULL,
+            material_id INTEGER NOT NULL,
+            criado_em TEXT NOT NULL,
+            PRIMARY KEY (aluno_id, material_id),
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (material_id) REFERENCES materiais (id)
+        )
+    ''')
+
+    # Anotações do aluno (regras/anotacoes.py). **Privadas**: nenhuma rota as
+    # entrega a professor ou administração.
+    #
+    # `material_id` é anulável e `material_titulo` guarda o título do momento:
+    # a anotação é trabalho do aluno, e não some porque o professor apagou ou
+    # reorganizou o material. Ela fica, dizendo de que material era.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS anotacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER NOT NULL,
+            material_id INTEGER,
+            material_titulo TEXT NOT NULL,
+            trecho TEXT,
+            texto TEXT NOT NULL,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL,
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (material_id) REFERENCES materiais (id)
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_anotacoes_aluno ON anotacoes (aluno_id, material_id)"
+    )
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_favoritos_material ON favoritos (material_id)")
+
     # Migração: o aluno pode não aparecer no ranking (regras/ranking.py).
     #
     # Guardado como "oculto" e não como "aparece" para que o padrão da coluna

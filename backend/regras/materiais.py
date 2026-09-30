@@ -330,6 +330,10 @@ def excluir_material(material_id: int, professor_email: str) -> dict:
     # aluno já abriu não sairia sem ele.
     cursor.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
     cursor.execute("DELETE FROM acessos_material WHERE material_id = ?", (material_id,))
+    # Favorito de material que não existe não significa nada; sai. Anotação é
+    # trabalho do aluno: fica, sem o vínculo, com o título que já guardava.
+    cursor.execute("DELETE FROM favoritos WHERE material_id = ?", (material_id,))
+    cursor.execute("UPDATE anotacoes SET material_id = NULL WHERE material_id = ?", (material_id,))
     cursor.execute("DELETE FROM materiais WHERE id = ?", (material_id,))
     # O arquivo pode estar compartilhado com o mesmo material publicado em
     # outra turma (ver criar_material_em_turmas). Só sai do disco quando o

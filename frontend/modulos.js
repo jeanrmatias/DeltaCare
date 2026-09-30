@@ -33,39 +33,6 @@ const MODULOS = {
     // não existe.
     // ---------------------------------------------------------------------
 
-    "favoritos-aluno": {
-        titulo: "Favoritos",
-        resumo: "Marcar o que você quer reencontrar rápido.",
-        sprint: "Backlog",
-        itens: [
-            "Marcar e desmarcar material como favorito",
-            "Aba dedicada, separada da lista geral",
-            "Favoritos que continuam válidos entre semestres",
-        ],
-    },
-    "anotacoes-aluno": {
-        titulo: "Anotações",
-        resumo: "Suas notas e destaques dentro do material de aula.",
-        sprint: "Backlog",
-        itens: [
-            "Escrever, editar e apagar anotações num material",
-            "Destacar trechos do conteúdo",
-            "Anotação é privada: ninguém além de você enxerga",
-        ],
-        nota: "A privacidade aqui não é detalhe de interface. Anotação de estudo é do aluno, e nem professor nem administração devem conseguir ler.",
-    },
-    "avisos-professor": {
-        titulo: "Avisos",
-        resumo: "Recado do professor ou da administração para a turma.",
-        sprint: "Backlog",
-        itens: [
-            "Escrever aviso para uma turma ou para todas",
-            "Marcar como urgente",
-            "Histórico do que já foi enviado",
-            "Aviso geral da administração para a instituição inteira",
-        ],
-        nota: "Diferente das notificações, que nascem de eventos do sistema. Aqui é uma pessoa escrevendo para outras.",
-    },
 
     "relatorios-admin": {
         titulo: "Relatórios",

@@ -123,6 +123,20 @@ from infra.security import hash_senha, verificar_senha  # noqa: E402
 from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
 from regras import chat_ia  # noqa: E402
 
+from regras.anotacoes import (  # noqa: E402
+    criar_anotacao,
+    editar_anotacao,
+    excluir_anotacao,
+    listar_anotacoes,
+)
+from regras.favoritos import desmarcar_favorito, listar_favoritos, marcar_favorito  # noqa: E402
+from regras.avisos import (  # noqa: E402
+    DIAS_NO_TOPO,
+    excluir_aviso,
+    listar_avisos_enviados,
+    listar_avisos_recebidos,
+    publicar_aviso,
+)
 from regras.ranking import (  # noqa: E402
     DIAS_DA_EVOLUCAO,
     TAMANHO_DO_TOPO,
@@ -4185,6 +4199,15 @@ class TestesSemestreCompleto(BaseDelta):
         resposta_chat = self.chamar(ana, "POST", "/chat/perguntar", {"turma_id": anatomia, "pergunta": "Onde fica o forame magno?"})
         self.assertEqual(resposta_chat["fontes"], ["Base do cranio"], "4: o chat não citou o material indexado")
 
+        # 4b. A aluna guarda o material e anota nele.
+        self.chamar(ana, "PUT", f"/aluno/favoritos/{material}")
+        self.chamar(ana, "POST", "/aluno/anotacoes", {
+            "material_id": material, "texto": "Revisar para a prova.", "trecho": "forame magno",
+        })
+        visto = next(m for m in self.chamar(ana, "GET", "/aluno/materiais")["materiais"] if m["id"] == material)
+        self.assertTrue(visto["favorito"] and visto["total_anotacoes"] == 1,
+                        f"4b: a lista de materiais não mostra estrela e anotação: {visto}")
+
         # 5. A professora propõe duas atividades: uma objetiva e um relatório
         #    com anexo obrigatório.
         prazo = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
@@ -4235,6 +4258,21 @@ class TestesSemestreCompleto(BaseDelta):
         self.chamar(marina, "POST", "/mensagens", {"turma_id": anatomia, "conteudo": "Veremos na próxima aula.", "aluno_email": ALUNO})
         self.assertIn("mensagem", self.tipos_de_notificacao(ana), "9: aluna não soube da resposta")
 
+        # 9b. Avisos: a professora avisa a disciplina com urgência, e a
+        #     coordenação avisa a instituição inteira.
+        self.chamar(marina, "POST", "/avisos", {
+            "titulo": "Prova antecipada", "conteudo": "A prova passa para quarta.",
+            "turma_ids": [anatomia], "urgente": True,
+        })
+        self.assertIn("aviso", self.tipos_de_notificacao(ana), "9b: aluna não foi avisada pelo sino")
+        mural = self.chamar(ana, "GET", "/avisos/recebidos")["avisos"]
+        self.assertTrue(mural and mural[0]["titulo"] == "Prova antecipada" and mural[0]["em_destaque"],
+                        f"9b: aviso urgente não está no topo do mural: {mural}")
+        self.chamar(admin, "POST", "/avisos", {"titulo": "Semana acadêmica", "conteudo": "Sem aula na sexta.", "geral": True})
+        self.assertIn("Semana acadêmica",
+                      [a["titulo"] for a in self.chamar(marina, "GET", "/avisos/recebidos")["avisos"]],
+                      "9b: aviso geral não chegou à professora")
+
         # 10. Desempenho dos dois lados.
         self.chamar(ana, "GET", f"/aluno/desempenho?turma_id={anatomia}")
         self.chamar(marina, "GET", f"/desempenho?turma_id={anatomia}")
@@ -4284,6 +4322,12 @@ class TestesSemestreCompleto(BaseDelta):
         self.chamar(ana, "GET", f"/aluno/materiais/{material}/arquivo")
         self.chamar(ana, "POST", "/chat/perguntar", {"turma_id": anatomia, "pergunta": "Revisão: o que passa pelo forame magno?"})
 
+        # 16b. Favorito e anotação atravessam a virada do semestre.
+        self.assertEqual([f["id"] for f in self.chamar(ana, "GET", "/aluno/favoritos")["favoritos"]], [material],
+                         "16b: o favorito sumiu na virada")
+        self.assertEqual(len(self.chamar(ana, "GET", "/aluno/anotacoes")["anotacoes"]), 1,
+                         "16b: a anotação sumiu na virada")
+
         # 17. O histórico da professora também tem Anatomia.
         disciplinas_marina = [d["nome"] for s in self.chamar(marina, "GET", "/historico")["semestres"] for d in s["disciplinas"]]
         self.assertIn("Anatomia", disciplinas_marina, "17: histórico da professora vazio")
@@ -4295,6 +4339,409 @@ class TestesSemestreCompleto(BaseDelta):
         self.assertEqual(conexao.execute("PRAGMA foreign_key_check").fetchall(), [],
                          "18: a exclusão deixou registro órfão")
         conexao.close()
+
+        # 19. O caderno da aluna sobrevive à disciplina: sem vínculo, com o título.
+        anotacoes = self.chamar(ana, "GET", "/aluno/anotacoes")["anotacoes"]
+        self.assertEqual(len(anotacoes), 1, "19: a exclusão da disciplina apagou a anotação da aluna")
+        self.assertFalse(anotacoes[0]["material_disponivel"])
+        self.assertEqual(anotacoes[0]["material_titulo"], "Base do cranio")
+        self.assertEqual(self.chamar(ana, "GET", "/aluno/favoritos")["favoritos"], [],
+                         "19: sobrou favorito de material que não existe")
+
+
+
+# =========================================================================
+# Avisos
+#
+# Uma pessoa escrevendo para outras. Professor escreve para as disciplinas
+# dele; administração, para a instituição inteira ou para qualquer disciplina;
+# aluno só lê.
+# =========================================================================
+
+class BaseAvisos(BaseDelta):
+    """Cardiologia (do PROFESSOR) tem ALUNO; Fisiologia (do PROFESSOR2) tem ALUNO_FORA."""
+
+    def setUp(self):
+        super().setUp()
+        self.fisiologia = criar_turma(ADMIN, PROFESSOR2, "Fisiologia", SEMESTRE_DOS_TESTES)["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO_FORA, self.fisiologia)
+
+    def notificacoes_de(self, email, tipo="aviso"):
+        return [n for n in listar_notificacoes(email)["notificacoes"] if n["tipo"] == tipo]
+
+    def titulos_no_mural(self, email):
+        return [a["titulo"] for a in listar_avisos_recebidos(email)["avisos"]]
+
+
+class TestesPublicarAviso(BaseAvisos):
+
+    def test_professor_avisa_a_propria_disciplina(self):
+        resultado = publicar_aviso(PROFESSOR, "Prova adiada", "A prova vai para sexta.", [self.turma_id])
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertEqual(self.titulos_no_mural(ALUNO), ["Prova adiada"])
+        self.assertEqual(len(self.notificacoes_de(ALUNO)), 1)
+
+    def test_quem_nao_esta_na_disciplina_nao_recebe(self):
+        publicar_aviso(PROFESSOR, "Prova adiada", "A prova vai para sexta.", [self.turma_id])
+
+        self.assertEqual(self.titulos_no_mural(ALUNO_FORA), [])
+        self.assertEqual(self.notificacoes_de(ALUNO_FORA), [])
+
+    def test_professor_nao_escreve_para_disciplina_alheia(self):
+        """Tudo ou nada: com uma disciplina alheia no meio, ninguém recebe —
+        envio parcial deixaria o professor sem saber quem foi avisado."""
+        resultado = publicar_aviso(PROFESSOR, "Oi", "Texto.", [self.turma_id, self.fisiologia])
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertEqual(self.notificacoes_de(ALUNO), [])
+        self.assertEqual(listar_avisos_enviados(PROFESSOR)["avisos"], [])
+
+    def test_professor_nao_escreve_para_a_instituicao(self):
+        self.assertFalse(publicar_aviso(PROFESSOR, "Oi", "Texto.", geral=True)["sucesso"])
+
+    def test_aluno_nao_escreve_aviso(self):
+        self.assertFalse(publicar_aviso(ALUNO, "Oi", "Texto.", [self.turma_id])["sucesso"])
+
+    def test_sem_destino_e_recusado(self):
+        self.assertFalse(publicar_aviso(PROFESSOR, "Oi", "Texto.", [])["sucesso"])
+
+    def test_titulo_ou_texto_em_branco_e_recusado(self):
+        self.assertFalse(publicar_aviso(PROFESSOR, "  ", "Texto.", [self.turma_id])["sucesso"])
+        self.assertFalse(publicar_aviso(PROFESSOR, "Título", "   ", [self.turma_id])["sucesso"])
+
+    def test_aviso_para_a_instituicao_chega_a_todos_menos_ao_autor(self):
+        resultado = publicar_aviso(ADMIN, "Feriado", "Não haverá aula na sexta.", geral=True)
+
+        for email in (ALUNO, ALUNO_FORA, PROFESSOR, PROFESSOR2):
+            with self.subTest(email=email):
+                self.assertIn("Feriado", self.titulos_no_mural(email))
+                self.assertEqual(len(self.notificacoes_de(email)), 1)
+        self.assertEqual(self.notificacoes_de(ADMIN), [])
+        self.assertEqual(resultado["destinatarios"], 4)
+
+    def test_aviso_da_administracao_para_disciplina_chega_tambem_ao_professor(self):
+        """O professor precisa saber o que a coordenação disse à turma dele."""
+        publicar_aviso(ADMIN, "Sala nova", "Cardiologia muda para a sala 12.", [self.turma_id])
+
+        self.assertIn("Sala nova", self.titulos_no_mural(PROFESSOR))
+        self.assertEqual(self.titulos_no_mural(PROFESSOR2), [])
+        # O mural tem filtro próprio; o sino, não. Conferir só o mural deixava
+        # a notificação do professor se perder sem nenhum teste acusar.
+        self.assertEqual(len(self.notificacoes_de(PROFESSOR)), 1)
+        self.assertEqual(self.notificacoes_de(PROFESSOR2), [])
+
+    def test_o_proprio_aviso_nao_aparece_como_recebido(self):
+        publicar_aviso(PROFESSOR, "Prova adiada", "Texto.", [self.turma_id])
+
+        self.assertEqual(self.titulos_no_mural(PROFESSOR), [])
+        # Nem no sino: quem escreveu não precisa ser avisado do que escreveu.
+        self.assertEqual(self.notificacoes_de(PROFESSOR), [])
+        self.assertEqual([a["titulo"] for a in listar_avisos_enviados(PROFESSOR)["avisos"]], ["Prova adiada"])
+
+    def test_varias_disciplinas_sao_um_aviso_so_no_historico(self):
+        segunda = criar_turma(ADMIN, PROFESSOR, "Semiologia", SEMESTRE_DOS_TESTES)["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, segunda)
+
+        publicar_aviso(PROFESSOR, "Monitoria", "Toda quarta.", [self.turma_id, segunda])
+
+        enviados = listar_avisos_enviados(PROFESSOR)["avisos"]
+        self.assertEqual(len(enviados), 1)
+        self.assertEqual(enviados[0]["disciplinas"], ["Cardiologia", "Semiologia"])
+        # E quem está nas duas é avisado uma vez só.
+        self.assertEqual(len(self.notificacoes_de(ALUNO)), 1)
+
+
+class TestesMuralDeAvisos(BaseAvisos):
+
+    def _envelhecer(self, titulo, dias):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        quando = (datetime.now(timezone.utc) - timedelta(days=dias)).isoformat()
+        conexao.execute("UPDATE avisos SET criado_em = ? WHERE titulo = ?", (quando, titulo))
+        conexao.commit()
+        conexao.close()
+
+    def test_urgente_recente_vem_primeiro(self):
+        publicar_aviso(PROFESSOR, "Urgente de ontem", "Texto.", [self.turma_id], urgente=True)
+        self._envelhecer("Urgente de ontem", 1)
+        publicar_aviso(PROFESSOR, "Comum de hoje", "Texto.", [self.turma_id])
+
+        self.assertEqual(self.titulos_no_mural(ALUNO), ["Urgente de ontem", "Comum de hoje"])
+
+    def test_urgente_antigo_perde_o_topo(self):
+        """Urgente para sempre deixa de ser urgente."""
+        publicar_aviso(PROFESSOR, "Urgente antigo", "Texto.", [self.turma_id], urgente=True)
+        self._envelhecer("Urgente antigo", DIAS_NO_TOPO + 1)
+        publicar_aviso(PROFESSOR, "Comum de hoje", "Texto.", [self.turma_id])
+
+        mural = listar_avisos_recebidos(ALUNO)["avisos"]
+        self.assertEqual([a["titulo"] for a in mural], ["Comum de hoje", "Urgente antigo"])
+        self.assertFalse(mural[1]["em_destaque"])
+        self.assertTrue(mural[1]["urgente"])
+
+    def test_notificacao_de_urgente_diz_que_e_urgente(self):
+        publicar_aviso(PROFESSOR, "Prova hoje", "Texto.", [self.turma_id], urgente=True)
+
+        self.assertTrue(self.notificacoes_de(ALUNO)[0]["titulo"].startswith("Urgente"))
+
+
+class TestesApagarAviso(BaseAvisos):
+
+    def test_autor_apaga_e_sai_do_mural(self):
+        aviso = publicar_aviso(PROFESSOR, "Errado", "Texto.", [self.turma_id])["aviso_id"]
+
+        self.assertTrue(excluir_aviso(PROFESSOR, aviso)["sucesso"])
+        self.assertEqual(self.titulos_no_mural(ALUNO), [])
+
+    def test_ninguem_alem_do_autor_apaga(self):
+        aviso = publicar_aviso(PROFESSOR, "Certo", "Texto.", [self.turma_id])["aviso_id"]
+
+        for email in (PROFESSOR2, ALUNO, ADMIN):
+            with self.subTest(email=email):
+                self.assertFalse(excluir_aviso(email, aviso)["sucesso"])
+        self.assertEqual(self.titulos_no_mural(ALUNO), ["Certo"])
+
+    def test_excluir_a_disciplina_leva_o_aviso_que_era_so_dela(self):
+        """Tabela nova apontando para disciplina tem que entrar na exclusão em
+        cascata — senão a exclusão volta a falhar pela chave estrangeira."""
+        segunda = criar_turma(ADMIN, PROFESSOR, "Semiologia", SEMESTRE_DOS_TESTES)["turma"]["id"]
+        publicar_aviso(PROFESSOR, "Só Cardiologia", "Texto.", [self.turma_id])
+        publicar_aviso(PROFESSOR, "Nas duas", "Texto.", [self.turma_id, segunda])
+
+        self.assertTrue(excluir_turma(ADMIN, self.turma_id)["sucesso"])
+
+        enviados = {a["titulo"]: a for a in listar_avisos_enviados(PROFESSOR)["avisos"]}
+        self.assertNotIn("Só Cardiologia", enviados)
+        self.assertEqual(enviados["Nas duas"]["disciplinas"], ["Semiologia"])
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("PRAGMA foreign_keys=ON")
+        self.assertEqual(conexao.execute("PRAGMA foreign_key_check").fetchall(), [])
+        conexao.close()
+
+
+class TestesRotasDeAvisos(BaseAvisos):
+
+    def setUp(self):
+        super().setUp()
+
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+
+    def _cab(self, email):
+        token = self.cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_do_envio_ao_mural_pela_rota(self):
+        resposta = self.cliente.post("/avisos", headers=self._cab(PROFESSOR), json={
+            "titulo": "Prova adiada", "conteudo": "Sexta.", "turma_ids": [self.turma_id], "urgente": True,
+        })
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+
+        mural = self.cliente.get("/avisos/recebidos", headers=self._cab(ALUNO)).json()["avisos"]
+        self.assertEqual(mural[0]["titulo"], "Prova adiada")
+        self.assertTrue(mural[0]["em_destaque"])
+
+        enviados = self.cliente.get("/avisos/enviados", headers=self._cab(PROFESSOR)).json()["avisos"]
+        apagou = self.cliente.delete(f"/avisos/{enviados[0]['id']}", headers=self._cab(PROFESSOR)).json()
+        self.assertTrue(apagou["sucesso"])
+
+    def test_aluno_e_recusado_pela_rota(self):
+        resposta = self.cliente.post("/avisos", headers=self._cab(ALUNO), json={
+            "titulo": "Oi", "conteudo": "Texto.", "turma_ids": [self.turma_id],
+        })
+        self.assertFalse(resposta.json()["sucesso"])
+
+
+
+# =========================================================================
+# Favoritos e anotações
+# =========================================================================
+
+class BaseEstudoPessoal(BaseDelta):
+    """Um material publicado em Cardiologia, que só ALUNO cursa."""
+
+    def setUp(self):
+        super().setUp()
+        self.material = criar_material(
+            professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Ciclo cardíaco",
+            tipo="link", link_url="https://exemplo.com", rascunho=False,
+        )["material_id"]
+        self.rascunho = criar_material(
+            professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Ainda não",
+            tipo="link", link_url="https://exemplo.com", rascunho=True,
+        )["material_id"]
+
+
+class TestesFavoritos(BaseEstudoPessoal):
+
+    def test_marcar_e_desmarcar(self):
+        self.assertTrue(marcar_favorito(ALUNO, self.material)["sucesso"])
+        self.assertEqual([f["titulo"] for f in listar_favoritos(ALUNO)["favoritos"]], ["Ciclo cardíaco"])
+
+        desmarcar_favorito(ALUNO, self.material)
+
+        self.assertEqual(listar_favoritos(ALUNO)["favoritos"], [])
+
+    def test_marcar_duas_vezes_nao_e_erro(self):
+        marcar_favorito(ALUNO, self.material)
+
+        self.assertTrue(marcar_favorito(ALUNO, self.material)["sucesso"])
+        self.assertEqual(len(listar_favoritos(ALUNO)["favoritos"]), 1)
+
+    def test_a_lista_de_materiais_mostra_a_estrela(self):
+        marcar_favorito(ALUNO, self.material)
+
+        material = listar_materiais_do_aluno(ALUNO)["materiais"][0]
+
+        self.assertTrue(material["favorito"])
+
+    def test_nao_favorita_material_que_nao_ve(self):
+        """Por id, dava para marcar material de disciplina alheia ou rascunho
+        — e o próprio sucesso contaria que ele existe."""
+        self.assertFalse(marcar_favorito(ALUNO_FORA, self.material)["sucesso"])
+        self.assertFalse(marcar_favorito(ALUNO, self.rascunho)["sucesso"])
+
+    def test_favoritos_valem_entre_semestres(self):
+        marcar_favorito(ALUNO, self.material)
+
+        definir_semestre_vigente(ADMIN, "2027/1")
+
+        self.assertEqual(len(listar_favoritos(ALUNO)["favoritos"]), 1)
+
+    def test_material_apagado_leva_o_favorito(self):
+        marcar_favorito(ALUNO, self.material)
+
+        self.assertTrue(excluir_material(self.material, PROFESSOR)["sucesso"])
+        self.assertEqual(listar_favoritos(ALUNO)["favoritos"], [])
+
+    def test_os_favoritos_sao_de_cada_um(self):
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+        marcar_favorito(ALUNO, self.material)
+
+        self.assertEqual(listar_favoritos(ALUNO_FORA)["favoritos"], [])
+
+
+class TestesAnotacoes(BaseEstudoPessoal):
+
+    def test_escrever_editar_e_apagar(self):
+        criada = criar_anotacao(ALUNO, self.material, "Revisar a fase isovolumétrica.", "fase de ejeção")
+        self.assertTrue(criada["sucesso"], criada)
+        anotacao = criada["anotacao"]["id"]
+
+        editar_anotacao(ALUNO, anotacao, "Revisar a fase isovolumétrica e a de ejeção.")
+        self.assertEqual(listar_anotacoes(ALUNO)["anotacoes"][0]["texto"],
+                         "Revisar a fase isovolumétrica e a de ejeção.")
+
+        self.assertTrue(excluir_anotacao(ALUNO, anotacao)["sucesso"])
+        self.assertEqual(listar_anotacoes(ALUNO)["anotacoes"], [])
+
+    def test_a_lista_de_materiais_conta_as_anotacoes(self):
+        criar_anotacao(ALUNO, self.material, "Primeira.")
+        criar_anotacao(ALUNO, self.material, "Segunda.")
+
+        self.assertEqual(listar_materiais_do_aluno(ALUNO)["materiais"][0]["total_anotacoes"], 2)
+
+    def test_nao_anota_material_que_nao_ve(self):
+        self.assertFalse(criar_anotacao(ALUNO_FORA, self.material, "Oi.")["sucesso"])
+        self.assertFalse(criar_anotacao(ALUNO, self.rascunho, "Oi.")["sucesso"])
+
+    def test_anotacao_vazia_e_recusada(self):
+        self.assertFalse(criar_anotacao(ALUNO, self.material, "   ")["sucesso"])
+
+    def test_anotacao_sobrevive_ao_material_apagado(self):
+        """É trabalho do aluno. Perde o vínculo, não o conteúdo."""
+        criar_anotacao(ALUNO, self.material, "O que eu entendi da aula.")
+
+        excluir_material(self.material, PROFESSOR)
+
+        anotacao = listar_anotacoes(ALUNO)["anotacoes"][0]
+        self.assertEqual(anotacao["texto"], "O que eu entendi da aula.")
+        self.assertEqual(anotacao["material_titulo"], "Ciclo cardíaco")
+        self.assertFalse(anotacao["material_disponivel"])
+
+    def test_anotacao_sobrevive_a_disciplina_excluida(self):
+        criar_anotacao(ALUNO, self.material, "Nota.")
+        marcar_favorito(ALUNO, self.material)
+
+        self.assertTrue(excluir_turma(ADMIN, self.turma_id)["sucesso"])
+
+        self.assertEqual(len(listar_anotacoes(ALUNO)["anotacoes"]), 1)
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("PRAGMA foreign_keys=ON")
+        self.assertEqual(conexao.execute("PRAGMA foreign_key_check").fetchall(), [])
+        conexao.close()
+
+
+class TestesPrivacidadeDasAnotacoes(BaseEstudoPessoal):
+    """Anotação só é franca se ninguém mais lê."""
+
+    def setUp(self):
+        super().setUp()
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+        self.anotacao = criar_anotacao(ALUNO, self.material, "Não entendi nada desta aula.")["anotacao"]["id"]
+
+    def test_colega_no_mesmo_material_nao_ve(self):
+        self.assertEqual(listar_anotacoes(ALUNO_FORA, self.material)["anotacoes"], [])
+
+    def test_colega_nao_edita_nem_apaga(self):
+        self.assertFalse(editar_anotacao(ALUNO_FORA, self.anotacao, "Invadido.")["sucesso"])
+        self.assertFalse(excluir_anotacao(ALUNO_FORA, self.anotacao)["sucesso"])
+        self.assertEqual(listar_anotacoes(ALUNO)["anotacoes"][0]["texto"], "Não entendi nada desta aula.")
+
+    def test_professor_e_admin_nao_tem_rota_para_ler(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+        for email in (PROFESSOR, ADMIN):
+            token = cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+            with self.subTest(perfil=email):
+                resposta = cliente.get("/aluno/anotacoes", headers={"Authorization": f"Bearer {token}"})
+                self.assertIn(resposta.status_code, (401, 403))
+
+    def test_nenhuma_rota_fora_do_aluno_menciona_anotacoes(self):
+        """A privacidade é a ausência da rota. Se alguém criar uma rota de
+        professor ou de admin com anotações, este teste avisa."""
+        import main
+
+        fora_do_aluno = [
+            rota.path for rota in main.app.routes
+            if "anotac" in rota.path and not rota.path.startswith("/aluno/")
+        ]
+        self.assertEqual(fora_do_aluno, [])
+
+
+class TestesRotasDeEstudoPessoal(BaseEstudoPessoal):
+
+    def test_pela_rota(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+        token = cliente.post("/login", json={"email": ALUNO, "senha": SENHA}).json()["token"]
+        cab = {"Authorization": f"Bearer {token}"}
+
+        self.assertTrue(cliente.put(f"/aluno/favoritos/{self.material}", headers=cab).json()["favorito"])
+        self.assertEqual(len(cliente.get("/aluno/favoritos", headers=cab).json()["favoritos"]), 1)
+        self.assertFalse(cliente.delete(f"/aluno/favoritos/{self.material}", headers=cab).json()["favorito"])
+
+        criada = cliente.post("/aluno/anotacoes", headers=cab,
+                              json={"material_id": self.material, "texto": "Nota."}).json()
+        self.assertTrue(criada["sucesso"], criada)
+        anotacao = criada["anotacao"]["id"]
+        self.assertTrue(cliente.put(f"/aluno/anotacoes/{anotacao}", headers=cab,
+                                    json={"texto": "Nota editada."}).json()["sucesso"])
+        self.assertEqual(
+            cliente.get(f"/aluno/anotacoes?material_id={self.material}", headers=cab).json()["anotacoes"][0]["texto"],
+            "Nota editada.",
+        )
+        self.assertTrue(cliente.delete(f"/aluno/anotacoes/{anotacao}", headers=cab).json()["sucesso"])
 
 
 if __name__ == "__main__":

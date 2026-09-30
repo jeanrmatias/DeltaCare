@@ -11,9 +11,67 @@ const usuario = exigirAcesso("aluno");
 if (usuario) {
     montarRodapePerfil(usuario);
     carregarResumo();
+    carregarAvisos();
     ligarPlaceholders();
     ligarNotificacoes();
     ligarRodapePerfil();
+}
+
+/**
+ * O mural de avisos, na tela em que o aluno entra — e não numa página à
+ * parte, que ele teria que lembrar de abrir. O sino já avisou; aqui o aviso
+ * fica para ser relido. Urgente recente vem no topo (o servidor ordena).
+ */
+async function carregarAvisos() {
+    const cartao = document.querySelector("#cartaoAvisos");
+    const lista = document.querySelector("#listaAvisos");
+
+    try {
+        const resposta = await api("/avisos/recebidos");
+        const dados = await resposta.json();
+        const avisos = (dados.avisos || []).slice(0, 5);
+
+        // Sem aviso, sem cartão: um "Nenhum aviso" fixo na tela inicial
+        // ocuparia espaço para dizer nada.
+        cartao.hidden = !avisos.length;
+        lista.textContent = "";
+
+        avisos.forEach((aviso) => {
+            const item = document.createElement("article");
+            item.className = "aviso" + (aviso.em_destaque ? " aviso--urgente" : "");
+
+            const topo = document.createElement("div");
+            topo.className = "aviso-topo";
+            if (aviso.urgente) {
+                const selo = document.createElement("span");
+                selo.className = "aviso-selo";
+                selo.textContent = "Urgente";
+                topo.appendChild(selo);
+            }
+            const titulo = document.createElement("h3");
+            titulo.textContent = aviso.titulo;
+            topo.appendChild(titulo);
+
+            const texto = document.createElement("p");
+            texto.className = "aviso-conteudo";
+            texto.textContent = aviso.conteudo;
+
+            const rodape = document.createElement("p");
+            rodape.className = "aviso-rodape";
+            const autor = aviso.autor_e_administracao ? "Coordenação" : `Prof. ${aviso.autor}`;
+            const data = new Date(aviso.criado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+            rodape.textContent = `${autor} · ${data}` + (aviso.disciplinas.length ? ` · ${aviso.disciplinas.join(", ")}` : "");
+
+            item.appendChild(topo);
+            item.appendChild(texto);
+            item.appendChild(rodape);
+            lista.appendChild(item);
+        });
+    } catch (erro) {
+        // O mural é complemento da tela inicial: falhar aqui não pode
+        // derrubar o resto dela.
+        console.error("Erro ao carregar avisos:", erro);
+    }
 }
 
 function montarRodapePerfil(usuario) {

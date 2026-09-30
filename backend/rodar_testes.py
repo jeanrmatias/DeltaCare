@@ -82,6 +82,13 @@ def rodar_grupo(grupo: list) -> dict:
 
 
 def main() -> int:
+    # O console do Windows usa cp1252 e quebra com caractere fora dele — e foi
+    # justamente ao imprimir uma falha que o runner morria, escondendo a falha.
+    # Troca o caractere por "?" em vez de derrubar o relatório.
+    for fluxo in (sys.stdout, sys.stderr):
+        if hasattr(fluxo, "reconfigure"):
+            fluxo.reconfigure(errors="replace")
+
     processos = int(sys.argv[1]) if len(sys.argv) > 1 else (os.cpu_count() or 4)
 
     classes = classes_de_teste()

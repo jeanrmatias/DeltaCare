@@ -815,3 +815,175 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
+
+
+/* ---------------------------------------------------------------------------
+   Favoritos e anotações
+   --------------------------------------------------------------------------- */
+
+.botao-favorito {
+    margin-left: auto;
+    padding: 2px 6px;
+
+    background: none;
+    border: none;
+
+    color: var(--color-text-secondary);
+
+    font-size: 20px;
+    line-height: 1;
+
+    cursor: pointer;
+}
+
+.botao-favorito:hover,
+.botao-favorito--ativo {
+    color: var(--color-amber);
+}
+
+.botao-favorito:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+/* O painel é um <dialog>. Sem `display` aqui de propósito: dar display ao
+   dialog sobrescreve o "fechado" do navegador, e ele aparece aberto na tela
+   (foi exatamente o bug do visualizador de material). */
+.painel-anotacoes {
+    width: min(640px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    padding: 20px;
+
+    border: none;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(13, 29, 58, 0.25);
+
+    color: var(--color-text);
+}
+
+.painel-anotacoes::backdrop {
+    background: rgba(13, 29, 58, 0.45);
+}
+
+.painel-anotacoes h2 {
+    margin: 0 0 6px;
+    font-size: 17px;
+}
+
+.painel-anotacoes label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    margin-top: 12px;
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.painel-anotacoes textarea {
+    width: 100%;
+    padding: 10px 12px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 400;
+
+    resize: vertical;
+}
+
+.painel-anotacoes-topo {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+
+    margin-bottom: 12px;
+}
+
+.painel-anotacoes-acoes {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+
+    margin-top: 14px;
+}
+
+.anotacoes-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    margin-top: 14px;
+}
+
+.anotacao {
+    padding: 12px 14px;
+
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+}
+
+.anotacao-origem {
+    margin: 0 0 6px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.anotacao-trecho {
+    margin: 0 0 8px;
+    padding: 6px 10px;
+
+    border-left: 3px solid var(--color-primary);
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    font-style: italic;
+    white-space: pre-wrap;
+}
+
+.anotacao-texto {
+    margin: 0;
+
+    font-size: 14px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.anotacao-rodape {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+
+    margin-top: 8px;
+
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.anotacao-rodape span {
+    margin-right: auto;
+}
+
+#campoBuscaAnotacoes {
+    width: 100%;
+    margin-bottom: 16px;
+    padding: 10px 12px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: inherit;
+    font-size: 14px;
+}
