@@ -53,6 +53,13 @@ def criar_coorte(admin_email: str, nome: str, semestre: str) -> dict:
     if not semestre:
         return {"sucesso": False, "mensagem": "Informe o semestre (ex.: 2026/2)."}
 
+    from regras.semestres import normalizar_semestre
+
+    semestre_normalizado = normalizar_semestre(semestre)
+    if not semestre_normalizado:
+        return {"sucesso": False, "mensagem": "Semestre inválido. Use o formato 2026/2."}
+    semestre = semestre_normalizado
+
     conexao = conectar()
 
     if not _eh_admin(conexao, admin_email):

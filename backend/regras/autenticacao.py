@@ -32,9 +32,36 @@ VALIDADE_TOKEN_MINUTOS = 15
 # a senha erra uma ou duas vezes, não cinco.
 MAX_TENTATIVAS_RESET = 5
 
+# Falhas de login antes de bloquear, e por quanto tempo.
+#
+# O bloqueio é por e-mail e temporário. Temporário porque o mesmo mecanismo que
+# impede um robô de testar senhas permite a qualquer um trancar a conta de um
+# colega digitando errado de propósito; 15 minutos tornam isso um incômodo, e
+# não um jeito de impedir alguém de entregar uma prova.
+#
+# Por IP fica para o servidor de verdade, na frente da aplicação (limit_req do
+# nginx, ou o equivalente do provedor). Aqui a aplicação não sabe o IP real: por
+# trás de um proxy, todo mundo chega com o IP do proxy.
+MAX_FALHAS_LOGIN = 5
+JANELA_LOGIN_MINUTOS = 15
+
+# Hash de uma senha qualquer, para conferir contra ele quando o e-mail não
+# existe. Ver o comentário em realizar_login.
+_HASH_DE_ENGANO = hash_senha("senha-que-ninguem-tem")
+
 
 def _conectar():
     return abrir_conexao()
+
+
+def _falhas_recentes(cursor, email: str) -> int:
+    limite = (datetime.utcnow() - timedelta(minutes=JANELA_LOGIN_MINUTOS)).isoformat()
+    # As antigas saem aqui mesmo: a tabela só precisa lembrar da janela atual.
+    cursor.execute(
+        "DELETE FROM tentativas_login WHERE email = ? AND criado_em < ?", (email, limite)
+    )
+    cursor.execute("SELECT COUNT(*) FROM tentativas_login WHERE email = ?", (email,))
+    return cursor.fetchone()[0]
 
 
 def realizar_login(email: str, senha: str) -> dict:
@@ -42,31 +69,68 @@ def realizar_login(email: str, senha: str) -> dict:
 
     conexao = _conectar()
     cursor = conexao.cursor()
+
+    # Bloqueado: responde **sem conferir a senha**. Conferir e responder
+    # "bloqueado" mesmo quando ela está certa ainda deixaria o robô continuar
+    # testando — bastaria medir o tempo da resposta.
+    if _falhas_recentes(cursor, email) >= MAX_FALHAS_LOGIN:
+        conexao.commit()
+        conexao.close()
+        return {
+            "sucesso": False,
+            "mensagem": (
+                f"Muitas tentativas erradas. Aguarde {JANELA_LOGIN_MINUTOS} minutos"
+                " ou use \"Esqueci minha senha\"."
+            ),
+        }
+
     cursor.execute("SELECT id, senha, tipo, nome FROM users WHERE email = ?", (email,))
     usuario = cursor.fetchone()
+
+    # **Tempo igual para conta que existe e que não existe.** Sem o hash de
+    # engano, e-mail inexistente respondia 57x mais rápido (1ms contra 71ms,
+    # medido), porque a conferência da senha — o PBKDF2 — nem rodava. A
+    # mensagem era a mesma, mas o cronômetro entregava quem é aluno daqui.
+    senha_confere = verificar_senha(senha, usuario[1] if usuario else _HASH_DE_ENGANO)
+
+    if not (usuario and senha_confere):
+        cursor.execute(
+            "INSERT INTO tentativas_login (email, criado_em) VALUES (?, ?)",
+            (email, datetime.utcnow().isoformat()),
+        )
+        conexao.commit()
+        conexao.close()
+        return {"sucesso": False, "mensagem": "E-mail ou senha incorretos."}
+
+    # Acertou: o histórico de erros da janela some. Senão quem errou quatro
+    # vezes de manhã entraria na tarde com uma tentativa só de margem.
+    cursor.execute("DELETE FROM tentativas_login WHERE email = ?", (email,))
+    conexao.commit()
     conexao.close()
 
-    if usuario and verificar_senha(senha, usuario[1]):
-        user_id, _, tipo, nome = usuario
-        pagina = PAGINAS.get(tipo)
-        if pagina:
-            # O token é o que prova a identidade nas requisições seguintes —
-            # nenhuma rota protegida aceita e-mail vindo do cliente (infra/sessoes.py).
-            from infra.sessoes import criar_sessao
+    user_id, _, tipo, nome = usuario
+    pagina = PAGINAS.get(tipo)
 
-            return {
-                "sucesso": True,
-                "mensagem": "Login bem-sucedido!",
-                "pagina": pagina,
-                "email": email,
-                "tipo": tipo,
-                # Contas anteriores à coluna `nome` não têm esse dado; o front
-                # cai no e-mail nesse caso.
-                "nome": nome or "",
-                "token": criar_sessao(user_id),
-            }
+    # Perfil sem tela (valor inesperado na coluna `tipo`): não há para onde
+    # mandar a pessoa, e uma sessão sem destino seria acesso a coisa nenhuma.
+    if not pagina:
+        return {"sucesso": False, "mensagem": "E-mail ou senha incorretos."}
 
-    return {"sucesso": False, "mensagem": "E-mail ou senha incorretos."}
+    # O token é o que prova a identidade nas requisições seguintes —
+    # nenhuma rota protegida aceita e-mail vindo do cliente (infra/sessoes.py).
+    from infra.sessoes import criar_sessao
+
+    return {
+        "sucesso": True,
+        "mensagem": "Login bem-sucedido!",
+        "pagina": pagina,
+        "email": email,
+        "tipo": tipo,
+        # Contas anteriores à coluna `nome` não têm esse dado; o front
+        # cai no e-mail nesse caso.
+        "nome": nome or "",
+        "token": criar_sessao(user_id),
+    }
 
 
 def cadastrar_usuario(email: str, senha: str, tipo: str, nome: str = "") -> dict:
@@ -308,6 +372,11 @@ def redefinir_senha(email: str, token: str, nova_senha: str) -> dict:
     # nova não serve para nada enquanto o token antigo do invasor continuar
     # valendo por 12 horas.
     cursor.execute("DELETE FROM sessoes WHERE user_id = ?", (id_usuario,))
+
+    # E destranca o login: a mensagem de bloqueio manda justamente para cá, e
+    # quem acabou de provar pelo e-mail que é dono da conta não deve continuar
+    # esperando 15 minutos.
+    cursor.execute("DELETE FROM tentativas_login WHERE email = ?", (email,))
     conexao.commit()
     conexao.close()
 

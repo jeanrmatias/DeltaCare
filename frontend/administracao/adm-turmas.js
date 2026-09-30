@@ -185,8 +185,12 @@ function ligarFormularioTurma() {
 
 async function excluirTurma(turma) {
     const confirmou = await confirmar(
-        `Excluir a turma "${turma.nome} · ${turma.semestre}" de ${turma.professor_email}?\nOs materiais dela, as matrículas e o histórico de conversa saem junto. Não há como desfazer.`,
-        { titulo: "Excluir turma", rotulo: "Excluir", perigo: true }
+        `Excluir a disciplina "${turma.nome} · ${turma.semestre}" de ${turma.professor_email}?\n\n` +
+        "Saem junto os materiais, as atividades, as entregas com as notas, as mensagens " +
+        "e o histórico do chat. Não há como desfazer.\n\n" +
+        "Se o semestre dela só terminou, não precisa excluir: ao virar o semestre, " +
+        "ela vai sozinha para o histórico, com tudo preservado.",
+        { titulo: "Excluir disciplina", rotulo: "Excluir", perigo: true }
     );
 
     if (!confirmou) return;

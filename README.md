@@ -91,7 +91,9 @@ Para rodar: suba o backend (ver **Configuração**) e sirva o front com
 backend/
   main.py                  - API FastAPI: rotas e dependências de autenticação
   seed_demo.py             - cria os dados de demonstração
-  testes.py                - 146 testes (rodam sem o Ollama)
+  testes.py                - testes das regras (rodam sem o Ollama)
+  rodar_testes.py          - roda os mesmos testes em paralelo
+  contrato_front.py        - confere se o front chama rotas que existem
 
   infra/                   - infraestrutura: o que o sistema USA
     database.py              schema e caminho único do banco
@@ -101,7 +103,10 @@ backend/
 
   regras/                  - regras de negócio: o que o sistema DECIDE
     autenticacao.py          login, cadastro, recuperação de senha
-    turmas.py                turmas, professores, usuários
+    turmas.py                disciplinas, professores, usuários
+    coortes.py               turma de alunos (MED 3A) e exceções por disciplina
+    semestres.py             semestre vigente e histórico dos anteriores
+    ranking.py               ranking da turma pelo XP do semestre
     materiais.py             materiais na visão do PROFESSOR
     aluno.py                 materiais na visão do ALUNO, XP e acompanhamento
     atividades.py            atividades, entregas e correção
@@ -169,11 +174,19 @@ arquivos globais com `../` (ex.: `../auth.js`), e os `<script>`/`<link>` levam
    > Se a GPU disponível for menor (ex.: 12GB de VRAM), o `gpt-oss:20b` pode
    > ficar lento por fazer offload para RAM/CPU. Para testar o fluxo mais
    > rápido, um modelo de chat menor (ex.: `llama3.1:8b`) também funciona —
-   > basta baixá-lo e ajustar `MODELO_CHAT` em `backend/regras/chat_ia.py`.
+   > basta baixá-lo e definir a variável de ambiente `MODELO_CHAT`.
 
-   Por padrão o backend fala com o Ollama em `http://localhost:11434`. Para
-   apontar para outro endereço, defina a variável de ambiente `OLLAMA_URL`
-   antes de subir o servidor.
+   A configuração vem de variáveis de ambiente. Os padrões servem para rodar
+   na máquina; no servidor da instituição, as quatro primeiras mudam:
+
+   | Variável | Padrão | Para quê |
+   |---|---|---|
+   | `OLLAMA_URL` | `http://localhost:11434` | Onde está o servidor do modelo |
+   | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
+   | `DELTACARE_ORIGENS` | `http://127.0.0.1:5500,http://localhost:5500` | Endereços de onde o navegador pode chamar a API (vários, separados por vírgula) |
+   | `DELTACARE_IA_SIMULTANEAS` | `4` | Chamadas ao modelo ao mesmo tempo. Não é limite de perguntas: quem passa espera sem travar o resto do sistema. Suba conforme o servidor do modelo aguentar |
+   | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
+   | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
 
 3. Suba o backend:
 
@@ -274,10 +287,12 @@ de outra pessoa apenas trocando esse campo.
 
 ```
 cd backend
-python testes.py        # 80 testes das regras de negócio
+python rodar_testes.py  # regras de negócio, em paralelo (~25s)
+python testes.py        # os mesmos, em série (~2min)
 
 cd ../frontend
-node testes.mjs         # 47 testes do JavaScript
+node testes.mjs         # JavaScript
+python testar_html.py   # estrutura das páginas
 ```
 
 **Backend:** permissões, visibilidade de material, sessão, notificações,

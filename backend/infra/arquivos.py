@@ -11,8 +11,14 @@ import binascii
 import os
 import uuid
 
-PASTA_UPLOADS = os.path.join("uploads", "materiais")
-PASTA_ENTREGAS = os.path.join("uploads", "entregas")
+# Raiz dos arquivos enviados. DELTACARE_UPLOADS existe pelo mesmo motivo que
+# DELTACARE_DB: os testes precisam de uma pasta só deles. Antes a raiz era
+# fixa em "uploads", relativa à pasta de onde o processo rodava — e a suíte,
+# rodando de backend/, apagava no teardown a mesma uploads/entregas em que o
+# servidor de desenvolvimento grava o trabalho dos alunos.
+RAIZ_UPLOADS = os.environ.get("DELTACARE_UPLOADS", "uploads")
+PASTA_UPLOADS = os.path.join(RAIZ_UPLOADS, "materiais")
+PASTA_ENTREGAS = os.path.join(RAIZ_UPLOADS, "entregas")
 TAMANHO_MAXIMO_MB = 15
 TAMANHO_MAXIMO_BYTES = TAMANHO_MAXIMO_MB * 1024 * 1024
 

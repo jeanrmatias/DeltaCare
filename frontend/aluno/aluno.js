@@ -81,14 +81,29 @@ async function carregarTurmas() {
 function preencherSeletor(seletor, turmas) {
     seletor.textContent = "";
 
-    turmas.forEach((t) => {
+    const opcaoDe = (t) => {
         const opcao = document.createElement("option");
         opcao.value = t.id;
         opcao.textContent = t.professor_nome
             ? `${t.nome} · ${t.semestre} · Prof. ${t.professor_nome}`
             : `${t.nome} · ${t.semestre}`;
-        seletor.appendChild(opcao);
-    });
+        return opcao;
+    };
+
+    // As do semestre vêm soltas no topo; as antigas, num grupo à parte. Elas
+    // continuam no seletor de propósito — perguntar sobre o material de um
+    // semestre passado é justamente como se revisa para a residência — mas
+    // não podem se misturar com as de agora. O servidor já manda as vigentes
+    // primeiro; sem o campo `vigente`, tudo fica solto, como era antes.
+    const anteriores = turmas.filter((t) => t.vigente === false);
+    turmas.filter((t) => t.vigente !== false).forEach((t) => seletor.appendChild(opcaoDe(t)));
+
+    if (anteriores.length) {
+        const grupo = document.createElement("optgroup");
+        grupo.label = "Semestres anteriores";
+        anteriores.forEach((t) => grupo.appendChild(opcaoDe(t)));
+        seletor.appendChild(grupo);
+    }
 }
 
 async function carregarHistorico() {

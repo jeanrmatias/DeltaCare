@@ -437,11 +437,26 @@ def excluir_atividade(atividade_id: int, professor_email: str) -> dict:
         conexao.close()
         return {"sucesso": False, "mensagem": "Atividade não encontrada."}
 
+    # Os documentos entregues ficam no disco, fora do banco: lidos antes de
+    # apagar as linhas que dizem onde estão, senão sobrariam para sempre em
+    # uploads/entregas sem nada apontando para eles.
+    arquivos = [
+        linha[0] for linha in conexao.execute(
+            "SELECT arquivo_caminho FROM entregas WHERE atividade_id = ? AND arquivo_caminho IS NOT NULL",
+            (int(atividade_id),),
+        ).fetchall()
+    ]
+
     conexao.execute("DELETE FROM questoes WHERE atividade_id = ?", (int(atividade_id),))
     conexao.execute("DELETE FROM entregas WHERE atividade_id = ?", (int(atividade_id),))
     conexao.execute("DELETE FROM atividades WHERE id = ?", (int(atividade_id),))
     conexao.commit()
     conexao.close()
+
+    from infra.arquivos import remover_arquivo
+
+    for caminho in arquivos:
+        remover_arquivo(caminho)
 
     return {"sucesso": True, "mensagem": "Atividade excluída."}
 

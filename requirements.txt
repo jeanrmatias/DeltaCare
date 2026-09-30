@@ -1,4 +1,4 @@
-# Dependências do backend. São quatro, e é de propósito: o resto vem da
+# Dependências do backend. São cinco, e é de propósito: o resto vem da
 # biblioteca padrão (sqlite3, hashlib, secrets, urllib, json, unicodedata).
 #
 # As versões estão presas com `~=`, que aceita correção dentro da mesma minor
@@ -14,3 +14,6 @@ fastapi~=0.141.1
 uvicorn~=0.53.0
 pydantic~=2.13.5
 pypdf~=6.19.0
+# Já vinha junto com o fastapi, mas agora o main.py importa direto (o
+# limitador do servidor de IA). O que se importa, se declara.
+anyio~=4.15.1

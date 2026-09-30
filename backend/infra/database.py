@@ -304,6 +304,73 @@ def configurar_banco(silencioso: bool = False):
     ''')
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessoes_user ON sessoes (user_id)")
 
+    # Configurações da instituição que a administração muda pela tela. Hoje
+    # só o semestre vigente (regras/semestres.py); chave e valor para a
+    # próxima não exigir tabela nova.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS configuracoes (
+            chave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        )
+    ''')
+
+    # Migração: semestre num formato só.
+    #
+    # Era texto livre, e o banco tinha `2026.2` enquanto os formulários
+    # sugeriam `2026/2` — comparados como texto, semestres diferentes. A
+    # entrada agora passa por regras/semestres.normalizar_semestre; isto
+    # converte o que já estava gravado. Em SQL puro para infra/ não depender de
+    # regras/. Idempotente: o que já está em `2026/2` não casa com o padrão.
+    #
+    # Uma linha por vez, e não um UPDATE só, por causa do UNIQUE de coortes:
+    # se existirem "MED 3A · 2026.2" e "MED 3A · 2026/2", converter a primeira
+    # colidiria com a segunda. Nesse caso ela fica como está, em vez de a
+    # migração derrubar a subida do servidor.
+    for tabela in ("turmas", "coortes"):
+        linhas = cursor.execute(
+            f"SELECT id, semestre FROM {tabela}"
+            " WHERE semestre GLOB '[0-9][0-9][0-9][0-9][.-][12]'"
+        ).fetchall()
+        for linha_id, semestre in linhas:
+            try:
+                cursor.execute(
+                    f"UPDATE {tabela} SET semestre = ? WHERE id = ?",
+                    (f"{semestre[:4]}/{semestre[5]}", linha_id),
+                )
+            except sqlite3.IntegrityError:
+                pass
+
+    # Migração: o aluno pode não aparecer no ranking (regras/ranking.py).
+    #
+    # Guardado como "oculto" e não como "aparece" para que o padrão da coluna
+    # (0) seja o padrão do produto: aparecer, com a opção de sair — como o
+    # backlog definiu. Mesmo aparecendo, ninguém é exposto no fundo da lista:
+    # o ranking público só mostra o topo.
+    cursor.execute("PRAGMA table_info(users)")
+    if "ranking_oculto" not in {linha[1] for linha in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE users ADD COLUMN ranking_oculto INTEGER NOT NULL DEFAULT 0")
+
+    # Tentativas de login que falharam, para o limite em regras/autenticacao.py.
+    #
+    # Numa tabela, e não em memória: um contador em memória zera a cada restart
+    # do servidor — e reiniciar é justamente o que acontece quando alguém
+    # percebe o ataque. Também não depende de haver um processo só.
+    #
+    # Guarda o e-mail **digitado**, exista a conta ou não. Contar só as contas
+    # que existem faria o bloqueio aparecer apenas para elas, e a mensagem de
+    # "bloqueado" viraria um verificador de cadastro.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tentativas_login (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            criado_em TEXT NOT NULL
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tentativas_email ON tentativas_login (email, criado_em)"
+    )
+
     # Indices medidos, nao adivinhados.
     #
     # Com 360 alunos e 9.600 trechos de material, EXPLAIN QUERY PLAN mostrava

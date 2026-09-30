@@ -325,8 +325,11 @@ def excluir_material(material_id: int, professor_email: str) -> dict:
 
     cursor = conexao.cursor()
     # Os trechos indexados para o chat de IA precisam sair junto: sem isso eles
-    # ficam órfãos no banco, acumulando a cada material excluído.
+    # ficam órfãos no banco, acumulando a cada material excluído. O registro
+    # de acesso também: com a chave estrangeira cobrada, material que algum
+    # aluno já abriu não sairia sem ele.
     cursor.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
+    cursor.execute("DELETE FROM acessos_material WHERE material_id = ?", (material_id,))
     cursor.execute("DELETE FROM materiais WHERE id = ?", (material_id,))
     # O arquivo pode estar compartilhado com o mesmo material publicado em
     # outra turma (ver criar_material_em_turmas). Só sai do disco quando o

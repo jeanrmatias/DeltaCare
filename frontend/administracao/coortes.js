@@ -17,6 +17,8 @@ const usuario = exigirAcesso("adm");
 
 if (usuario) {
     montarRodapePerfil(usuario);
+    carregarSemestre();
+    ligarFormularioSemestre();
     carregarCoortes();
     ligarFormularioCoorte();
     ligarPlaceholders();
@@ -90,6 +92,72 @@ async function carregarCoortes() {
         vazio.hidden = false;
         vazio.textContent = "Não foi possível conectar ao servidor. Tente novamente.";
     }
+}
+
+// =========================================================================
+// Semestre vigente
+//
+// Decide o que aparece na frente de todo mundo: as disciplinas do aluno, as
+// pendências, o nível e a faixa. O resto vai para Semestres anteriores. Mora
+// nesta tela porque é aqui que o admin monta o semestre novo.
+// =========================================================================
+
+async function carregarSemestre() {
+    try {
+        const resposta = await api("/semestre");
+        const dados = await resposta.json();
+
+        document.querySelector("#semestreVigente").textContent = dados.semestre;
+        document.querySelector("#semestreOrigem").textContent = dados.definido_pela_administracao
+            ? "Definido pela administração."
+            // Sem definição vale o calendário, e isso precisa estar escrito: a
+            // virada aconteceria sozinha em janeiro e julho, com prova final e
+            // lançamento de nota ainda em andamento.
+            : "Pelo calendário (jan–jun é o 1º, jul–dez o 2º). Vira sozinho se ninguém definir.";
+    } catch (erro) {
+        console.error("Erro ao carregar o semestre:", erro);
+    }
+}
+
+function ligarFormularioSemestre() {
+    const formulario = document.querySelector("#formularioSemestre");
+    const campo = document.querySelector("#campoSemestre");
+    const mensagem = document.querySelector("#semestreMensagem");
+
+    formulario.addEventListener("submit", async (evento) => {
+        evento.preventDefault();
+        const semestre = campo.value.trim();
+        if (!semestre) return;
+
+        const confirmou = await confirmar(
+            `Virar o semestre para ${semestre}?\n\n` +
+            "As disciplinas do semestre atual saem da tela inicial dos alunos e vão " +
+            "para Semestres anteriores, com material, notas e conversas preservados. " +
+            "O nível e a faixa dos alunos recomeçam no semestre novo; o XP acumulado " +
+            "continua aparecendo.\n\nDá para voltar atrás virando de novo.",
+            { titulo: "Virar semestre", rotulo: "Virar" }
+        );
+        if (!confirmou) return;
+
+        try {
+            const resposta = await api("/admin/semestre", {
+                method: "PUT",
+                body: JSON.stringify({ semestre }),
+            });
+            const dados = await resposta.json();
+
+            mensagem.textContent = dados.mensagem;
+            mensagem.classList.toggle("formulario-mensagem--sucesso", !!dados.sucesso);
+
+            if (dados.sucesso) {
+                campo.value = "";
+                carregarSemestre();
+            }
+        } catch (erro) {
+            console.error("Erro ao virar o semestre:", erro);
+            mensagem.textContent = "Não foi possível conectar ao servidor. Tente novamente.";
+        }
+    });
 }
 
 function ligarFormularioCoorte() {

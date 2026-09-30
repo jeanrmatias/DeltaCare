@@ -813,3 +813,46 @@ test("esc não estraga texto comum", () => {
 test("esc converte número sem reclamar", () => {
     assert.equal(ctx.esc(42), "42");
 });
+
+
+test("o seletor do chat separa as disciplinas antigas num grupo à parte", () => {
+    // As antigas continuam no seletor — perguntar sobre material de semestre
+    // passado é como se revisa para a residência —, mas misturadas com as de
+    // agora o aluno abriria o chat na disciplina errada.
+    const seletor = new No("select");
+    const ctxAluno = montarContextoPagina("aluno/aluno.js", {
+        pathname: "/aluno/aluno.html",
+        nos: { "#seletorTurma": seletor },
+    });
+
+    vm.runInContext("preencherSeletor", ctxAluno)(seletor, [
+        { id: 1, nome: "Cardiologia I", semestre: "2026/2", vigente: true },
+        { id: 2, nome: "Anatomia", semestre: "2026/1", vigente: false },
+        { id: 3, nome: "Fisiologia", semestre: "2026/1", vigente: false },
+    ]);
+
+    assert.equal(seletor.filhos.length, 2, "uma opção solta e um grupo");
+    assert.equal(seletor.filhos[0].tagName, "OPTION");
+    assert.match(seletor.filhos[0].textContent, /Cardiologia/);
+
+    const grupo = seletor.filhos[1];
+    assert.equal(grupo.tagName, "OPTGROUP");
+    assert.equal(grupo.label, "Semestres anteriores");
+    assert.deepEqual(grupo.filhos.map((o) => o.value), [2, 3]);
+});
+
+test("sem a marca de vigente, o seletor fica como era", () => {
+    // Servidor antigo, ou resposta sem o campo: nada vai para o grupo.
+    const seletor = new No("select");
+    const ctxAluno = montarContextoPagina("aluno/aluno.js", {
+        pathname: "/aluno/aluno.html",
+        nos: { "#seletorTurma": seletor },
+    });
+
+    vm.runInContext("preencherSeletor", ctxAluno)(seletor, [
+        { id: 1, nome: "Cardiologia I", semestre: "2026/2" },
+        { id: 2, nome: "Anatomia", semestre: "2026/1" },
+    ]);
+
+    assert.ok(seletor.filhos.every((f) => f.tagName === "OPTION"));
+});

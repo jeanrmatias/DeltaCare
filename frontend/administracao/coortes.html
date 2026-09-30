@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Turmas (Admin)</title>
-    <link rel="stylesheet" href="../style_dashboard.css?v=24">
+    <link rel="stylesheet" href="../style_dashboard.css?v=25">
 </head>
 <body>
     <div class="app">
@@ -79,6 +79,21 @@
                 </div>
             </header>
 
+            <section class="cartao" id="cartaoSemestre">
+                <h2 class="cartao-titulo">Semestre vigente: <span id="semestreVigente">--</span></h2>
+                <p class="campo-dica" id="semestreOrigem"></p>
+                <form id="formularioSemestre" class="formulario formulario--linha">
+                    <div class="campo">
+                        <label for="campoSemestre">Virar para</label>
+                        <input type="text" id="campoSemestre" placeholder="ex.: 2027/1" required>
+                    </div>
+                    <div class="campo campo--acoes">
+                        <button type="submit" class="acao">Virar semestre</button>
+                    </div>
+                </form>
+                <p class="formulario-mensagem" id="semestreMensagem"></p>
+            </section>
+
             <section class="cartao" id="formularioCoorteCartao" hidden>
                 <h2 class="cartao-titulo">Nova turma</h2>
                 <p class="campo-dica">
@@ -109,11 +124,11 @@
         </main>
     </div>
 
-    <script src="../config.js?v=24"></script>
-    <script src="../dialogo.js?v=24"></script>
-    <script src="../auth.js?v=24"></script>
-    <script src="../perfil.js?v=24"></script>
-    <script src="../notificacoes.js?v=24"></script>
-    <script src="coortes.js?v=24"></script>
+    <script src="../config.js?v=25"></script>
+    <script src="../dialogo.js?v=25"></script>
+    <script src="../auth.js?v=25"></script>
+    <script src="../perfil.js?v=25"></script>
+    <script src="../notificacoes.js?v=25"></script>
+    <script src="coortes.js?v=25"></script>
 </body>
 </html>

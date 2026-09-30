@@ -149,16 +149,28 @@ def listar_turmas_do_aluno(aluno_email: str) -> dict:
         ''',
         (aluno[0],),
     )
+    from regras.semestres import chave_de_ordem, semestre_vigente
+
+    vigente = semestre_vigente()
     turmas = [
         {
             "id": linha[0],
             "nome": linha[1],
             "semestre": linha[2],
             "professor_nome": linha[3] or linha[4],
+            # As de semestres passados continuam aqui — o chat sobre material
+            # antigo é justamente o que serve para revisar para a residência.
+            # A marca é para a tela pôr as de agora na frente.
+            "vigente": linha[2] == vigente,
         }
         for linha in cursor.fetchall()
     ]
     conexao.close()
+
+    # Vigentes primeiro; depois as antigas, da mais recente para a mais velha.
+    # Senão o seletor do chat abriria, por ordem alfabética, numa disciplina
+    # de três semestres atrás.
+    turmas.sort(key=lambda t: (not t["vigente"], tuple(-n for n in chave_de_ordem(t["semestre"])), t["nome"]))
 
     return {"sucesso": True, "turmas": turmas}
 

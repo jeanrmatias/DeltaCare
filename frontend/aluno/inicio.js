@@ -125,6 +125,17 @@ function montarProgresso(progresso) {
     document.querySelector("#progressoNivel").textContent = progresso.nivel;
     document.querySelector("#progressoXp").textContent = `${progresso.xp} XP`;
 
+    // Nível e faixa são do semestre (ver regras/aluno._calcular_progresso). Sem
+    // dizer isso, a virada de semestre pareceria o sistema perdendo o XP do
+    // aluno — o total acumulado vai junto para mostrar que não perdeu.
+    const semestre = document.querySelector("#progressoSemestre");
+    if (semestre && progresso.semestre) {
+        const total = progresso.xp_total ?? progresso.xp;
+        semestre.textContent = total > progresso.xp
+            ? `Semestre ${progresso.semestre} · ${total} XP desde o início`
+            : `Semestre ${progresso.semestre}`;
+    }
+
     const faltam = progresso.xp_para_proximo_nivel - progresso.xp_no_nivel;
     document.querySelector("#progressoFaltam").textContent =
         `faltam ${faltam} XP para o nível ${progresso.nivel + 1}`;

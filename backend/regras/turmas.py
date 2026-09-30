@@ -59,6 +59,16 @@ def criar_turma(
     if not semestre:
         return {"sucesso": False, "mensagem": "Informe o semestre (ex.: 2026/2)."}
 
+    # Um formato só (ver regras/semestres.py): `2026.2` e `2026/2` eram
+    # semestres diferentes para o sistema, e a disciplina sumiria da frente do
+    # aluno por causa de um ponto.
+    from regras.semestres import normalizar_semestre
+
+    semestre_normalizado = normalizar_semestre(semestre)
+    if not semestre_normalizado:
+        return {"sucesso": False, "mensagem": "Semestre inválido. Use o formato 2026/2."}
+    semestre = semestre_normalizado
+
     conexao = conectar()
 
     if not _eh_admin(conexao, admin_email):
@@ -138,23 +148,65 @@ def excluir_turma(admin_email: str, turma_id: int) -> dict:
         conexao.close()
         return {"sucesso": False, "mensagem": "Turma não encontrada."}
 
-    # Os materiais dessa turma ficam órfãos sem a turma; para manter a
-    # integridade, exclui os materiais junto (aviso já é dado no front).
-    # Os trechos indexados para o chat e as matrículas seguem o mesmo caminho —
-    # senão sobram no banco apontando para algo que não existe mais.
-    cursor.execute(
-        '''
-        DELETE FROM material_chunks
-        WHERE material_id IN (SELECT id FROM materiais WHERE turma_id = ?)
-        ''',
-        (turma_id,),
-    )
-    cursor.execute("DELETE FROM materiais WHERE turma_id = ?", (turma_id,))
-    cursor.execute("DELETE FROM chat_mensagens WHERE turma_id = ?", (turma_id,))
-    cursor.execute("DELETE FROM matriculas WHERE turma_id = ?", (turma_id,))
-    cursor.execute("DELETE FROM turmas WHERE id = ?", (turma_id,))
+    # Tudo que depende da disciplina sai junto, **filhos antes dos pais**. A
+    # ordem não é estilo: o banco cobra chave estrangeira (infra/database.py),
+    # e apagar a turma com uma atividade ainda apontando para ela falha.
+    #
+    # Antes da cobrança, esta função apagava só material, chat e matrícula, e
+    # deixava atividades, entregas, mensagens e exceções órfãs em silêncio.
+    # Ligada a cobrança, passou a falhar em qualquer disciplina que já tivesse
+    # sido usada — os testes não viam porque excluíam disciplinas vazias.
+    subconsulta_materiais = "SELECT id FROM materiais WHERE turma_id = ?"
+    subconsulta_atividades = "SELECT id FROM atividades WHERE turma_id = ?"
+
+    # Arquivos no disco: lidos antes de apagar as linhas que dizem onde estão.
+    arquivos_de_material = [
+        linha[0] for linha in cursor.execute(
+            "SELECT arquivo_caminho FROM materiais WHERE turma_id = ? AND arquivo_caminho IS NOT NULL",
+            (turma_id,),
+        ).fetchall()
+    ]
+    arquivos_de_entrega = [
+        linha[0] for linha in cursor.execute(
+            f"SELECT arquivo_caminho FROM entregas WHERE atividade_id IN ({subconsulta_atividades})"
+            " AND arquivo_caminho IS NOT NULL",
+            (turma_id,),
+        ).fetchall()
+    ]
+
+    for sql in (
+        f"DELETE FROM acessos_material WHERE material_id IN ({subconsulta_materiais})",
+        f"DELETE FROM material_chunks WHERE material_id IN ({subconsulta_materiais})",
+        "DELETE FROM materiais WHERE turma_id = ?",
+        f"DELETE FROM questoes WHERE atividade_id IN ({subconsulta_atividades})",
+        f"DELETE FROM entregas WHERE atividade_id IN ({subconsulta_atividades})",
+        "DELETE FROM atividades WHERE turma_id = ?",
+        "DELETE FROM mensagens WHERE turma_id = ?",
+        "DELETE FROM chat_mensagens WHERE turma_id = ?",
+        "DELETE FROM excecoes_coorte WHERE turma_id = ?",
+        "DELETE FROM matriculas WHERE turma_id = ?",
+        "DELETE FROM turmas WHERE id = ?",
+    ):
+        cursor.execute(sql, (turma_id,))
+
     conexao.commit()
+
+    # O arquivo de material pode estar compartilhado com o mesmo material
+    # publicado em outra disciplina (ver criar_material_em_turmas): só sai do
+    # disco se nenhum outro registro aponta para ele.
+    em_uso = {
+        linha[0] for linha in cursor.execute(
+            "SELECT DISTINCT arquivo_caminho FROM materiais WHERE arquivo_caminho IS NOT NULL"
+        ).fetchall()
+    }
     conexao.close()
+
+    from infra.arquivos import remover_arquivo
+
+    for caminho in set(arquivos_de_material) - em_uso:
+        remover_arquivo(caminho)
+    for caminho in arquivos_de_entrega:
+        remover_arquivo(caminho)
 
     return {"sucesso": True, "mensagem": "Turma excluída."}
 

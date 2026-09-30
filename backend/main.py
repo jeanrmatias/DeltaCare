@@ -1,4 +1,8 @@
+import os
+from functools import partial
 from typing import Any, Optional
+
+import anyio
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,6 +38,13 @@ from regras.turmas import (
     listar_turmas_admin,
     listar_usuarios,
     perfil_do_usuario,
+)
+from regras.ranking import definir_visibilidade, ranking_da_turma
+from regras.semestres import (
+    definir_semestre_vigente,
+    historico_do_aluno,
+    historico_do_professor,
+    obter_semestre_vigente,
 )
 from regras.coortes import (
     criar_coorte,
@@ -94,11 +105,68 @@ from regras.chat_ia import buscar_historico, indexar_material, responder_pergunt
 configurar_banco()
 
 app = FastAPI()
+# De quais endereços o navegador pode chamar esta API.
+#
+# Era `*` — qualquer site do mundo podia montar uma página que chamasse a API
+# a partir do navegador de um aluno logado. Com o token no header e não em
+# cookie o estrago é menor do que parece, mas `*` é o tipo de configuração que
+# vai para produção por esquecimento.
+#
+# Padrão: o servidor de desenvolvimento (frontend/servir.py, porta 5500), pelos
+# dois nomes que o navegador usa para ele. No servidor de verdade:
+#
+#     DELTACARE_ORIGENS=https://deltacare.moinhos.org.br
+#
+# vários separados por vírgula. Abrir o HTML por file:// não funciona, e já
+# não funcionava antes (o README avisa).
+ORIGENS_PERMITIDAS = [
+    origem.strip()
+    for origem in os.environ.get(
+        "DELTACARE_ORIGENS", "http://127.0.0.1:5500,http://localhost:5500"
+    ).split(",")
+    if origem.strip()
+]
+
+# =========================================================================
+# O servidor de IA tem orçamento próprio
+#
+# Rota `def` roda num pool de threads que o sistema inteiro divide, e esse pool
+# tem 40. Cada pergunta ao chat prendia uma thread pelos 10-20 segundos da
+# resposta do modelo, então 40 perguntas simultâneas ocupavam todas — e a 41ª
+# requisição, fosse um login ou abrir uma tela, esperava na fila atrás delas.
+# Medido com um LLM falso de 4s: com 60 perguntas em andamento, o login foi de
+# 97ms para 7,4 segundos.
+#
+# Agora as chamadas ao LLM passam por `_com_ia`, que usa um limitador separado.
+# Quem passar do limite **espera sem ocupar thread nenhuma**: login e telas
+# nunca entram na fila do chat, por mais cheio que ele esteja.
+#
+# O número NÃO é teto de interações — ninguém é recusado. É quantas chamadas
+# vão ao servidor de IA *ao mesmo tempo*. Mandar mais do que ele processa não
+# acelera nada: o Ollama local atende poucas por vez (OLLAMA_NUM_PARALLEL) e
+# enfileira o resto do lado dele, com a thread daqui presa esperando. No
+# servidor de verdade, com um LLM que aguenta mais, basta subir:
+#
+#     DELTACARE_IA_SIMULTANEAS=32
+#
+# junto com OLLAMA_URL apontando para ele.
+# =========================================================================
+
+LIMITE_IA = anyio.CapacityLimiter(int(os.environ.get("DELTACARE_IA_SIMULTANEAS", "4")))
+
+
+async def _com_ia(funcao, *args):
+    """Roda uma função que fala com o LLM, dentro do orçamento da IA."""
+    return await anyio.to_thread.run_sync(funcao, *args, limiter=LIMITE_IA)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_headers=["*"],
-    allow_methods=["*"],
+    allow_origins=ORIGENS_PERMITIDAS,
+    # Só o que o front de fato usa. O token vai em Authorization; o resto é
+    # JSON. Cookie não existe aqui, então nada de allow_credentials.
+    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
 )
 
 limpar_sessoes_expiradas()
@@ -569,7 +637,7 @@ def listar_turmas_rota(professor: dict = Depends(usuario_professor)):
 
 
 @app.post("/materiais")
-def criar_material_rota(dados: MaterialRequest, professor: dict = Depends(usuario_professor)):
+async def criar_material_rota(dados: MaterialRequest, professor: dict = Depends(usuario_professor)):
     turmas = dados.turma_ids or ([dados.turma_id] if dados.turma_id else [])
 
     if not turmas:
@@ -590,15 +658,24 @@ def criar_material_rota(dados: MaterialRequest, professor: dict = Depends(usuari
         arquivo_nome=dados.arquivo_nome,
     )
 
-    resultado = criar_material_em_turmas(professor["email"], turmas, **campos)
+    # Rota `async`: o que é banco vai para o pool comum (rápido), e só a
+    # indexação vai para o orçamento da IA. Chamar código síncrono direto aqui
+    # dentro travaria o laço de eventos do servidor inteiro.
+    resultado = await anyio.to_thread.run_sync(
+        partial(criar_material_em_turmas, professor["email"], turmas, **campos)
+    )
 
     # Indexa os PDFs pro chat de IA do aluno poder buscar neles depois. Se a
     # indexação falhar (ex.: Ollama fora do ar), o material continua salvo —
     # só não vai aparecer nas buscas do chat.
+    #
+    # É uma chamada de embedding por trecho: um PDF grande são centenas. Por
+    # isso passa por _com_ia, e disputa o servidor de IA com as perguntas dos
+    # alunos pelas mesmas vagas, em vez de prender uma thread comum.
     if resultado.get("sucesso") and dados.tipo == "pdf":
         for material_id in resultado.get("material_ids", []):
             try:
-                indexar_material(material_id)
+                await _com_ia(indexar_material, material_id)
             except Exception as erro:
                 resultado["aviso_indexacao"] = f"Material salvo, mas não indexado pro chat: {erro}"
 
@@ -907,9 +984,61 @@ def desempenho_da_turma_rota(
     return desempenho_da_turma(professor["email"], turma_id, dias)
 
 
+# ---------------------------- semestres ----------------------------
+# O semestre vigente decide o que aparece na frente (disciplinas, pendências,
+# XP e faixa) e o que vai para o histórico. Nada é apagado na virada — ver
+# regras/semestres.py.
+
+class SemestreRequest(BaseModel):
+    semestre: str
+
+
+@app.get("/semestre")
+def semestre_vigente_rota(usuario: dict = Depends(usuario_logado)):
+    """Qualquer perfil logado lê: as três telas precisam saber qual é."""
+    return obter_semestre_vigente()
+
+
+@app.put("/admin/semestre")
+def definir_semestre_rota(dados: SemestreRequest, admin: dict = Depends(usuario_admin)):
+    return definir_semestre_vigente(admin["email"], dados.semestre)
+
+
+@app.get("/aluno/historico")
+def historico_do_aluno_rota(busca: str = "", aluno: dict = Depends(usuario_aluno)):
+    return historico_do_aluno(aluno["email"], busca)
+
+
+@app.get("/historico")
+def historico_do_professor_rota(busca: str = "", professor: dict = Depends(usuario_professor)):
+    return historico_do_professor(professor["email"], busca)
+
+
+# ---------------------------- ranking ----------------------------
+# Só do aluno. O topo da turma é público entre colegas; a posição de cada um,
+# só ele vê. Ver regras/ranking.py.
+
+class VisibilidadeRankingRequest(BaseModel):
+    aparecer: bool
+
+
+@app.get("/aluno/ranking")
+def ranking_rota(coorte_id: Optional[int] = None, aluno: dict = Depends(usuario_aluno)):
+    return ranking_da_turma(aluno["email"], coorte_id)
+
+
+@app.put("/aluno/ranking/visibilidade")
+def visibilidade_ranking_rota(
+    dados: VisibilidadeRankingRequest, aluno: dict = Depends(usuario_aluno)
+):
+    return definir_visibilidade(aluno["email"], dados.aparecer)
+
+
 @app.post("/chat/perguntar")
-def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usuario_aluno)):
-    return responder_pergunta(aluno["email"], dados.turma_id, dados.pergunta)
+async def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usuario_aluno)):
+    # `async` e não `def`: é o que tira esta rota do pool de 40 threads. O
+    # trabalho em si continua síncrono e roda dentro de _com_ia.
+    return await _com_ia(responder_pergunta, aluno["email"], dados.turma_id, dados.pergunta)
 
 
 @app.get("/chat/historico")

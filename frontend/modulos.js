@@ -54,17 +54,6 @@ const MODULOS = {
         ],
         nota: "A privacidade aqui não é detalhe de interface. Anotação de estudo é do aluno, e nem professor nem administração devem conseguir ler.",
     },
-    "ranking-aluno": {
-        titulo: "Ranking",
-        resumo: "Como você está em relação à turma, se quiser aparecer.",
-        sprint: "Backlog",
-        itens: [
-            "Posição na turma calculada a partir do XP",
-            "Escolher não aparecer no ranking público",
-            "Destaque de quem mais evoluiu no período",
-        ],
-        nota: "Depende do XP, que já existe e já conta atividade entregue e nota. A opção de não aparecer é parte do módulo, não um extra: ranking obrigatório expõe quem está indo mal.",
-    },
     "avisos-professor": {
         titulo: "Avisos",
         resumo: "Recado do professor ou da administração para a turma.",
@@ -76,17 +65,6 @@ const MODULOS = {
             "Aviso geral da administração para a instituição inteira",
         ],
         nota: "Diferente das notificações, que nascem de eventos do sistema. Aqui é uma pessoa escrevendo para outras.",
-    },
-    "historico-semestres": {
-        titulo: "Semestres anteriores",
-        resumo: "O material das turmas que já terminaram.",
-        sprint: "Backlog",
-        itens: [
-            "Consultar material de semestres passados",
-            "Buscar por palavra dentro do arquivo histórico",
-            "Vale para aluno e para professor",
-        ],
-        nota: "Hoje o material some da vista quando o semestre vira. Para quem vai prestar prova de residência, é justamente o conteúdo antigo que importa.",
     },
 
     "relatorios-admin": {

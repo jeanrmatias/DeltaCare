@@ -262,6 +262,21 @@ def registrar_acesso_material(aluno_email: str, material_id: int) -> None:
         pass
 
 
+def _filtro_de_turmas(coluna: str, turmas) -> tuple:
+    """Pedaço de SQL que restringe `coluna` às disciplinas dadas.
+
+    `turmas=None` não filtra (é o XP de todos os semestres). Um conjunto vazio
+    filtra tudo fora: aluno sem disciplina no semestre tem zero XP nele, e não
+    o XP da vida inteira por engano.
+    """
+    if turmas is None:
+        return "", []
+    if not turmas:
+        return " AND 0", []
+    marcadores = ",".join("?" for _ in turmas)
+    return f" AND {coluna} IN ({marcadores})", list(turmas)
+
+
 def _normalizar_pergunta(texto: str) -> str:
     """Reduz a pergunta a uma chave, para reconhecer repetição.
 
@@ -272,7 +287,7 @@ def _normalizar_pergunta(texto: str) -> str:
     return " ".join(limpo.split())
 
 
-def _perguntas_que_pontuam(cursor, aluno_id: int) -> int:
+def _perguntas_que_pontuam(cursor, aluno_id: int, turmas=None, desde: str | None = None) -> int:
     """Quantas perguntas do aluno valem XP.
 
     Contar toda pergunta era um buraco: mandar qualquer coisa no chat dava
@@ -288,7 +303,14 @@ def _perguntas_que_pontuam(cursor, aluno_id: int) -> int:
        pontuar depois de `MAX_PERGUNTAS_QUE_PONTUAM_POR_DIA`.
 
     O aluno continua podendo perguntar à vontade: o limite é só do XP.
+
+    `desde` (AAAA-MM-DD) conta só as que pontuaram a partir daquele dia — mas
+    as três regras rodam sobre o histórico inteiro, **antes** do recorte.
+    Recortando primeiro, repetir uma pergunta de mês passado contaria como
+    "nova" na semana, e a evolução semanal viraria o buraco que as regras
+    fecharam.
     """
+    filtro, valores = _filtro_de_turmas("p.turma_id", turmas)
     linhas = cursor.execute(
         """
         SELECT p.conteudo,
@@ -303,9 +325,10 @@ def _perguntas_que_pontuam(cursor, aluno_id: int) -> int:
                  LIMIT 1)
           FROM chat_mensagens p
          WHERE p.aluno_id = ? AND p.papel = 'user'
+        """ + filtro + """
          ORDER BY p.id
         """,
-        (aluno_id,),
+        [aluno_id] + valores,
     ).fetchall()
 
     ja_contadas = set()
@@ -326,26 +349,31 @@ def _perguntas_que_pontuam(cursor, aluno_id: int) -> int:
 
         ja_contadas.add(chave)
         por_dia[dia] = por_dia.get(dia, 0) + 1
-        total += 1
+        if desde is None or dia >= desde:
+            total += 1
 
     return total
 
 
-def _pontos_de_atividades(cursor, aluno_id: int) -> tuple:
+def _pontos_de_atividades(cursor, aluno_id: int, turmas=None, desde: str | None = None) -> tuple:
     """(entregues, corrigidas, XP vindo das notas).
 
     A nota vira XP proporcional aos pontos da atividade, então uma atividade
     de 10 e uma de 100 valem o mesmo esforço em XP — o que pesa é o acerto,
     não o tamanho da escala que o professor escolheu.
     """
+    filtro, valores = _filtro_de_turmas("a.turma_id", turmas)
+    if desde:
+        filtro += " AND substr(e.enviado_em, 1, 10) >= ?"
+        valores = valores + [desde]
     linhas = cursor.execute(
         """
         SELECT e.nota, a.pontos
           FROM entregas e
           JOIN atividades a ON a.id = e.atividade_id
          WHERE e.aluno_id = ? AND e.enviado_em IS NOT NULL
-        """,
-        (aluno_id,),
+        """ + filtro,
+        [aluno_id] + valores,
     ).fetchall()
 
     corrigidas = 0
@@ -361,23 +389,96 @@ def _pontos_de_atividades(cursor, aluno_id: int) -> tuple:
     return len(linhas), corrigidas, xp_das_notas
 
 
-def _dias_com_atividade(cursor, aluno_id: int) -> set:
-    """Dias (AAAA-MM-DD) em que o aluno perguntou, abriu material ou entregou."""
+def _dias_com_atividade(cursor, aluno_id: int, turmas=None) -> set:
+    """Dias (AAAA-MM-DD) em que o aluno perguntou, abriu material ou entregou.
+
+    Com `turmas`, só conta o dia em que a atividade foi numa dessas
+    disciplinas — senão abrir material antigo no histórico daria dia ativo no
+    semestre novo.
+    """
+    f_chat, v_chat = _filtro_de_turmas("turma_id", turmas)
+    f_mat, v_mat = _filtro_de_turmas("m.turma_id", turmas)
+    f_ent, v_ent = _filtro_de_turmas("a.turma_id", turmas)
+
     consulta = (
         "SELECT DISTINCT substr(criado_em, 1, 10) FROM chat_mensagens "
-        "WHERE aluno_id = ? AND papel = 'user' "
+        "WHERE aluno_id = ? AND papel = 'user'" + f_chat + " "
         "UNION "
-        "SELECT DISTINCT substr(criado_em, 1, 10) FROM acessos_material "
-        "WHERE aluno_id = ? "
+        "SELECT DISTINCT substr(ac.criado_em, 1, 10) FROM acessos_material ac "
+        "JOIN materiais m ON m.id = ac.material_id "
+        "WHERE ac.aluno_id = ?" + f_mat + " "
         "UNION "
-        "SELECT DISTINCT substr(enviado_em, 1, 10) FROM entregas "
-        "WHERE aluno_id = ? AND enviado_em IS NOT NULL"
+        "SELECT DISTINCT substr(e.enviado_em, 1, 10) FROM entregas e "
+        "JOIN atividades a ON a.id = e.atividade_id "
+        "WHERE e.aluno_id = ? AND e.enviado_em IS NOT NULL" + f_ent
     )
+    parametros = [aluno_id] + v_chat + [aluno_id] + v_mat + [aluno_id] + v_ent
     return {
         linha[0]
-        for linha in cursor.execute(consulta, (aluno_id, aluno_id, aluno_id)).fetchall()
+        for linha in cursor.execute(consulta, parametros).fetchall()
         if linha[0]
     }
+
+
+def xp_no_periodo(cursor, aluno_id: int, turmas=None, desde: str | None = None) -> int:
+    """XP do aluno nas disciplinas dadas, a partir de um dia (AAAA-MM-DD).
+
+    Para o ranking: "quem mais evoluiu na semana". As regras que impedem
+    farmar XP continuam valendo por inteiro, porque o recorte por data vem
+    **depois** delas:
+
+    - pergunta repetida de mês passado não vira nova na semana
+      (ver `_perguntas_que_pontuam`);
+    - material conta pela **primeira** abertura. Reabrir um PDF antigo nesta
+      semana não é estudo novo, e sem isto bastaria reabrir tudo toda
+      segunda-feira para liderar a evolução.
+    """
+    perguntas = _perguntas_que_pontuam(cursor, aluno_id, turmas, desde)
+
+    filtro, valores = _filtro_de_turmas("m.turma_id", turmas)
+    consulta = (
+        "SELECT COUNT(*) FROM ("
+        "  SELECT ac.material_id, MIN(ac.criado_em) AS primeira"
+        "    FROM acessos_material ac JOIN materiais m ON m.id = ac.material_id"
+        "   WHERE ac.aluno_id = ?" + filtro +
+        "   GROUP BY ac.material_id"
+        ")"
+    )
+    parametros = [aluno_id] + valores
+    if desde:
+        consulta += " WHERE substr(primeira, 1, 10) >= ?"
+        parametros.append(desde)
+    materiais = cursor.execute(consulta, parametros).fetchone()[0]
+
+    entregas, _, xp_das_notas = _pontos_de_atividades(cursor, aluno_id, turmas, desde)
+    dias = [dia for dia in _dias_com_atividade(cursor, aluno_id, turmas) if not desde or dia >= desde]
+
+    return (
+        perguntas * XP_POR_PERGUNTA
+        + materiais * XP_POR_MATERIAL_ACESSADO
+        + len(dias) * XP_POR_DIA_ATIVO
+        + entregas * XP_POR_ATIVIDADE_ENTREGUE
+        + xp_das_notas
+    )
+
+
+def _xp_de_todos_os_semestres(cursor, aluno_id: int) -> int:
+    """O XP acumulado desde a primeira matrícula, sem recorte de semestre."""
+    perguntas = _perguntas_que_pontuam(cursor, aluno_id)
+    materiais = cursor.execute(
+        "SELECT COUNT(DISTINCT material_id) FROM acessos_material WHERE aluno_id = ?",
+        (aluno_id,),
+    ).fetchone()[0]
+    entregas, _, xp_das_notas = _pontos_de_atividades(cursor, aluno_id)
+    dias = _dias_com_atividade(cursor, aluno_id)
+
+    return (
+        perguntas * XP_POR_PERGUNTA
+        + materiais * XP_POR_MATERIAL_ACESSADO
+        + len(dias) * XP_POR_DIA_ATIVO
+        + entregas * XP_POR_ATIVIDADE_ENTREGUE
+        + xp_das_notas
+    )
 
 
 def _calcular_progresso(aluno_id: int) -> dict:
@@ -391,21 +492,48 @@ def _calcular_progresso(aluno_id: int) -> dict:
     - **atividades** dependem do professor propor e corrigir.
 
     Um XP que sobe só porque o aluno clicou muito não mede estudo nenhum.
+
+    **O nível e a faixa são do semestre vigente.** Somando a vida inteira,
+    veterano era Platina para sempre e quem parasse de estudar continuava lá:
+    a faixa premiava tempo de matrícula, não estudo. Cada fonte de XP aponta
+    para uma disciplina, e a disciplina tem semestre, então o recorte não
+    precisa de data nenhuma. O acumulado de todos os semestres continua
+    calculado e vai junto (`xp_total`) — nada que o aluno fez some.
     """
+    from regras.semestres import semestre_vigente
+
+    vigente = semestre_vigente()
+
     conexao = conectar()
     cursor = conexao.cursor()
 
-    perguntas = _perguntas_que_pontuam(cursor, aluno_id)
+    turmas_do_semestre = {
+        linha[0]
+        for linha in cursor.execute(
+            """
+            SELECT t.id FROM matriculas m JOIN turmas t ON t.id = m.turma_id
+             WHERE m.aluno_id = ? AND t.semestre = ?
+            """,
+            (aluno_id, vigente),
+        ).fetchall()
+    }
+
+    perguntas = _perguntas_que_pontuam(cursor, aluno_id, turmas_do_semestre)
 
     # DISTINCT: reabrir o mesmo PDF cinco vezes não são cinco materiais
     # estudados.
+    filtro, valores = _filtro_de_turmas("m.turma_id", turmas_do_semestre)
     materiais_acessados = cursor.execute(
-        "SELECT COUNT(DISTINCT material_id) FROM acessos_material WHERE aluno_id = ?",
-        (aluno_id,),
+        "SELECT COUNT(DISTINCT ac.material_id) FROM acessos_material ac"
+        " JOIN materiais m ON m.id = ac.material_id WHERE ac.aluno_id = ?" + filtro,
+        [aluno_id] + valores,
     ).fetchone()[0]
 
-    entregas, corrigidas, xp_das_notas = _pontos_de_atividades(cursor, aluno_id)
-    dias_ativos = _dias_com_atividade(cursor, aluno_id)
+    entregas, corrigidas, xp_das_notas = _pontos_de_atividades(
+        cursor, aluno_id, turmas_do_semestre
+    )
+    dias_ativos = _dias_com_atividade(cursor, aluno_id, turmas_do_semestre)
+    xp_total = _xp_de_todos_os_semestres(cursor, aluno_id)
     conexao.close()
 
     xp = (
@@ -437,6 +565,11 @@ def _calcular_progresso(aluno_id: int) -> dict:
 
     return {
         "xp": xp,
+        # O que o aluno juntou em todos os semestres. Não decide nível nem
+        # faixa, mas aparece: zerar o número na virada sem mostrar o acumulado
+        # pareceria que o sistema perdeu o histórico dele.
+        "xp_total": xp_total,
+        "semestre": vigente,
         "nivel": nivel,
         "xp_no_nivel": xp % XP_POR_NIVEL,
         "xp_para_proximo_nivel": XP_POR_NIVEL,
@@ -510,8 +643,17 @@ def resumo_do_aluno(aluno_email: str) -> dict:
     perguntas_feitas = cursor.fetchone()[0]
     conexao.close()
 
-    turmas = listar_turmas_do_aluno(aluno_email).get("turmas", [])
-    materiais = listar_materiais_do_aluno(aluno_email).get("materiais", [])
+    # A tela inicial é do semestre de agora. As disciplinas antigas continuam
+    # acessíveis em Semestres anteriores e no seletor do chat; aqui, contá-las
+    # faria o "8 disciplinas" de um aluno do 1º ano virar 32 no 4º.
+    turmas = [
+        t for t in listar_turmas_do_aluno(aluno_email).get("turmas", []) if t.get("vigente")
+    ]
+    ids_vigentes = {t["id"] for t in turmas}
+    materiais = [
+        m for m in listar_materiais_do_aluno(aluno_email).get("materiais", [])
+        if m["turma_id"] in ids_vigentes
+    ]
 
     # Quantos materiais por turma, para os cartões da tela inicial.
     por_turma = {}

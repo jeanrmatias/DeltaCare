@@ -22,14 +22,28 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 # Precisa vir antes de qualquer import do projeto: os módulos leem o caminho
-# do banco no momento em que são importados.
-_ARQUIVO_TEMP = os.path.join(tempfile.gettempdir(), "deltacare_testes.db")
+# do banco e da pasta de arquivos no momento em que são importados.
+#
+# **Um banco e uma pasta por processo** (o pid no nome). Com caminho fixo, duas
+# suítes rodando ao mesmo tempo apagavam o banco uma da outra no setUp e davam
+# dezenas de erros falsos — e rodar em paralelo passa a ser possível (ver
+# rodar_testes.py).
+#
+# A pasta de arquivos também sai de backend/uploads: os testes de entrega
+# apagam a pasta no teardown, e sem isto apagavam as entregas reais do
+# servidor de desenvolvimento.
+_ARQUIVO_TEMP = os.path.join(tempfile.gettempdir(), f"deltacare_testes_{os.getpid()}.db")
 os.environ["DELTACARE_DB"] = _ARQUIVO_TEMP
+os.environ["DELTACARE_UPLOADS"] = os.path.join(
+    tempfile.gettempdir(), f"deltacare_testes_uploads_{os.getpid()}"
+)
 
 import sqlite3  # noqa: E402
 
 from infra.database import CAMINHO_DB, configurar_banco  # noqa: E402
 from regras.autenticacao import (  # noqa: E402
+    JANELA_LOGIN_MINUTOS,
+    MAX_FALHAS_LOGIN,
     MAX_TENTATIVAS_RESET,
     cadastrar_usuario,
     criar_conta_staff,
@@ -109,7 +123,25 @@ from infra.security import hash_senha, verificar_senha  # noqa: E402
 from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
 from regras import chat_ia  # noqa: E402
 
+from regras.ranking import (  # noqa: E402
+    DIAS_DA_EVOLUCAO,
+    TAMANHO_DO_TOPO,
+    definir_visibilidade,
+    ranking_da_turma,
+)
+from regras.semestres import (  # noqa: E402
+    chave_de_ordem,
+    definir_semestre_vigente,
+    historico_do_aluno,
+    historico_do_professor,
+    normalizar_semestre,
+    obter_semestre_vigente,
+    semestre_do_calendario,
+    semestre_vigente,
+)
+
 SENHA = "teste123"
+SEMESTRE_DOS_TESTES = "2026/2"
 
 ADMIN = "admin@teste.com"
 PROFESSOR = "prof1@teste.com"
@@ -164,6 +196,12 @@ class BaseDelta(unittest.TestCase):
         )
         conexao.commit()
         conexao.close()
+
+        # O semestre vigente fica fixo. Sem isto ele viria do calendário, e a
+        # partir de janeiro de 2027 as disciplinas dos testes (2026/2) virariam
+        # "semestre anterior" sozinhas — todo teste de XP quebraria numa manhã
+        # sem ninguém ter mexido em nada.
+        definir_semestre_vigente(ADMIN, SEMESTRE_DOS_TESTES)
 
         criar_conta_staff(ADMIN, PROFESSOR, SENHA, "professor", nome="Professor Um")
         criar_conta_staff(ADMIN, PROFESSOR2, SENHA, "professor", nome="Professor Dois")
@@ -3030,6 +3068,1233 @@ class TestesFaixaNoProgresso(BaseDelta):
 
         self.assertIn("chave", faixa)
         self.assertEqual(faixa["chave"], "bronze")
+
+
+
+# =========================================================================
+# Limite de tentativas no login
+#
+# Sem limite, um robô testava senhas indefinidamente. O bloqueio é por e-mail
+# e temporário (ver o comentário em MAX_FALHAS_LOGIN sobre por que não é
+# permanente nem por IP).
+# =========================================================================
+
+class TestesLimiteDeLogin(BaseDelta):
+
+    def _errar(self, email, vezes):
+        for _ in range(vezes):
+            realizar_login(email, "senha-errada")
+
+    def test_senha_certa_bloqueada_depois_do_limite(self):
+        """Bloqueado, nem a senha certa entra — senão o robô só precisaria
+        continuar tentando até acertar."""
+        self._errar(ALUNO, MAX_FALHAS_LOGIN)
+
+        resultado = realizar_login(ALUNO, SENHA)
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertNotIn("token", resultado)
+
+    def test_antes_do_limite_a_senha_certa_entra(self):
+        """Quem esqueceu erra uma ou duas vezes e não pode ser punido."""
+        self._errar(ALUNO, MAX_FALHAS_LOGIN - 1)
+
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_acertar_zera_o_contador(self):
+        self._errar(ALUNO, MAX_FALHAS_LOGIN - 1)
+        realizar_login(ALUNO, SENHA)
+
+        self._errar(ALUNO, MAX_FALHAS_LOGIN - 1)
+
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_o_bloqueio_expira_com_a_janela(self):
+        """Temporário de propósito: o mesmo mecanismo deixaria qualquer um
+        trancar a conta de um colega, e isso não pode durar para sempre."""
+        self._errar(ALUNO, MAX_FALHAS_LOGIN)
+
+        passado = (
+            datetime.utcnow() - timedelta(minutes=JANELA_LOGIN_MINUTOS + 1)
+        ).isoformat()
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE tentativas_login SET criado_em = ?", (passado,))
+        conexao.commit()
+        conexao.close()
+
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_o_bloqueio_de_um_nao_tranca_outro(self):
+        self._errar(ALUNO, MAX_FALHAS_LOGIN)
+
+        self.assertTrue(realizar_login(ALUNO_FORA, SENHA)["sucesso"])
+
+    def test_bloqueio_nao_revela_se_a_conta_existe(self):
+        """Contando só contas reais, a mensagem de bloqueio apareceria só para
+        elas — e viraria um verificador de cadastro."""
+        self._errar(ALUNO, MAX_FALHAS_LOGIN)
+        self._errar("ninguem@lugar.com", MAX_FALHAS_LOGIN)
+
+        existe = realizar_login(ALUNO, "qualquer")["mensagem"]
+        nao_existe = realizar_login("ninguem@lugar.com", "qualquer")["mensagem"]
+
+        self.assertEqual(existe, nao_existe)
+
+    def test_redefinir_a_senha_destranca(self):
+        """A mensagem de bloqueio manda para 'Esqueci minha senha'. Quem prova
+        pelo e-mail que é dono da conta não deve seguir esperando."""
+        self._errar(ALUNO, MAX_FALHAS_LOGIN)
+
+        solicitar_recuperacao(ALUNO)
+        conexao = sqlite3.connect(CAMINHO_DB)
+        codigo = conexao.execute(
+            "SELECT reset_token FROM users WHERE email = ?", (ALUNO,)
+        ).fetchone()[0]
+        conexao.close()
+        redefinir_senha(ALUNO, codigo, "senhanova123")
+
+        self.assertTrue(realizar_login(ALUNO, "senhanova123")["sucesso"])
+
+    def test_email_com_maiuscula_conta_como_o_mesmo(self):
+        """Senão bastava variar a caixa para ganhar tentativas novas."""
+        self._errar(ALUNO.upper(), MAX_FALHAS_LOGIN)
+
+        self.assertFalse(realizar_login(ALUNO, SENHA)["sucesso"])
+
+
+class TestesTempoDoLogin(BaseDelta):
+    """Conta inexistente não pode responder mais rápido.
+
+    Antes respondia 57x mais rápido (1ms contra 71ms), porque a conferência da
+    senha nem rodava. A mensagem era igual, mas o cronômetro dizia quem é aluno.
+    """
+
+    def _mediana(self, email, repeticoes=9):
+        import time
+
+        tempos = []
+        for _ in range(repeticoes):
+            inicio = time.perf_counter()
+            realizar_login(email, "errada")
+            tempos.append(time.perf_counter() - inicio)
+            # Limpa para o bloqueio não entrar no meio da medição: bloqueado
+            # responde sem conferir senha, e aí os dois ficariam rápidos.
+            conexao = sqlite3.connect(CAMINHO_DB)
+            conexao.execute("DELETE FROM tentativas_login")
+            conexao.commit()
+            conexao.close()
+        tempos.sort()
+        return tempos[len(tempos) // 2]
+
+    def test_conta_inexistente_leva_o_mesmo_tempo(self):
+        existe = self._mediana(ALUNO)
+        nao_existe = self._mediana("ninguem@lugar.com")
+
+        # Folga larga de propósito: teste de tempo não pode ser frágil. O que
+        # importa é pegar a volta do bug, que dava 57x.
+        self.assertLess(existe / nao_existe, 3, f"existe={existe:.4f}s nao={nao_existe:.4f}s")
+
+
+
+class TestesCors(unittest.TestCase):
+    """De quais sites o navegador pode chamar a API.
+
+    Era `*`: qualquer página na internet podia chamar a API a partir do
+    navegador de um aluno logado. O tipo de configuração que vai para produção
+    por esquecimento, e por isso tem teste.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cls.cliente = TestClient(main.app)
+
+    def _liberado_para(self, origem):
+        resposta = self.cliente.options("/login", headers={
+            "Origin": origem,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        })
+        return resposta.headers.get("access-control-allow-origin") == origem
+
+    def test_o_front_de_desenvolvimento_passa(self):
+        self.assertTrue(self._liberado_para("http://127.0.0.1:5500"))
+        self.assertTrue(self._liberado_para("http://localhost:5500"))
+
+    def test_site_de_fora_e_barrado(self):
+        self.assertFalse(self._liberado_para("https://site-malicioso.com"))
+
+    def test_nao_e_curinga(self):
+        """Se alguém voltar para `*`, o cabeçalho sai como '*' e este pega."""
+        resposta = self.cliente.options("/login", headers={
+            "Origin": "https://qualquer.com",
+            "Access-Control-Request-Method": "POST",
+        })
+        self.assertNotEqual(resposta.headers.get("access-control-allow-origin"), "*")
+
+
+
+class TestesChatIsolado(BaseDelta):
+    """O chat não pode travar o resto do sistema.
+
+    Medido com um LLM falso de 2s e 48 perguntas simultâneas: com a rota
+    síncrona, o login levava 23 segundos, porque as perguntas ocupavam as 40
+    threads que o sistema inteiro divide. Com a rota `async` e o orçamento
+    próprio da IA, 96ms. A carga de verdade é pesada demais para esta suíte
+    (sobe um servidor, leva quase um minuto); o que se trava aqui é o que a
+    produz: as rotas que falam com o LLM continuarem `async`, e funcionando.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        from fastapi.testclient import TestClient
+
+        import main
+        from regras import chat_ia
+
+        self.main = main
+        self.cliente = TestClient(main.app)
+
+        # O LLM entra falso pelo ponto único de contato com o Ollama, como no
+        # resto da suíte: nada aqui precisa do modelo ligado.
+        self._original = chat_ia._chamar_ollama
+
+        def ollama_falso(caminho, corpo):
+            if caminho == "/api/embed":
+                return {"embeddings": [embedding_falso(str(corpo["input"]))]}
+            conteudo = json.dumps({"resposta": "Resposta de teste.", "fontes_usadas": []})
+            return {"message": {"content": conteudo}}
+
+        chat_ia._chamar_ollama = ollama_falso
+        self.token = self.cliente.post(
+            "/login", json={"email": ALUNO, "senha": SENHA}
+        ).json()["token"]
+
+    def tearDown(self):
+        from regras import chat_ia
+
+        chat_ia._chamar_ollama = self._original
+        super().tearDown()
+
+    def test_as_rotas_que_falam_com_o_llm_sao_async(self):
+        """Voltar para `def` devolve o chat ao pool comum de 40 threads — e o
+        login volta a esperar atrás dele. Nada mais na suíte pegaria isso."""
+        import inspect
+
+        for rota in (self.main.perguntar_chat_rota, self.main.criar_material_rota):
+            with self.subTest(rota=rota.__name__):
+                self.assertTrue(inspect.iscoroutinefunction(rota))
+
+    def test_o_chat_responde_pela_rota(self):
+        """A rota nova passa por to_thread e pelo limitador: um argumento
+        trocado ali só aparece chamando de verdade."""
+        resposta = self.cliente.post(
+            "/chat/perguntar",
+            json={"turma_id": self.turma_id, "pergunta": "O que é o coração?"},
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(resposta.status_code, 200, resposta.text)
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+
+    def test_o_upload_de_pdf_continua_funcionando(self):
+        """O upload também virou `async`, com o banco no pool comum e a
+        indexação no orçamento da IA. `run_sync` não aceita argumento nomeado,
+        e é por isso que o partial existe — este teste pega se ele sumir."""
+        token = self.cliente.post(
+            "/login", json={"email": PROFESSOR, "senha": SENHA}
+        ).json()["token"]
+
+        resposta = self.cliente.post(
+            "/materiais",
+            json={
+                "turma_ids": [self.turma_id],
+                "titulo": "Aula de anatomia",
+                "tipo": "pdf",
+                "rascunho": False,
+                "arquivo_base64": PDF_BASE64,
+                "arquivo_nome": "aula.pdf",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        self.assertEqual(resposta.status_code, 200, resposta.text)
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+
+
+
+# =========================================================================
+# Semestres
+# =========================================================================
+
+class TestesFormatoDeSemestre(unittest.TestCase):
+    """O semestre era texto livre: o banco tinha `2026.2` e os formulários
+    sugeriam `2026/2`. Comparados como texto, eram semestres diferentes, e a
+    disciplina sumiria da frente do aluno por causa de um ponto."""
+
+    def test_os_separadores_que_as_pessoas_digitam_viram_um_so(self):
+        for entrada in ("2026/2", "2026.2", "2026-2", " 2026 2 ", "2026 / 2"):
+            with self.subTest(entrada=entrada):
+                self.assertEqual(normalizar_semestre(entrada), "2026/2")
+
+    def test_o_que_nao_e_semestre_e_recusado(self):
+        for entrada in ("2026/3", "2026/0", "26/2", "abc", "", None, "2026", "1999/1"):
+            with self.subTest(entrada=entrada):
+                self.assertIsNone(normalizar_semestre(entrada))
+
+    def test_ordem_e_cronologica_e_nao_alfabetica(self):
+        semestres = ["2026/1", "2025/2", "2027/1", "2026/2"]
+
+        self.assertEqual(
+            sorted(semestres, key=chave_de_ordem), ["2025/2", "2026/1", "2026/2", "2027/1"]
+        )
+
+    def test_calendario_divide_o_ano_no_meio(self):
+        from datetime import date
+
+        self.assertEqual(semestre_do_calendario(date(2026, 1, 1)), "2026/1")
+        self.assertEqual(semestre_do_calendario(date(2026, 6, 30)), "2026/1")
+        self.assertEqual(semestre_do_calendario(date(2026, 7, 1)), "2026/2")
+        self.assertEqual(semestre_do_calendario(date(2026, 12, 31)), "2026/2")
+
+
+class TestesSemestreVigente(BaseDelta):
+
+    def _apagar_configuracao(self):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("DELETE FROM configuracoes")
+        conexao.commit()
+        conexao.close()
+
+    def test_sem_definicao_vale_o_calendario(self):
+        self._apagar_configuracao()
+
+        self.assertEqual(semestre_vigente(), semestre_do_calendario())
+        self.assertFalse(obter_semestre_vigente()["definido_pela_administracao"])
+
+    def test_a_definicao_do_admin_vence_o_calendario(self):
+        definir_semestre_vigente(ADMIN, "2031/1")
+
+        self.assertEqual(semestre_vigente(), "2031/1")
+        self.assertTrue(obter_semestre_vigente()["definido_pela_administracao"])
+
+    def test_definir_normaliza_o_formato(self):
+        resultado = definir_semestre_vigente(ADMIN, "2027.1")
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(semestre_vigente(), "2027/1")
+
+    def test_semestre_invalido_e_recusado(self):
+        self.assertFalse(definir_semestre_vigente(ADMIN, "segundo semestre")["sucesso"])
+        self.assertEqual(semestre_vigente(), SEMESTRE_DOS_TESTES)
+
+    def test_so_admin_vira_o_semestre(self):
+        self.assertFalse(definir_semestre_vigente(PROFESSOR, "2027/1")["sucesso"])
+        self.assertFalse(definir_semestre_vigente(ALUNO, "2027/1")["sucesso"])
+        self.assertEqual(semestre_vigente(), SEMESTRE_DOS_TESTES)
+
+
+class TestesSemestreNaEntrada(BaseDelta):
+
+    def test_disciplina_grava_o_formato_unico(self):
+        turma = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2027.1")["turma"]
+
+        self.assertEqual(turma["semestre"], "2027/1")
+
+    def test_disciplina_com_semestre_invalido_e_recusada(self):
+        self.assertFalse(criar_turma(ADMIN, PROFESSOR, "Anatomia", "segundo")["sucesso"])
+
+    def test_mesma_disciplina_com_outro_separador_e_duplicata(self):
+        """Antes, `2026.2` e `2026/2` passavam como semestres diferentes e o
+        mesmo professor ficava com a mesma disciplina duas vezes."""
+        criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026/2")
+
+        self.assertFalse(criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["sucesso"])
+
+    def test_turma_de_alunos_grava_o_formato_unico(self):
+        self.assertEqual(criar_coorte(ADMIN, "MED 3A", "2026-2")["coorte"]["semestre"], "2026/2")
+
+    def test_a_migracao_converte_o_que_ja_estava_gravado(self):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE turmas SET semestre = '2026.2' WHERE id = ?", (self.turma_id,))
+        conexao.commit()
+        conexao.close()
+
+        configurar_banco(silencioso=True)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        semestre = conexao.execute(
+            "SELECT semestre FROM turmas WHERE id = ?", (self.turma_id,)
+        ).fetchone()[0]
+        conexao.close()
+        self.assertEqual(semestre, "2026/2")
+
+
+class BaseSemestres(BaseDelta):
+    """Cardiologia é do semestre vigente (2026/2); Anatomia é do anterior."""
+
+    def setUp(self):
+        super().setUp()
+        self.antiga = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026/1")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, self.antiga)
+
+    def material_em(self, turma_id, titulo, rascunho=False):
+        return criar_material(
+            professor_email=PROFESSOR, turma_id=turma_id, titulo=titulo, tipo="link",
+            link_url="https://exemplo.com", rascunho=rascunho,
+        )["material_id"]
+
+    def trecho_de_pdf(self, material_id, texto):
+        """O texto que o chat de IA já extraiu do PDF. A busca do histórico
+        lê daqui em vez de abrir o arquivo de novo."""
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute(
+            "INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, 0, ?, '[]')",
+            (material_id, texto),
+        )
+        conexao.commit()
+        conexao.close()
+
+
+class TestesDisciplinasVigentes(BaseSemestres):
+
+    def test_a_lista_marca_quais_sao_do_semestre(self):
+        por_nome = {t["nome"]: t["vigente"] for t in listar_turmas_do_aluno(ALUNO)["turmas"]}
+
+        self.assertEqual(por_nome, {"Cardiologia": True, "Anatomia": False})
+
+    def test_as_do_semestre_vem_primeiro(self):
+        """Por ordem alfabética, o seletor do chat abriria em Anatomia — uma
+        disciplina do semestre passado."""
+        nomes = [t["nome"] for t in listar_turmas_do_aluno(ALUNO)["turmas"]]
+
+        self.assertEqual(nomes[0], "Cardiologia")
+
+    def test_virar_o_semestre_troca_quem_e_vigente(self):
+        definir_semestre_vigente(ADMIN, "2027/1")
+
+        vigentes = [t for t in listar_turmas_do_aluno(ALUNO)["turmas"] if t["vigente"]]
+
+        self.assertEqual(vigentes, [])
+
+
+class TestesXPPorSemestre(BaseSemestres):
+    """A faixa premiava tempo de matrícula: somando a vida inteira, veterano
+    era Platina para sempre, e quem parasse de estudar continuava lá."""
+
+    def setUp(self):
+        super().setUp()
+        self.material_antigo = self.material_em(self.antiga, "Ossos do crânio")
+        self.material_atual = self.material_em(self.turma_id, "Ciclo cardíaco")
+
+    def test_estudo_do_semestre_passado_nao_conta_no_nivel_de_agora(self):
+        from regras.aluno import XP_POR_DIA_ATIVO, XP_POR_MATERIAL_ACESSADO, registrar_acesso_material
+
+        registrar_acesso_material(ALUNO, self.material_antigo)
+
+        progresso = resumo_do_aluno(ALUNO)["progresso"]
+
+        self.assertEqual(progresso["xp"], 0)
+        self.assertEqual(progresso["xp_total"], XP_POR_MATERIAL_ACESSADO + XP_POR_DIA_ATIVO)
+
+    def test_estudo_do_semestre_conta(self):
+        from regras.aluno import XP_POR_DIA_ATIVO, XP_POR_MATERIAL_ACESSADO, registrar_acesso_material
+
+        registrar_acesso_material(ALUNO, self.material_atual)
+
+        self.assertEqual(
+            resumo_do_aluno(ALUNO)["progresso"]["xp"],
+            XP_POR_MATERIAL_ACESSADO + XP_POR_DIA_ATIVO,
+        )
+
+    def test_o_mesmo_dia_nao_conta_duas_vezes_no_total(self):
+        from regras.aluno import XP_POR_DIA_ATIVO, XP_POR_MATERIAL_ACESSADO, registrar_acesso_material
+
+        registrar_acesso_material(ALUNO, self.material_antigo)
+        registrar_acesso_material(ALUNO, self.material_atual)
+
+        self.assertEqual(
+            resumo_do_aluno(ALUNO)["progresso"]["xp_total"],
+            2 * XP_POR_MATERIAL_ACESSADO + XP_POR_DIA_ATIVO,
+        )
+
+    def test_virar_o_semestre_recomeca_o_nivel_e_preserva_o_total(self):
+        from regras.aluno import registrar_acesso_material
+
+        registrar_acesso_material(ALUNO, self.material_atual)
+        antes = resumo_do_aluno(ALUNO)["progresso"]
+
+        definir_semestre_vigente(ADMIN, "2027/1")
+        depois = resumo_do_aluno(ALUNO)["progresso"]
+
+        self.assertEqual(depois["xp"], 0)
+        self.assertEqual(depois["faixa"]["nome"], "Bronze")
+        self.assertEqual(depois["xp_total"], antes["xp_total"])
+        self.assertEqual(depois["semestre"], "2027/1")
+
+
+class TestesHistorico(BaseSemestres):
+
+    def test_mostra_so_semestres_anteriores(self):
+        self.material_em(self.antiga, "Ossos do crânio")
+        self.material_em(self.turma_id, "Ciclo cardíaco")
+
+        historico = historico_do_aluno(ALUNO)
+
+        self.assertEqual([s["semestre"] for s in historico["semestres"]], ["2026/1"])
+        disciplinas = historico["semestres"][0]["disciplinas"]
+        self.assertEqual([d["nome"] for d in disciplinas], ["Anatomia"])
+        self.assertEqual([m["titulo"] for m in disciplinas[0]["materiais"]], ["Ossos do crânio"])
+
+    def test_rascunho_nao_aparece_nem_no_historico(self):
+        self.material_em(self.antiga, "Rascunho esquecido", rascunho=True)
+
+        materiais = historico_do_aluno(ALUNO)["semestres"][0]["disciplinas"][0]["materiais"]
+
+        self.assertEqual(materiais, [])
+
+    def test_aluno_so_ve_o_que_cursou(self):
+        """O histórico parte da matrícula, como o resto do sistema."""
+        self.material_em(self.antiga, "Ossos do crânio")
+
+        self.assertEqual(historico_do_aluno(ALUNO_FORA)["semestres"], [])
+
+    def test_professor_ve_as_proprias_disciplinas_antigas(self):
+        self.material_em(self.antiga, "Ossos do crânio")
+
+        historico = historico_do_professor(PROFESSOR)
+
+        self.assertEqual(historico["semestres"][0]["disciplinas"][0]["nome"], "Anatomia")
+        self.assertEqual(historico_do_professor(PROFESSOR2)["semestres"], [])
+
+    def test_busca_pelo_titulo(self):
+        self.material_em(self.antiga, "Ossos do crânio")
+        self.material_em(self.antiga, "Músculos da face")
+
+        disciplinas = historico_do_aluno(ALUNO, "crânio")["semestres"][0]["disciplinas"]
+
+        self.assertEqual([m["titulo"] for m in disciplinas[0]["materiais"]], ["Ossos do crânio"])
+
+    def test_busca_dentro_do_texto_do_pdf(self):
+        """O que o aluno procura para a residência raramente está no título."""
+        material = self.material_em(self.antiga, "Aula 7")
+        self.trecho_de_pdf(material, "O forame magno permite a passagem da medula oblonga.")
+
+        encontrado = historico_do_aluno(ALUNO, "forame magno")["semestres"][0]["disciplinas"][0]["materiais"][0]
+
+        self.assertEqual(encontrado["titulo"], "Aula 7")
+        self.assertIn("forame magno", encontrado["trecho"])
+
+    def test_busca_curta_demais_nao_filtra(self):
+        """Duas letras casam com quase todo PDF: não é busca, é listagem lenta."""
+        self.material_em(self.antiga, "Ossos do crânio")
+
+        historico = historico_do_aluno(ALUNO, "os")
+
+        self.assertEqual(historico["busca"], "")
+        self.assertEqual(len(historico["semestres"][0]["disciplinas"][0]["materiais"]), 1)
+
+    def test_curinga_digitado_e_texto_e_nao_curinga(self):
+        """Sem escapar, buscar '%%%' casaria com tudo."""
+        self.material_em(self.antiga, "Ossos do crânio")
+
+        self.assertEqual(historico_do_aluno(ALUNO, "%%%")["semestres"], [])
+
+    def test_busca_sem_resultado_nao_devolve_semestre_vazio(self):
+        self.material_em(self.antiga, "Ossos do crânio")
+
+        self.assertEqual(historico_do_aluno(ALUNO, "inexistente")["semestres"], [])
+
+
+class TestesRotasDeSemestre(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+
+    def _cab(self, email):
+        token = self.cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_todo_perfil_le_o_semestre(self):
+        for email in (ADMIN, PROFESSOR, ALUNO):
+            with self.subTest(perfil=email):
+                resposta = self.cliente.get("/semestre", headers=self._cab(email))
+                self.assertEqual(resposta.json()["semestre"], SEMESTRE_DOS_TESTES)
+
+    def test_so_admin_vira_pela_rota(self):
+        for email in (PROFESSOR, ALUNO):
+            with self.subTest(perfil=email):
+                resposta = self.cliente.put(
+                    "/admin/semestre", json={"semestre": "2027/1"}, headers=self._cab(email)
+                )
+                self.assertIn(resposta.status_code, (401, 403))
+
+        resposta = self.cliente.put(
+            "/admin/semestre", json={"semestre": "2027/1"}, headers=self._cab(ADMIN)
+        )
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+
+    def test_historico_de_cada_perfil_na_sua_rota(self):
+        self.assertTrue(self.cliente.get("/aluno/historico", headers=self._cab(ALUNO)).json()["sucesso"])
+        self.assertTrue(self.cliente.get("/historico", headers=self._cab(PROFESSOR)).json()["sucesso"])
+        self.assertIn(
+            self.cliente.get("/historico", headers=self._cab(ALUNO)).status_code, (401, 403)
+        )
+
+
+# =========================================================================
+# Exclusão em cascata
+#
+# Quando a chave estrangeira passou a ser cobrada, excluir uma disciplina que
+# já tinha sido usada começou a falhar: a função apagava material, chat e
+# matrícula, mas não atividades, entregas, mensagens, exceções, nem os
+# registros de acesso ao material. Os testes antigos excluíam disciplinas
+# vazias e não viam.
+# =========================================================================
+
+class TestesExclusaoDeDisciplinaUsada(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        from regras.aluno import registrar_acesso_material
+
+        self.material = criar_material(
+            professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 1",
+            tipo="link", link_url="https://exemplo.com", rascunho=False,
+        )["material_id"]
+        registrar_acesso_material(ALUNO, self.material)
+
+        self.atividade = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Relatório", tipo="dissertativa",
+            rascunho=False, anexo="opcional",
+        )["atividade_ids"][0]
+        enviar_entrega(ALUNO, self.atividade, "texto", PDF_BASE64, "relatorio.pdf")
+        self.arquivo = obter_arquivo_entrega(
+            ALUNO, obter_atividade_do_aluno(ALUNO, self.atividade)["entrega"]["entrega_id"]
+        )[0]
+
+        enviar_mensagem(ALUNO, self.turma_id, "Professor, uma dúvida.")
+
+        self.coorte = criar_coorte(ADMIN, "MED 3A", "2026/2")["coorte"]["id"]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE turmas SET coorte_id = ? WHERE id = ?", (self.coorte, self.turma_id))
+        conexao.commit()
+        conexao.close()
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte)
+        criar_excecao(ADMIN, ALUNO, self.turma_id)
+
+    def test_a_disciplina_usada_sai(self):
+        resultado = excluir_turma(ADMIN, self.turma_id)
+
+        self.assertTrue(resultado["sucesso"], resultado)
+
+    def test_nao_sobra_nada_apontando_para_ela(self):
+        excluir_turma(ADMIN, self.turma_id)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("PRAGMA foreign_keys=ON")
+        violacoes = conexao.execute("PRAGMA foreign_key_check").fetchall()
+        conexao.close()
+
+        self.assertEqual(violacoes, [])
+
+    def test_o_documento_entregue_sai_do_disco(self):
+        self.assertTrue(os.path.isfile(self.arquivo))
+
+        excluir_turma(ADMIN, self.turma_id)
+
+        self.assertFalse(os.path.isfile(self.arquivo))
+
+    def test_material_ja_aberto_pode_ser_excluido(self):
+        resultado = excluir_material(self.material, PROFESSOR)
+
+        self.assertTrue(resultado["sucesso"], resultado)
+
+    def test_excluir_atividade_leva_o_documento_do_disco(self):
+        excluir_atividade(self.atividade, PROFESSOR)
+
+        self.assertFalse(os.path.isfile(self.arquivo))
+
+    def tearDown(self):
+        import shutil
+
+        from infra.arquivos import PASTA_ENTREGAS
+
+        shutil.rmtree(PASTA_ENTREGAS, ignore_errors=True)
+        super().tearDown()
+
+
+
+# =========================================================================
+# Ranking
+#
+# O cuidado que veio do backlog: ranking obrigatório expõe quem está indo mal.
+# Então o público é só o topo, a posição de cada um só ele vê, e quem não quer
+# aparecer vira "colega que preferiu não aparecer" sem perder a posição.
+# =========================================================================
+
+class BaseRanking(BaseDelta):
+    """MED 3A com Anatomia; ALUNO e ALUNO_FORA na turma."""
+
+    def setUp(self):
+        super().setUp()
+        self.coorte = criar_coorte(ADMIN, "MED 3A", SEMESTRE_DOS_TESTES)["coorte"]["id"]
+        self.anatomia = criar_turma(
+            ADMIN, PROFESSOR, "Anatomia", SEMESTRE_DOS_TESTES, coorte_id=self.coorte
+        )["turma"]["id"]
+        for aluno in (ALUNO, ALUNO_FORA):
+            matricular_na_coorte(ADMIN, aluno, self.coorte)
+        self.materiais = [
+            criar_material(
+                professor_email=PROFESSOR, turma_id=self.anatomia, titulo=f"Aula {i}",
+                tipo="link", link_url="https://exemplo.com", rascunho=False,
+            )["material_id"]
+            for i in range(4)
+        ]
+
+    def estudar(self, aluno, quantos):
+        """Abre `quantos` materiais hoje: 15 XP cada, mais 25 do dia."""
+        from regras.aluno import registrar_acesso_material
+
+        for material in self.materiais[:quantos]:
+            registrar_acesso_material(aluno, material)
+
+    def novo_aluno(self, email, nome):
+        cadastrar_usuario(email, SENHA, "aluno", nome=nome)
+        matricular_na_coorte(ADMIN, email, self.coorte)
+
+
+class TestesRanking(BaseRanking):
+
+    def test_quem_estudou_mais_vem_primeiro(self):
+        self.estudar(ALUNO, 3)
+        self.estudar(ALUNO_FORA, 1)
+
+        ranking = ranking_da_turma(ALUNO)
+
+        self.assertEqual(ranking["eu"]["posicao"], 1)
+        self.assertEqual(ranking_da_turma(ALUNO_FORA)["eu"]["posicao"], 2)
+        self.assertEqual(ranking["total"], 2)
+
+    def test_empate_divide_a_posicao(self):
+        """Quem fez o mesmo XP não fica atrás por ordem alfabética."""
+        self.estudar(ALUNO, 2)
+        self.estudar(ALUNO_FORA, 2)
+
+        self.assertEqual(ranking_da_turma(ALUNO)["eu"]["posicao"], 1)
+        self.assertEqual(ranking_da_turma(ALUNO_FORA)["eu"]["posicao"], 1)
+
+    def test_o_xp_do_ranking_e_o_mesmo_da_tela_inicial(self):
+        """Duas telas mostrando números diferentes para o mesmo aluno é o tipo
+        de coisa que faz a pessoa desconfiar do sistema inteiro."""
+        self.estudar(ALUNO, 3)
+
+        self.assertEqual(
+            ranking_da_turma(ALUNO)["eu"]["xp"], resumo_do_aluno(ALUNO)["progresso"]["xp"]
+        )
+
+    def test_aluno_sem_turma_recebe_explicacao_e_nao_erro(self):
+        cadastrar_usuario("solto@teste.com", SENHA, "aluno", nome="Solto")
+
+        ranking = ranking_da_turma("solto@teste.com")
+
+        self.assertTrue(ranking["sucesso"])
+        self.assertIsNone(ranking["coorte"])
+
+    def test_turma_de_semestre_passado_nao_tem_ranking(self):
+        definir_semestre_vigente(ADMIN, "2027/1")
+
+        self.assertIsNone(ranking_da_turma(ALUNO)["coorte"])
+
+    def test_estudo_de_semestre_passado_nao_conta_no_ranking(self):
+        """O ranking compara o semestre. Somando a vida inteira, o veterano
+        ganharia sempre por tempo de casa."""
+        from regras.aluno import registrar_acesso_material
+
+        antiga = criar_turma(ADMIN, PROFESSOR, "Histologia", "2026/1")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO_FORA, antiga)
+        material_antigo = criar_material(
+            professor_email=PROFESSOR, turma_id=antiga, titulo="Tecido epitelial",
+            tipo="link", link_url="https://exemplo.com", rascunho=False,
+        )["material_id"]
+        registrar_acesso_material(ALUNO_FORA, material_antigo)
+        self.estudar(ALUNO, 1)
+
+        self.assertEqual(ranking_da_turma(ALUNO_FORA)["eu"]["xp"], 0)
+        self.assertEqual(ranking_da_turma(ALUNO)["eu"]["posicao"], 1)
+
+    def test_turma_alheia_pedida_pela_url_e_ignorada(self):
+        """Trocando o número na URL, dava para ver o ranking de outra turma."""
+        outra = criar_coorte(ADMIN, "MED 5B", SEMESTRE_DOS_TESTES)["coorte"]["id"]
+
+        ranking = ranking_da_turma(ALUNO, coorte_id=outra)
+
+        self.assertEqual(ranking["coorte"]["id"], self.coorte)
+
+
+class TestesPrivacidadeDoRanking(BaseRanking):
+
+    def test_quem_preferiu_nao_aparecer_mantem_a_posicao_sem_o_nome(self):
+        self.estudar(ALUNO_FORA, 3)
+        self.estudar(ALUNO, 1)
+        definir_visibilidade(ALUNO_FORA, aparecer=False)
+
+        primeiro = ranking_da_turma(ALUNO)["topo"][0]
+
+        self.assertEqual(primeiro["posicao"], 1)
+        self.assertIsNone(primeiro["nome"])
+        self.assertTrue(primeiro["oculto"])
+
+    def test_quem_se_ocultou_ainda_se_ve_pelo_nome(self):
+        self.estudar(ALUNO, 2)
+        definir_visibilidade(ALUNO, aparecer=False)
+
+        ranking = ranking_da_turma(ALUNO)
+
+        self.assertEqual(ranking["topo"][0]["nome"], "Aluno Um")
+        self.assertFalse(ranking["eu"]["aparece"])
+
+    def test_o_fundo_nao_e_exposto(self):
+        """Só o topo é público. Com mais alunos que o topo, os de trás não
+        aparecem na lista de ninguém."""
+        for i in range(TAMANHO_DO_TOPO + 3):
+            email = f"colega{i}@teste.com"
+            self.novo_aluno(email, f"Colega {i:02d}")
+            self.estudar(email, 3 if i < TAMANHO_DO_TOPO else 1)
+        self.estudar(ALUNO, 1)
+
+        ranking = ranking_da_turma(ALUNO)
+
+        self.assertEqual(len(ranking["topo"]), TAMANHO_DO_TOPO)
+        self.assertNotIn("Aluno Um", [linha["nome"] for linha in ranking["topo"]])
+        # Mas ele sabe onde está.
+        self.assertGreater(ranking["eu"]["posicao"], TAMANHO_DO_TOPO)
+
+    def test_zero_xp_nao_entra_no_topo(self):
+        """Numa turma que ainda não começou, o topo seria uma lista de
+        empatados em zero: exposição sem informação nenhuma."""
+        self.estudar(ALUNO, 1)
+
+        nomes = [linha["nome"] for linha in ranking_da_turma(ALUNO)["topo"]]
+
+        self.assertEqual(nomes, ["Aluno Um"])
+
+    def test_nenhum_email_ou_id_de_colega_sai_na_resposta(self):
+        self.estudar(ALUNO_FORA, 2)
+        definir_visibilidade(ALUNO_FORA, aparecer=False)
+
+        texto = json.dumps(ranking_da_turma(ALUNO), ensure_ascii=False)
+
+        self.assertNotIn(ALUNO_FORA, texto)
+        self.assertNotIn('"id"', json.dumps(ranking_da_turma(ALUNO)["topo"]))
+
+    def test_voltar_a_aparecer(self):
+        definir_visibilidade(ALUNO, aparecer=False)
+        definir_visibilidade(ALUNO, aparecer=True)
+
+        self.assertTrue(ranking_da_turma(ALUNO)["eu"]["aparece"])
+
+
+class TestesEvolucaoNoRanking(BaseRanking):
+
+    def _acesso_antigo(self, aluno_email, material_id, dias_atras):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        aluno_id = conexao.execute("SELECT id FROM users WHERE email = ?", (aluno_email,)).fetchone()[0]
+        quando = (datetime.now(timezone.utc) - timedelta(days=dias_atras)).isoformat()
+        conexao.execute(
+            "INSERT INTO acessos_material (aluno_id, material_id, criado_em) VALUES (?, ?, ?)",
+            (aluno_id, material_id, quando),
+        )
+        conexao.commit()
+        conexao.close()
+
+    def test_quem_estudou_esta_semana_aparece_em_destaque(self):
+        self.estudar(ALUNO, 2)
+
+        evoluiu = ranking_da_turma(ALUNO_FORA)["evoluiu"]
+
+        self.assertEqual(evoluiu[0]["nome"], "Aluno Um")
+
+    def test_estudo_antigo_nao_e_evolucao(self):
+        self._acesso_antigo(ALUNO, self.materiais[0], DIAS_DA_EVOLUCAO + 2)
+
+        ranking = ranking_da_turma(ALUNO)
+
+        self.assertGreater(ranking["eu"]["xp"], 0)
+        self.assertEqual(ranking["eu"]["xp_semana"], 0)
+
+    def test_reabrir_material_antigo_nao_conta_como_estudo_novo(self):
+        """Sem isto, bastaria reabrir tudo toda segunda-feira para liderar."""
+        from regras.aluno import XP_POR_DIA_ATIVO, registrar_acesso_material
+
+        self._acesso_antigo(ALUNO, self.materiais[0], DIAS_DA_EVOLUCAO + 2)
+        registrar_acesso_material(ALUNO, self.materiais[0])
+
+        # Só o dia ativo conta; o material não é novo.
+        self.assertEqual(ranking_da_turma(ALUNO)["eu"]["xp_semana"], XP_POR_DIA_ATIVO)
+
+    def test_quem_preferiu_nao_aparecer_fica_fora_do_destaque(self):
+        self.estudar(ALUNO, 3)
+        definir_visibilidade(ALUNO, aparecer=False)
+
+        self.assertEqual(ranking_da_turma(ALUNO_FORA)["evoluiu"], [])
+
+
+class TestesRotasDoRanking(BaseRanking):
+
+    def setUp(self):
+        super().setUp()
+
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+
+    def _cab(self, email):
+        token = self.cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_o_aluno_le_o_ranking_e_muda_a_visibilidade(self):
+        self.assertTrue(self.cliente.get("/aluno/ranking", headers=self._cab(ALUNO)).json()["sucesso"])
+
+        resposta = self.cliente.put(
+            "/aluno/ranking/visibilidade", json={"aparecer": False}, headers=self._cab(ALUNO)
+        )
+
+        self.assertFalse(resposta.json()["aparece"])
+
+    def test_professor_nao_acessa_o_ranking(self):
+        resposta = self.cliente.get("/aluno/ranking", headers=self._cab(PROFESSOR))
+
+        self.assertIn(resposta.status_code, (401, 403))
+
+
+
+# =========================================================================
+# Contrato entre front e back
+#
+# Quebras que nenhum teste de regra pega, porque cada lado está certo sozinho:
+# o front chamando uma rota que mudou de nome, ou um script procurando um
+# elemento que a página não tem. Leitura estática do código (contrato_front.py).
+# =========================================================================
+
+class TestesContratoFrontBack(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        import contrato_front
+        import main
+
+        cls.contrato = contrato_front
+        cls.app = main.app
+
+    def test_o_extrator_enxerga_as_chamadas(self):
+        """Se a leitura do JS quebrar e achar zero chamadas, os outros testes
+        passariam por não ter o que conferir."""
+        self.assertGreater(len(self.contrato.chamadas_do_front()), 80)
+
+    def test_toda_chamada_do_front_tem_rota_com_o_mesmo_verbo(self):
+        self.assertEqual(self.contrato.chamadas_sem_rota(self.app), [])
+
+    def test_todo_elemento_que_um_script_procura_existe(self):
+        self.assertEqual(self.contrato.ids_ausentes(), [])
+
+    def test_rotas_sem_uso_no_front_sao_so_as_conhecidas(self):
+        """Rota nova sem tela, ou tela que deixou de chamar uma rota, aparece
+        aqui. Cada item da lista tem motivo para estar nela."""
+        conhecidas = {
+            # Do próprio FastAPI e da raiz de saúde.
+            "GET /", "GET /docs", "GET /docs/oauth2-redirect", "GET /openapi.json", "GET /redoc",
+            # A atividade com gabarito, só para o professor dono. A tela de
+            # edição usa os dados da lista, e as questões não são editáveis.
+            "GET /atividades/{atividade_id}",
+            # Cadastro público de aluno. A interface não oferece: as contas
+            # nascem pela administração ou pela planilha.
+            "POST /cadastro",
+        }
+
+        self.assertEqual(set(self.contrato.rotas_nunca_chamadas(self.app)), conhecidas)
+
+
+
+# =========================================================================
+# Um semestre inteiro, pelo HTTP
+#
+# Os testes acima provam cada módulo sozinho. Este prova que eles conversam:
+# cada passo é feito por um perfil pela rota, como a tela faria, e o passo
+# seguinte confere o efeito do outro lado — a notificação chegou, a nota
+# apareceu, o XP subiu, o ranking mudou, o material foi para o histórico.
+#
+# É um teste só, e longo, de propósito: os passos dependem uns dos outros, e
+# o que interessa é descobrir **onde a corrente quebra**. A mensagem de cada
+# assert diz em que passo.
+# =========================================================================
+
+def pdf_com_texto(texto: str) -> str:
+    """Um PDF de verdade, com texto extraível, em base64.
+
+    O PDF vazio dos outros testes não tem página; este passa pela extração do
+    pypdf, vira trechos indexados e é encontrado pela busca do chat e pela do
+    histórico — a cadeia inteira que um PDF real percorre.
+    """
+    conteudo = f"BT /F1 12 Tf 72 720 Td ({texto}) Tj ET".encode("latin-1")
+    objetos = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R"
+        b" /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(conteudo)).encode() + b" >>\nstream\n" + conteudo + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    pdf = b"%PDF-1.4\n"
+    posicoes = []
+    for numero, corpo in enumerate(objetos, start=1):
+        posicoes.append(len(pdf))
+        pdf += f"{numero} 0 obj\n".encode() + corpo + b"\nendobj\n"
+    inicio_xref = len(pdf)
+    pdf += f"xref\n0 {len(objetos) + 1}\n0000000000 65535 f \n".encode()
+    for posicao in posicoes:
+        pdf += f"{posicao:010d} 00000 n \n".encode()
+    pdf += f"trailer\n<< /Size {len(objetos) + 1} /Root 1 0 R >>\nstartxref\n{inicio_xref}\n%%EOF\n".encode()
+    return base64.b64encode(pdf).decode()
+
+
+class TestesSemestreCompleto(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+
+        from fastapi.testclient import TestClient
+
+        import main
+        from regras import chat_ia
+
+        # Erro do servidor vira 500 na resposta, como no navegador, em vez de
+        # estourar dentro do teste: assim a falha diz em que passo aconteceu.
+        self.cliente = TestClient(main.app, raise_server_exceptions=False)
+        self._ollama_original = chat_ia._chamar_ollama
+
+        def ollama_falso(caminho, corpo):
+            if caminho == "/api/embed":
+                return {"embeddings": [embedding_falso(str(corpo["input"]))]}
+            # Cita o primeiro material que o servidor ofereceu no schema, como
+            # o modelo faria ao responder com base nele.
+            titulos = (
+                corpo.get("format", {}).get("properties", {}).get("fontes_usadas", {})
+                .get("items", {}).get("enum", [])
+            )
+            resposta = {"resposta": "O forame magno fica na base do crânio.", "fontes_usadas": titulos[:1]}
+            return {"message": {"content": json.dumps(resposta)}}
+
+        chat_ia._chamar_ollama = ollama_falso
+
+    def tearDown(self):
+        import shutil
+
+        from infra.arquivos import PASTA_ENTREGAS, PASTA_UPLOADS
+        from regras import chat_ia
+
+        chat_ia._chamar_ollama = self._ollama_original
+        shutil.rmtree(PASTA_ENTREGAS, ignore_errors=True)
+        shutil.rmtree(PASTA_UPLOADS, ignore_errors=True)
+        super().tearDown()
+
+    # ------------------------------------------------------------ ajudantes
+
+    def entrar(self, email):
+        resposta = self.cliente.post("/login", json={"email": email, "senha": SENHA})
+        self.assertTrue(resposta.json().get("sucesso"), f"login de {email}: {resposta.text}")
+        return {"Authorization": f"Bearer {resposta.json()['token']}"}
+
+    def chamar(self, quem, metodo, caminho, corpo=None, esperado=200):
+        resposta = self.cliente.request(metodo, caminho, json=corpo, headers=quem)
+        self.assertEqual(
+            resposta.status_code, esperado, f"{metodo} {caminho} -> {resposta.status_code}: {resposta.text[:300]}"
+        )
+        if resposta.headers.get("content-type", "").startswith("application/json"):
+            dados = resposta.json()
+            if isinstance(dados, dict) and "sucesso" in dados and esperado == 200:
+                self.assertTrue(dados["sucesso"], f"{metodo} {caminho}: {dados}")
+            return dados
+        return resposta
+
+    def tipos_de_notificacao(self, quem):
+        return [n["tipo"] for n in self.chamar(quem, "GET", "/notificacoes")["notificacoes"]]
+
+    # ------------------------------------------------------------ o semestre
+
+    def test_um_semestre_inteiro(self):
+        admin = self.entrar(ADMIN)
+        marina = self.entrar(PROFESSOR)
+        renato = self.entrar(PROFESSOR2)
+        ana = self.entrar(ALUNO)
+        bruno = self.entrar(ALUNO_FORA)
+
+        # 1. O admin monta o semestre: a turma e as duas disciplinas dela.
+        self.chamar(admin, "PUT", "/admin/semestre", {"semestre": "2026/2"})
+        coorte = self.chamar(admin, "POST", "/admin/coortes", {"nome": "MED 3A", "semestre": "2026/2"})["coorte"]["id"]
+        anatomia = self.chamar(admin, "POST", "/admin/turmas", {
+            "professor_email": PROFESSOR, "nome": "Anatomia", "semestre": "2026.2", "coorte_id": coorte,
+        })["turma"]
+        self.assertEqual(anatomia["semestre"], "2026/2", "1: semestre não foi normalizado na entrada")
+        anatomia = anatomia["id"]
+        fisiologia = self.chamar(admin, "POST", "/admin/turmas", {
+            "professor_email": PROFESSOR2, "nome": "Fisiologia", "semestre": "2026/2", "coorte_id": coorte,
+        })["turma"]["id"]
+
+        # 2. Alunos entram na turma e caem nas duas disciplinas; Bruno fica
+        #    fora de Fisiologia por exceção.
+        for email in (ALUNO, ALUNO_FORA):
+            self.chamar(admin, "POST", f"/admin/coortes/{coorte}/alunos", {"aluno_email": email})
+        self.chamar(admin, "POST", "/admin/excecoes", {"aluno_email": ALUNO_FORA, "turma_id": fisiologia})
+
+        nomes_ana = {t["nome"] for t in self.chamar(ana, "GET", "/aluno/turmas")["turmas"]}
+        nomes_bruno = {t["nome"] for t in self.chamar(bruno, "GET", "/aluno/turmas")["turmas"]}
+        self.assertTrue({"Anatomia", "Fisiologia"} <= nomes_ana, f"2: Ana devia cursar as duas: {nomes_ana}")
+        self.assertIn("Anatomia", nomes_bruno, "2: Bruno devia cursar Anatomia")
+        self.assertNotIn("Fisiologia", nomes_bruno, "2: a exceção não tirou Bruno de Fisiologia")
+        self.assertIn("matricula", self.tipos_de_notificacao(marina), "2: professora não soube da matrícula")
+
+        # 3. A professora publica um PDF de verdade. Ele é indexado para o chat.
+        material = self.chamar(marina, "POST", "/materiais", {
+            "turma_ids": [anatomia], "titulo": "Base do cranio", "tipo": "pdf", "rascunho": False,
+            "arquivo_base64": pdf_com_texto("O forame magno permite a passagem da medula oblonga."),
+            "arquivo_nome": "base-do-cranio.pdf",
+        })
+        self.assertNotIn("aviso_indexacao", material, f"3: o PDF não foi indexado: {material}")
+        material = material["material_id"]
+        self.assertIn("material", self.tipos_de_notificacao(ana), "3: aluna não foi avisada do material")
+
+        # 4. A aluna abre o material e pergunta ao assistente sobre ele.
+        visiveis = [m["id"] for m in self.chamar(ana, "GET", "/aluno/materiais")["materiais"]]
+        self.assertIn(material, visiveis, "4: material publicado não aparece para a aluna")
+        arquivo = self.chamar(ana, "GET", f"/aluno/materiais/{material}/arquivo")
+        self.assertTrue(arquivo.content.startswith(b"%PDF"), "4: o download não devolveu o PDF")
+
+        resposta_chat = self.chamar(ana, "POST", "/chat/perguntar", {"turma_id": anatomia, "pergunta": "Onde fica o forame magno?"})
+        self.assertEqual(resposta_chat["fontes"], ["Base do cranio"], "4: o chat não citou o material indexado")
+
+        # 5. A professora propõe duas atividades: uma objetiva e um relatório
+        #    com anexo obrigatório.
+        prazo = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
+        objetiva = self.chamar(marina, "POST", "/atividades", {
+            "turma_ids": [anatomia], "titulo": "Quiz do crânio", "tipo": "objetiva", "pontos": 10,
+            "rascunho": False, "prazo": prazo,
+            "questoes": [{"enunciado": "Por onde passa a medula?", "alternativas": ["Forame oval", "Forame magno"], "correta": 1}],
+        })["atividade_ids"][0]
+        relatorio = self.chamar(marina, "POST", "/atividades", {
+            "turma_ids": [anatomia], "titulo": "Relatório de dissecação", "tipo": "dissertativa",
+            "pontos": 10, "rascunho": False, "anexo": "obrigatorio",
+        })["atividade_ids"][0]
+        self.assertIn("atividade", self.tipos_de_notificacao(ana), "5: aluna não foi avisada da atividade")
+
+        # 6. A aluna entrega as duas. A objetiva se corrige sozinha.
+        self.chamar(ana, "POST", f"/aluno/atividades/{objetiva}/entrega", {"respostas": [1]})
+        self.chamar(ana, "POST", f"/aluno/atividades/{relatorio}/entrega", {
+            "respostas": "", "arquivo_base64": PDF_BASE64, "arquivo_nome": "relatorio.pdf",
+        })
+        minhas = {a["id"]: a for a in self.chamar(ana, "GET", "/aluno/atividades")["atividades"]}
+        self.assertEqual(minhas[objetiva].get("nota"), 10, f"6: objetiva não foi corrigida: {minhas[objetiva]}")
+
+        # 7. A professora vê as entregas, baixa o relatório e corrige.
+        entregas = self.chamar(marina, "GET", f"/atividades/{relatorio}/entregas")["entregas"]
+        da_ana = next(e for e in entregas if e["aluno_email"] == ALUNO)
+        self.assertEqual(da_ana["arquivo_nome"], "relatorio.pdf", "7: professora não vê o anexo")
+        baixado = self.chamar(marina, "GET", f"/entregas/{da_ana['entrega_id']}/arquivo")
+        self.assertTrue(baixado.content.startswith(b"%PDF"), "7: professora não baixou o relatório")
+        self.chamar(renato, "GET", f"/entregas/{da_ana['entrega_id']}/arquivo", esperado=404)
+        self.chamar(bruno, "GET", f"/entregas/{da_ana['entrega_id']}/arquivo", esperado=404)
+
+        self.chamar(marina, "POST", f"/entregas/{da_ana['entrega_id']}/correcao", {"nota": 8, "devolutiva": "Bom trabalho."})
+        self.assertIn("correcao", self.tipos_de_notificacao(ana), "7: aluna não soube da correção")
+        minhas = {a["id"]: a for a in self.chamar(ana, "GET", "/aluno/atividades")["atividades"]}
+        self.assertEqual(minhas[relatorio].get("nota"), 8, "7: a nota não chegou à aluna")
+
+        # 8. O prazo da objetiva aparece no calendário da professora.
+        hoje = datetime.now(timezone.utc)
+        dia_do_prazo = datetime.fromisoformat(prazo)
+        eventos = self.chamar(marina, "GET", f"/calendario?ano={dia_do_prazo.year}&mes={dia_do_prazo.month}")["eventos"]
+        self.assertTrue(any("Quiz do crânio" in json.dumps(e, ensure_ascii=False) for e in eventos),
+                        "8: o prazo não apareceu no calendário")
+
+        # 9. Mensagens: a aluna escreve, a professora vê como não lida e responde.
+        self.chamar(ana, "POST", "/mensagens", {"turma_id": anatomia, "conteudo": "Professora, e o forame jugular?"})
+        conversas = self.chamar(marina, "GET", "/mensagens/conversas")
+        self.assertGreaterEqual(conversas["nao_lidas"], 1, "9: a mensagem não chegou como não lida")
+        self.chamar(marina, "POST", "/mensagens", {"turma_id": anatomia, "conteudo": "Veremos na próxima aula.", "aluno_email": ALUNO})
+        self.assertIn("mensagem", self.tipos_de_notificacao(ana), "9: aluna não soube da resposta")
+
+        # 10. Desempenho dos dois lados.
+        self.chamar(ana, "GET", f"/aluno/desempenho?turma_id={anatomia}")
+        self.chamar(marina, "GET", f"/desempenho?turma_id={anatomia}")
+
+        # 11. Denúncia: a aluna reporta, o admin é avisado e trata, a aluna sabe.
+        denuncia = self.chamar(ana, "POST", "/denuncias", {"material_id": material, "motivo": "incorreto", "descricao": "Falta a imagem."})
+        self.assertIn("denuncia", self.tipos_de_notificacao(admin), "11: admin não soube da denúncia")
+        denuncia_id = denuncia.get("denuncia", {}).get("id") or denuncia.get("id")
+        if denuncia_id is None:
+            denuncia_id = self.chamar(admin, "GET", "/admin/denuncias")["denuncias"][0]["id"]
+        self.chamar(admin, "POST", f"/admin/denuncias/{denuncia_id}", {"status": "concluida", "acao": "Imagem incluída."})
+        self.assertIn("denuncia", self.tipos_de_notificacao(ana), "11: aluna não soube do desfecho")
+
+        # 12. Progresso e ranking: a aluna estudou mais que o colega.
+        progresso = self.chamar(ana, "GET", "/aluno/resumo")["progresso"]
+        self.assertGreater(progresso["xp"], 0, "12: XP não subiu com estudo")
+        self.assertEqual(progresso["semestre"], "2026/2")
+        ranking = self.chamar(ana, "GET", "/aluno/ranking")
+        self.assertEqual(ranking["coorte"]["nome"], "MED 3A", "12: ranking na turma errada")
+        self.assertEqual(ranking["eu"]["posicao"], 1, f"12: quem estudou devia estar em 1º: {ranking['eu']}")
+        self.assertEqual(ranking["eu"]["xp"], progresso["xp"], "12: ranking e tela inicial discordam do XP")
+
+        # 13. O semestre vira.
+        self.chamar(admin, "PUT", "/admin/semestre", {"semestre": "2027/1"})
+
+        # 14. A aluna recomeça o nível, mas não perde nada.
+        depois = self.chamar(ana, "GET", "/aluno/resumo")
+        self.assertEqual(depois["progresso"]["xp"], 0, "14: XP do semestre não recomeçou")
+        self.assertEqual(depois["progresso"]["xp_total"], progresso["xp_total"], "14: o XP acumulado se perdeu")
+        self.assertEqual(depois["total_turmas"], 0, "14: disciplinas antigas continuam na tela inicial")
+        self.assertIsNone(self.chamar(ana, "GET", "/aluno/ranking")["coorte"], "14: ranking da turma antiga continua")
+        self.assertFalse(any(t["vigente"] for t in self.chamar(ana, "GET", "/aluno/turmas")["turmas"]))
+
+        # 15. O material foi para o histórico, e a busca acha o texto do PDF.
+        historico = self.chamar(ana, "GET", "/aluno/historico")
+        self.assertTrue(historico["semestres"], "15: o histórico da aluna está vazio")
+        self.assertEqual(historico["semestres"][0]["semestre"], "2026/2", "15: semestre não foi para o histórico")
+        achado = self.chamar(ana, "GET", "/aluno/historico?busca=forame%20magno")
+        self.assertTrue(achado["semestres"], "15: a busca no texto do PDF não achou nada")
+        materiais_achados = [m for d in achado["semestres"][0]["disciplinas"] for m in d["materiais"]]
+        self.assertEqual([m["titulo"] for m in materiais_achados], ["Base do cranio"], "15: busca no PDF falhou")
+        self.assertIn("forame magno", materiais_achados[0]["trecho"])
+        self.assertEqual(self.chamar(bruno, "GET", "/aluno/historico?busca=Fisiologia")["semestres"], [],
+                         "15: Bruno vê disciplina que não cursou")
+
+        # 16. O material antigo continua abrindo, e o chat antigo respondendo.
+        self.chamar(ana, "GET", f"/aluno/materiais/{material}/arquivo")
+        self.chamar(ana, "POST", "/chat/perguntar", {"turma_id": anatomia, "pergunta": "Revisão: o que passa pelo forame magno?"})
+
+        # 17. O histórico da professora também tem Anatomia.
+        disciplinas_marina = [d["nome"] for s in self.chamar(marina, "GET", "/historico")["semestres"] for d in s["disciplinas"]]
+        self.assertIn("Anatomia", disciplinas_marina, "17: histórico da professora vazio")
+
+        # 18. O admin exclui a disciplina antiga, com tudo o que ela tem.
+        self.chamar(admin, "DELETE", f"/admin/turmas/{anatomia}")
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("PRAGMA foreign_keys=ON")
+        self.assertEqual(conexao.execute("PRAGMA foreign_key_check").fetchall(), [],
+                         "18: a exclusão deixou registro órfão")
+        conexao.close()
 
 
 if __name__ == "__main__":

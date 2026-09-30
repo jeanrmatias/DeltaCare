@@ -3459,3 +3459,124 @@ dialog.visualizador:not([open]) {
 .entrega-anexo:hover {
     border-color: var(--color-primary);
 }
+
+
+/* =========================
+   Semestres anteriores
+   ========================= */
+
+.historico-busca {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    margin-bottom: 20px;
+}
+
+.historico-busca label {
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Campo e botão empilhados no celular, lado a lado a partir do tablet. */
+.historico-busca-linha {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.historico-busca-linha input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-size: 14px;
+    font-family: inherit;
+}
+
+@media (min-width: 640px) {
+    .historico-busca-linha {
+        flex-direction: row;
+    }
+}
+
+.historico-semestre {
+    margin-bottom: 28px;
+}
+
+.historico-semestre-titulo {
+    margin-bottom: 12px;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.historico-disciplina {
+    margin-bottom: 12px;
+}
+
+.historico-disciplina > summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+
+    cursor: pointer;
+    list-style: none;
+}
+
+.historico-disciplina > summary::-webkit-details-marker {
+    display: none;
+}
+
+/* A seta é o que diz que dá para abrir: sem ela, o cartão fechado parece um
+   título solto e ninguém clica. */
+.historico-disciplina > summary::before {
+    content: "▸";
+    color: var(--color-text-secondary);
+    transition: transform 0.15s ease;
+}
+
+.historico-disciplina[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.historico-disciplina[open] > summary {
+    margin-bottom: 12px;
+}
+
+.historico-disciplina-detalhe {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+/* O trecho do PDF onde a palavra apareceu. É ele que diz ao aluno por que
+   um material chamado "Aula 7" veio numa busca por "forame magno". */
+.historico-trecho {
+    margin: 8px 0 0;
+    padding: 8px 12px;
+
+    background: var(--color-bg);
+    border-left: 3px solid var(--color-primary);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 13px;
+    font-style: italic;
+    line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .historico-disciplina > summary::before {
+        transition: none;
+    }
+}
