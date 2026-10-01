@@ -11,16 +11,6 @@
  */
 
 const MODULOS = {
-    "conteudo-admin": {
-        titulo: "Supervisão de conteúdo",
-        resumo: "Acesso da administração ao material de qualquer turma.",
-        sprint: "Sprint 8",
-        itens: [
-            "Consultar materiais e atividades de qualquer turma",
-            "Verificar conformidade com as políticas da instituição",
-        ],
-        nota: "Hoje a administração cria turmas e matricula alunos, mas não abre o material das turmas — o acesso é do professor responsável.",
-    },
     // ---------------------------------------------------------------------
     // Os cinco abaixo saíram de uma conferência do backlog contra este
     // catálogo: existiam como card e não apareciam em lugar nenhum do produto.

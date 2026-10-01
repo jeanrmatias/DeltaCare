@@ -123,6 +123,11 @@ from infra.security import hash_senha, verificar_senha  # noqa: E402
 from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessao  # noqa: E402
 from regras import chat_ia  # noqa: E402
 
+from regras.conteudo import (  # noqa: E402
+    arquivo_para_supervisao,
+    atividade_para_supervisao,
+    visao_do_conteudo,
+)
 from regras.anotacoes import (  # noqa: E402
     criar_anotacao,
     editar_anotacao,
@@ -4244,6 +4249,16 @@ class TestesSemestreCompleto(BaseDelta):
         minhas = {a["id"]: a for a in self.chamar(ana, "GET", "/aluno/atividades")["atividades"]}
         self.assertEqual(minhas[relatorio].get("nota"), 8, "7: a nota não chegou à aluna")
 
+        # 7b. A coordenação supervisiona: vê o material e o gabarito, e não
+        #     enxerga o que a aluna entregou.
+        conteudo = self.chamar(admin, "GET", "/admin/conteudo")
+        anatomia_vista = next(d for d in conteudo["disciplinas"] if d["id"] == anatomia)
+        self.assertIn("Base do cranio", [m["titulo"] for m in anatomia_vista["materiais"]],
+                      "7b: coordenação não vê o material publicado")
+        questoes = self.chamar(admin, "GET", f"/admin/conteudo/atividades/{objetiva}")["questoes"]
+        self.assertEqual(questoes[0]["correta"], 1, "7b: coordenação não vê o gabarito")
+        self.assertNotIn("relatorio.pdf", json.dumps(conteudo), "7b: o anexo da aluna vazou na supervisão")
+
         # 8. O prazo da objetiva aparece no calendário da professora.
         hoje = datetime.now(timezone.utc)
         dia_do_prazo = datetime.fromisoformat(prazo)
@@ -4742,6 +4757,155 @@ class TestesRotasDeEstudoPessoal(BaseEstudoPessoal):
             "Nota editada.",
         )
         self.assertTrue(cliente.delete(f"/aluno/anotacoes/{anotacao}", headers=cab).json()["sucesso"])
+
+
+
+# =========================================================================
+# Supervisão de conteúdo
+#
+# A coordenação vê o que os alunos veem ou vão ver — publicado e agendado —
+# e nada que seja trabalho pessoal: rascunho do professor, entrega, anotação,
+# conversa com o assistente, mensagem.
+# =========================================================================
+
+class BaseSupervisao(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        futuro = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+
+        def material(titulo, rascunho=False, data_liberacao=None, arquivo=False):
+            campos = dict(
+                professor_email=PROFESSOR, turma_id=self.turma_id, titulo=titulo,
+                rascunho=rascunho, data_liberacao=data_liberacao,
+            )
+            if arquivo:
+                campos.update(tipo="pdf", arquivo_base64=PDF_BASE64, arquivo_nome=f"{titulo}.pdf")
+            else:
+                campos.update(tipo="link", link_url="https://exemplo.com")
+            return criar_material(**campos)["material_id"]
+
+        self.publicado = material("Publicado", arquivo=True)
+        self.agendado = material("Agendado", data_liberacao=futuro)
+        self.rascunho = material("Rascunho do professor", rascunho=True, arquivo=True)
+
+        self.quiz = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Quiz", tipo="objetiva", rascunho=False,
+            questoes=[{"enunciado": "Quantas câmaras tem o coração?",
+                       "alternativas": ["Duas", "Quatro"], "correta": 1}],
+        )["atividade_ids"][0]
+        self.atividade_rascunho = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Ideia ainda crua", tipo="dissertativa", rascunho=True,
+        )["atividade_ids"][0]
+
+    def tearDown(self):
+        import shutil
+
+        from infra.arquivos import PASTA_UPLOADS
+
+        shutil.rmtree(PASTA_UPLOADS, ignore_errors=True)
+        super().tearDown()
+
+    def cardiologia(self, **filtro):
+        return next(d for d in visao_do_conteudo(ADMIN, **filtro)["disciplinas"] if d["nome"] == "Cardiologia")
+
+
+class TestesSupervisaoDeConteudo(BaseSupervisao):
+
+    def test_ve_o_publicado_e_o_agendado(self):
+        titulos = {m["titulo"]: m["status"] for m in self.cardiologia()["materiais"]}
+
+        self.assertEqual(titulos, {"Publicado": "publicado", "Agendado": "agendado"})
+
+    def test_nao_ve_rascunho_de_professor(self):
+        disciplina = self.cardiologia()
+
+        self.assertNotIn("Rascunho do professor", [m["titulo"] for m in disciplina["materiais"]])
+        self.assertNotIn("Ideia ainda crua", [a["titulo"] for a in disciplina["atividades"]])
+
+    def test_abre_a_atividade_com_o_gabarito(self):
+        """'A questão 3 está com a resposta errada' é o caso típico de
+        conformidade — sem o gabarito, a coordenação não tem como conferir."""
+        atividade = atividade_para_supervisao(ADMIN, self.quiz)
+
+        self.assertTrue(atividade["sucesso"])
+        self.assertEqual(atividade["questoes"][0]["correta"], 1)
+
+    def test_atividade_em_rascunho_responde_como_inexistente(self):
+        self.assertFalse(atividade_para_supervisao(ADMIN, self.atividade_rascunho)["sucesso"])
+
+    def test_baixa_o_arquivo_publicado_e_nao_o_do_rascunho(self):
+        self.assertIsNotNone(arquivo_para_supervisao(ADMIN, self.publicado))
+        self.assertIsNone(arquivo_para_supervisao(ADMIN, self.rascunho))
+
+    def test_mostra_quantas_denuncias_estao_abertas(self):
+        criar_denuncia(ALUNO, self.publicado, "incorreto", "Imagem trocada.")
+
+        publicado = next(m for m in self.cardiologia()["materiais"] if m["titulo"] == "Publicado")
+
+        self.assertEqual(publicado["denuncias_abertas"], 1)
+
+    def test_o_semestre_escolhe_as_disciplinas(self):
+        criar_turma(ADMIN, PROFESSOR2, "Anatomia", "2026/1")
+
+        vigente = [d["nome"] for d in visao_do_conteudo(ADMIN)["disciplinas"]]
+        anterior = [d["nome"] for d in visao_do_conteudo(ADMIN, semestre="2026.1")["disciplinas"]]
+
+        self.assertEqual(vigente, ["Cardiologia"])
+        self.assertEqual(anterior, ["Anatomia"])
+        self.assertEqual(visao_do_conteudo(ADMIN)["semestres"][:2], ["2026/2", "2026/1"])
+
+    def test_so_a_administracao(self):
+        for email in (PROFESSOR, ALUNO):
+            with self.subTest(email=email):
+                self.assertFalse(visao_do_conteudo(email)["sucesso"])
+                self.assertFalse(atividade_para_supervisao(email, self.quiz)["sucesso"])
+                self.assertIsNone(arquivo_para_supervisao(email, self.publicado))
+
+
+class TestesLimitesDaSupervisao(BaseSupervisao):
+    """O que a coordenação não vê não depende de filtro: não existe rota."""
+
+    def test_nenhuma_rota_de_administracao_le_trabalho_pessoal(self):
+        import main
+
+        rotas_admin = [rota.path for rota in main.app.routes if rota.path.startswith("/admin/")]
+        proibidas = [
+            rota for rota in rotas_admin
+            if any(p in rota for p in ("entrega", "anotac", "chat", "mensage", "favorit"))
+        ]
+        self.assertEqual(proibidas, [])
+
+    def test_a_visao_nao_carrega_texto_de_entrega(self):
+        """Só a contagem de entregas, número de acompanhamento."""
+        enviar_entrega(ALUNO, self.quiz, [1])
+
+        texto = json.dumps(visao_do_conteudo(ADMIN), ensure_ascii=False)
+
+        quiz = next(a for a in self.cardiologia()["atividades"] if a["titulo"] == "Quiz")
+        self.assertEqual(quiz["entregues"], 1)
+        self.assertNotIn("respostas", texto)
+        self.assertNotIn(ALUNO, texto)
+
+    def test_pelas_rotas(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+
+        def cab(email):
+            token = cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+            return {"Authorization": f"Bearer {token}"}
+
+        self.assertTrue(cliente.get("/admin/conteudo", headers=cab(ADMIN)).json()["sucesso"])
+        self.assertTrue(cliente.get(f"/admin/conteudo/atividades/{self.quiz}", headers=cab(ADMIN)).json()["sucesso"])
+        arquivo = cliente.get(f"/admin/conteudo/materiais/{self.publicado}/arquivo", headers=cab(ADMIN))
+        self.assertEqual(arquivo.status_code, 200)
+        self.assertEqual(
+            cliente.get(f"/admin/conteudo/materiais/{self.rascunho}/arquivo", headers=cab(ADMIN)).status_code, 404
+        )
+        self.assertIn(cliente.get("/admin/conteudo", headers=cab(PROFESSOR)).status_code, (401, 403))
 
 
 if __name__ == "__main__":

@@ -39,6 +39,11 @@ from regras.turmas import (
     listar_usuarios,
     perfil_do_usuario,
 )
+from regras.conteudo import (
+    arquivo_para_supervisao,
+    atividade_para_supervisao,
+    visao_do_conteudo,
+)
 from regras.anotacoes import (
     criar_anotacao,
     editar_anotacao,
@@ -1025,6 +1030,30 @@ def historico_do_aluno_rota(busca: str = "", aluno: dict = Depends(usuario_aluno
 @app.get("/historico")
 def historico_do_professor_rota(busca: str = "", professor: dict = Depends(usuario_professor)):
     return historico_do_professor(professor["email"], busca)
+
+
+# ---------------------------- supervisão de conteúdo ----------------------------
+# A coordenação vê material e atividade publicados ou agendados. Entregas,
+# anotações, conversas e mensagens não têm rota de administração — ver
+# regras/conteudo.py.
+
+@app.get("/admin/conteudo")
+def conteudo_rota(semestre: Optional[str] = None, admin: dict = Depends(usuario_admin)):
+    return visao_do_conteudo(admin["email"], semestre)
+
+
+@app.get("/admin/conteudo/atividades/{atividade_id}")
+def atividade_supervisao_rota(atividade_id: int, admin: dict = Depends(usuario_admin)):
+    return atividade_para_supervisao(admin["email"], atividade_id)
+
+
+@app.get("/admin/conteudo/materiais/{material_id}/arquivo")
+def arquivo_supervisao_rota(material_id: int, admin: dict = Depends(usuario_admin)):
+    resultado = arquivo_para_supervisao(admin["email"], material_id)
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+    caminho, nome_original = resultado
+    return FileResponse(caminho, filename=nome_original)
 
 
 # ---------------------------- avisos ----------------------------

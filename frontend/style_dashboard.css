@@ -3716,3 +3716,82 @@ dialog.visualizador:not([open]) {
 
     resize: vertical;
 }
+
+
+/* =========================
+   Supervisão de conteúdo
+   ========================= */
+
+.conteudo-filtros {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    margin-bottom: 16px;
+}
+
+@media (min-width: 640px) {
+    .conteudo-filtros {
+        flex-direction: row;
+    }
+
+    .conteudo-filtros .campo:last-child {
+        flex: 1;
+    }
+}
+
+.conteudo-filtros select,
+.conteudo-filtros input {
+    width: 100%;
+    padding: 10px 12px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    font-family: inherit;
+    font-size: 14px;
+}
+
+/* <dialog> sem `display`, pelo mesmo motivo do painel de anotações: dar
+   display ao dialog o deixa aberto na tela. */
+.painel-supervisao {
+    width: min(680px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    padding: 20px;
+
+    border: none;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(13, 29, 58, 0.25);
+}
+
+.painel-supervisao::backdrop {
+    background: rgba(13, 29, 58, 0.45);
+}
+
+.painel-supervisao h2 {
+    margin: 0 0 10px;
+    font-size: 17px;
+}
+
+.painel-supervisao-enunciado {
+    white-space: pre-wrap;
+}
+
+.painel-supervisao-questoes {
+    margin: 12px 0 16px;
+    padding-left: 20px;
+}
+
+.painel-supervisao-questoes > li {
+    margin-bottom: 12px;
+}
+
+.painel-supervisao-questoes ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.alternativa-correta {
+    color: var(--color-success);
+    font-weight: 700;
+}
