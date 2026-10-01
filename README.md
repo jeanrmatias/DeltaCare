@@ -105,7 +105,7 @@ backend/
     arquivos.py              gravação dos uploads
 
   regras/                  - regras de negócio: o que o sistema DECIDE
-    autenticacao.py          login, cadastro, recuperação de senha
+    autenticacao.py          login, contas, recuperação de senha
     turmas.py                disciplinas, professores, usuários
     coortes.py               turma de alunos (MED 3A) e exceções por disciplina
     semestres.py             semestre vigente e histórico dos anteriores
@@ -272,12 +272,12 @@ material, como tratamento de apendicite: ele deve recusar a segunda.
 
 ## Fluxo manual (se quiser testar sem o seed)
 
-1. O primeiro admin nasce pelo `criar_admin.py` (ou pelo `seed_demo.py`): o
-   cadastro público cria apenas aluno, e `POST /admin/usuarios` exige um
-   admin já logado.
+1. O primeiro admin nasce pelo `criar_admin.py` (ou pelo `seed_demo.py`):
+   não existe cadastro público, e `POST /admin/usuarios` exige um admin já
+   logado.
 2. Login como admin → cria uma turma e atribui a um professor.
-3. Cadastro público (`/cadastro`, tela de login) cria uma conta de aluno →
-   admin matricula esse aluno na turma.
+3. Admin cria a conta do aluno (Usuários → Nova conta, ou importando a
+   planilha) e matricula na turma.
 4. Login como professor → sobe um material do tipo PDF na turma → publica
    (tira do rascunho). Isso dispara a indexação para o chat
    automaticamente (`regras.chat_ia.indexar_material`).

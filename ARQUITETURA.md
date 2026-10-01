@@ -286,7 +286,7 @@ backend/
     arquivos.py              gravação dos uploads
 
   regras/                  - regras de negócio: o que o sistema DECIDE
-    autenticacao.py          login, cadastro, recuperação de senha
+    autenticacao.py          login, contas, recuperação de senha
     turmas.py                turmas, professores, usuários
     materiais.py             materiais na visão do PROFESSOR
     aluno.py                 materiais na visão do ALUNO, XP e acompanhamento

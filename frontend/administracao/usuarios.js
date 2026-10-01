@@ -5,11 +5,9 @@
  * A rota `POST /admin/usuarios` já existia no backend, mas nenhuma tela a
  * chamava — na prática, criar uma conta de professor exigia rodar um script.
  *
- * A administração cria conta de qualquer perfil, inclusive aluno — uma
- * instituição precisa poder cadastrar a turma inteira sem depender de cada
- * aluno se inscrever. O que continua restrito é o caminho contrário: o
- * cadastro público (`/cadastro`) só aceita o tipo "aluno", então ninguém de
- * fora consegue criar para si uma conta de confiança.
+ * A administração cria conta de qualquer perfil, inclusive aluno, e é o
+ * único caminho: não existe cadastro público. Quem é aluno da faculdade é
+ * decidido pela secretaria, não por quem preenche um formulário.
  */
 
 const usuario = exigirAcesso("adm");

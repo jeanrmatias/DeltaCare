@@ -1,3 +1,4 @@
+import contextvars
 import os
 import sqlite3
 
@@ -49,11 +50,65 @@ def abrir_conexao(caminho: str = None):
     queda de energia, e a última transação aqui é a entrega de um trabalho ou a
     nota de uma prova. Não vale 96ms.
     """
-    conexao = sqlite3.connect(caminho or CAMINHO_DB, timeout=TIMEOUT_ESCRITA)
+    # check_same_thread=False: quem fecha as sobras de uma requisição (ver
+    # FecharConexoesDaRequisicao) roda na thread do servidor, não na que abriu.
+    # Ninguém usa a mesma conexão em duas threads ao mesmo tempo: a sobra só é
+    # fechada depois que a rota terminou.
+    conexao = sqlite3.connect(
+        caminho or CAMINHO_DB, timeout=TIMEOUT_ESCRITA, check_same_thread=False
+    )
     # O SQLite não cobra chave estrangeira por padrão. O esquema declara todas,
     # e sem isto elas são documentação.
     conexao.execute("PRAGMA foreign_keys=ON")
+
+    abertas = _CONEXOES_DA_REQUISICAO.get()
+    if abertas is not None:
+        abertas.append(conexao)
     return conexao
+
+
+# As conexões abertas durante a requisição em curso; None fora de requisição
+# (scripts, seed, testes de regra).
+_CONEXOES_DA_REQUISICAO = contextvars.ContextVar("conexoes_da_requisicao", default=None)
+
+
+class FecharConexoesDaRequisicao:
+    """Fecha, ao fim de cada requisição, toda conexão que ficou aberta.
+
+    O projeto inteiro faz `conectar()` ... `close()` sem try/finally. No
+    caminho feliz fecha; se algo levanta exceção no meio, a conexão fica presa
+    ao rastro do erro até o coletor de lixo passar — e, se havia escrita sem
+    commit, **segura a trava do banco** esse tempo todo. Medido: uma rota que
+    quebrou no meio de um UPDATE deixou a escrita seguinte, de qualquer
+    usuário, falhando com "database is locked".
+
+    Corrigir as ~120 aberturas uma a uma era trocar um esquecimento por 120
+    chances de esquecer. Aqui é um ponto só, o mesmo por onde toda conexão
+    já passa. `close()` sem commit descarta a escrita pela metade, que é o
+    certo para uma requisição que falhou; fechar o que já está fechado não
+    faz nada.
+
+    Middleware ASGI puro, e não BaseHTTPMiddleware: este roda a rota na mesma
+    tarefa, então a lista é vista pela rota e pelas threads que ela usa (o
+    contexto é copiado para a thread, a lista é a mesma).
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        abertas = []
+        marca = _CONEXOES_DA_REQUISICAO.set(abertas)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _CONEXOES_DA_REQUISICAO.reset(marca)
+            for conexao in abertas:
+                conexao.close()
 
 
 def configurar_banco(silencioso: bool = False):

@@ -10,14 +10,13 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from infra.database import configurar_banco
+from infra.database import FecharConexoesDaRequisicao, configurar_banco
 from infra.sessoes import (
     buscar_usuario_da_sessao,
     encerrar_sessao,
     limpar_sessoes_expiradas,
 )
 from regras.autenticacao import (
-    cadastrar_usuario,
     criar_conta_staff,
     realizar_login,
     redefinir_senha,
@@ -188,6 +187,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
 )
 
+# Toda conexão que uma rota deixar aberta (exceção no meio do caminho) é
+# fechada quando a requisição termina. Ver infra/database.py.
+app.add_middleware(FecharConexoesDaRequisicao)
+
 limpar_sessoes_expiradas()
 
 # Sem SMTP, "Esqueci minha senha" não chega a ninguém: o código vai para este
@@ -248,13 +251,6 @@ usuario_aluno = exigir_perfil("aluno")
 class LoginRequest(BaseModel):
     email: str
     senha: str
-
-
-class CadastroRequest(BaseModel):
-    email: str
-    senha: str
-    tipo: str
-    nome: str = ""
 
 
 class StaffRequest(BaseModel):
@@ -457,12 +453,6 @@ def saude():
 @app.post("/login")
 def login(dados: LoginRequest):
     return realizar_login(dados.email, dados.senha)
-
-
-@app.post("/cadastro")
-def cadastro(dados: CadastroRequest):
-    """Cadastro público — só cria conta de aluno."""
-    return cadastrar_usuario(dados.email, dados.senha, dados.tipo, dados.nome)
 
 
 @app.post("/recuperar-senha")

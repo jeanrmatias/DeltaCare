@@ -56,9 +56,8 @@ python seed_demo.py
 3. Vá em **Usuários**. Mostre a lista com os três perfis e abra **Nova conta**.
    Vale criar uma conta de professor ao vivo: é rápido e responde antes de ser
    perguntado como alguém entra no sistema.
-4. **Frase-chave:** "Professor e administrador só nascem aqui. Pela tela de
-   login existe cadastro público, mas ele só cria conta de aluno — ninguém de
-   fora consegue criar para si uma conta de confiança."
+4. **Frase-chave:** "Toda conta nasce aqui ou pela planilha. Não existe
+   cadastro público: ninguém de fora cria conta para si, nem de aluno."
 5. Vá em **Turmas**. Mostre a turma Cardiologia I, o professor responsável e
    os alunos matriculados.
 6. **Frase-chave:** "Quem cria turma e matricula aluno é só a administração.

@@ -206,10 +206,10 @@ def _usuario_existe(email: str) -> bool:
 def criar_admin_inicial() -> None:
     """Insere o primeiro admin direto no banco.
 
-    Não dá para usar nenhuma rota aqui: o cadastro público só cria aluno, e
-    criar_conta_staff exige um admin já existente. Esse é o único ponto do
-    sistema em que uma conta de confiança nasce fora das regras de permissão —
-    por isso ele mora num script de seed, e não numa rota da API.
+    Não dá para usar nenhuma rota aqui: não existe cadastro público, e
+    criar_conta_staff exige um admin já existente. Este e o criar_admin.py são
+    os únicos pontos do sistema em que uma conta de confiança nasce fora das
+    regras de permissão — por isso moram em scripts, e não numa rota da API.
     """
     if _usuario_existe(ADMIN):
         print(f"  admin ja existe: {ADMIN}")

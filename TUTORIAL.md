@@ -70,11 +70,10 @@ O fluxo tem dois passos:
 
 Linhas com problema são puladas individualmente; as demais entram normalmente.
 
-> **Por que o aluno também pode se cadastrar sozinho?**
-> Pela tela de login existe um cadastro público, mas ele **só cria conta de
-> aluno** — nunca professor ou administrador. A instituição escolhe: cadastrar
-> a turma inteira de uma vez por aqui, ou deixar cada aluno se inscrever.
-> Contas de confiança só nascem nesta tela.
+> **Por que o aluno não pode se cadastrar sozinho?**
+> Porque quem é aluno da faculdade é decidido pela secretaria, não por quem
+> preenche um formulário. Toda conta — de aluno, professor ou administração —
+> nasce nesta tela ou pela importação da planilha.
 
 ### Criar turma e matricular
 

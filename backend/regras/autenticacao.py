@@ -1,4 +1,4 @@
-"""Regras de negócio do backend: login, cadastro e recuperação de senha.
+"""Regras de negócio do backend: login, contas e recuperação de senha.
 
 Fica separado do main.py de propósito, sem depender do FastAPI, para poder
 ser testado sozinho (com sqlite3 puro).
@@ -133,46 +133,6 @@ def realizar_login(email: str, senha: str) -> dict:
     }
 
 
-def cadastrar_usuario(email: str, senha: str, tipo: str, nome: str = "") -> dict:
-    """Cadastro público. Só cria conta de aluno — professor e admin são
-    contas de confiança e só podem ser criadas por um administrador
-    (ver criar_conta_staff), senão qualquer pessoa poderia se cadastrar
-    como admin direto por essa rota.
-    """
-    email = email.strip().lower()
-    tipo = tipo.strip().lower()
-    nome = (nome or "").strip()
-
-    if tipo != "aluno":
-        return {
-            "sucesso": False,
-            "mensagem": "O cadastro público é só para conta de aluno.",
-        }
-
-    if not nome:
-        return {"sucesso": False, "mensagem": "Informe seu nome completo."}
-
-    if len(senha) < 6:
-        return {"sucesso": False, "mensagem": "A senha precisa ter pelo menos 6 caracteres."}
-
-    conexao = _conectar()
-    cursor = conexao.cursor()
-
-    cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
-    if cursor.fetchone():
-        conexao.close()
-        return {"sucesso": False, "mensagem": "Já existe uma conta com esse e-mail."}
-
-    cursor.execute(
-        "INSERT INTO users (email, senha, tipo, nome) VALUES (?, ?, ?, ?)",
-        (email, hash_senha(senha), tipo, nome),
-    )
-    conexao.commit()
-    conexao.close()
-
-    return {"sucesso": True, "mensagem": "Conta criada com sucesso!"}
-
-
 def criar_conta_staff(
     admin_email: str,
     email: str,
@@ -186,11 +146,11 @@ def criar_conta_staff(
     """Cria conta de qualquer perfil. Só um admin já existente pode chamar
     isso (mesmo padrão de permissão usado em regras/turmas.criar_turma).
 
-    Aceita também "aluno", e isso não contradiz a restrição do cadastro
-    público: lá o risco é qualquer pessoa da internet escolher o próprio
-    perfil, e por isso `cadastrar_usuario` só cria aluno. Aqui quem cria já é
-    um administrador autenticado, e uma instituição precisa poder cadastrar a
-    turma inteira sem depender de cada aluno se inscrever sozinho.
+    É o **único** jeito de uma conta nascer pela API, inclusive a de aluno.
+    Existiu um cadastro público de aluno (`POST /cadastro`); saiu porque
+    nenhuma tela o usava e ele deixava qualquer pessoa da internet criar conta
+    e esperar uma matrícula. Numa faculdade quem é aluno é decidido pela
+    secretaria, não por quem preenche um formulário.
 
     `disciplinas` só vale para professor e `matricula` só para aluno; cada um é
     ignorado nos outros perfis em vez de dar erro, para o formulário poder

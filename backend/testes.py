@@ -45,7 +45,6 @@ from regras.autenticacao import (  # noqa: E402
     JANELA_LOGIN_MINUTOS,
     MAX_FALHAS_LOGIN,
     MAX_TENTATIVAS_RESET,
-    cadastrar_usuario,
     criar_conta_staff,
     realizar_login,
     redefinir_senha,
@@ -224,8 +223,8 @@ class BaseDelta(unittest.TestCase):
 
         criar_conta_staff(ADMIN, PROFESSOR, SENHA, "professor", nome="Professor Um")
         criar_conta_staff(ADMIN, PROFESSOR2, SENHA, "professor", nome="Professor Dois")
-        cadastrar_usuario(ALUNO, SENHA, "aluno", nome="Aluno Um")
-        cadastrar_usuario(ALUNO_FORA, SENHA, "aluno", nome="Aluno Dois")
+        criar_conta_staff(ADMIN, ALUNO, SENHA, "aluno", nome="Aluno Um")
+        criar_conta_staff(ADMIN, ALUNO_FORA, SENHA, "aluno", nome="Aluno Dois")
 
         self.turma_id = criar_turma(ADMIN, PROFESSOR, "Cardiologia", "2026.2")["turma"]["id"]
         matricular_aluno(ADMIN, ALUNO, self.turma_id)
@@ -272,11 +271,21 @@ class TestesSenha(unittest.TestCase):
 
 class TestesContas(BaseDelta):
 
-    def test_cadastro_publico_so_cria_aluno(self):
-        """A rota pública não pode ser caminho para virar admin."""
-        for tipo in ("adm", "professor"):
-            resultado = cadastrar_usuario(f"invasor_{tipo}@teste.com", SENHA, tipo, nome="Invasor")
-            self.assertFalse(resultado["sucesso"], f"cadastro público aceitou tipo {tipo}")
+    def test_ninguem_cria_conta_sozinho_pela_internet(self):
+        """Toda conta nasce pela administração (ou pela planilha). O cadastro
+        público que existia não era usado por nenhuma tela e deixava qualquer
+        pessoa criar conta de aluno."""
+        from fastapi.testclient import TestClient
+
+        import main
+
+        resposta = TestClient(main.app).post(
+            "/cadastro",
+            json={"email": "invasor@teste.com", "senha": SENHA, "tipo": "aluno", "nome": "Invasor"},
+        )
+
+        self.assertIn(resposta.status_code, (404, 405))
+        self.assertFalse(realizar_login("invasor@teste.com", SENHA)["sucesso"])
 
     def test_so_admin_cria_conta_de_staff(self):
         resultado = criar_conta_staff(PROFESSOR, "novo@teste.com", SENHA, "professor", nome="Novo")
@@ -1441,7 +1450,7 @@ class TestesDesempenho(BaseAtividades):
         self.assertIsNone(resultado["resumo"]["media_percentual"])
 
     def test_media_e_taxa_de_entrega_da_turma(self):
-        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        criar_conta_staff(ADMIN, "aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
         matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
 
         quiz = self.criar_quiz("Quiz", "Arritmias", [0, 0])
@@ -1457,7 +1466,7 @@ class TestesDesempenho(BaseAtividades):
         self.assertEqual(resultado["atividades"][0]["maior"], 10.0)
 
     def test_pendencia_aparece_quando_aluno_nao_entrega(self):
-        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        criar_conta_staff(ADMIN, "aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
         matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
 
         quiz = self.criar_quiz("Quiz", "Arritmias", [0])
@@ -1468,7 +1477,7 @@ class TestesDesempenho(BaseAtividades):
         self.assertEqual(atividade["pendentes"], 1)
 
     def test_topico_da_turma_soma_os_erros_de_todos(self):
-        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        criar_conta_staff(ADMIN, "aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
         matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
 
         quiz = self.criar_quiz("Quiz", "Arritmias", [0, 0])
@@ -1503,7 +1512,7 @@ class TestesDesempenho(BaseAtividades):
         self.assertEqual(titulos, ["Publicada"])
 
     def test_lista_de_alunos_traz_quem_nao_entregou(self):
-        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        criar_conta_staff(ADMIN, "aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
         matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
 
         quiz = self.criar_quiz("Quiz", "Arritmias", [0])
@@ -1907,7 +1916,7 @@ class TestesMensagens(BaseDelta):
 
     def setUp(self):
         super().setUp()
-        cadastrar_usuario("aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        criar_conta_staff(ADMIN, "aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
         matricular_aluno(ADMIN, "aluno3@teste.com", self.turma_id)
 
     def test_aluno_escreve_e_professor_le(self):
@@ -3789,7 +3798,7 @@ class BaseRanking(BaseDelta):
             registrar_acesso_material(aluno, material)
 
     def novo_aluno(self, email, nome):
-        cadastrar_usuario(email, SENHA, "aluno", nome=nome)
+        criar_conta_staff(ADMIN, email, SENHA, "aluno", nome=nome)
         matricular_na_coorte(ADMIN, email, self.coorte)
 
 
@@ -3823,7 +3832,7 @@ class TestesRanking(BaseRanking):
         )
 
     def test_aluno_sem_turma_recebe_explicacao_e_nao_erro(self):
-        cadastrar_usuario("solto@teste.com", SENHA, "aluno", nome="Solto")
+        criar_conta_staff(ADMIN, "solto@teste.com", SENHA, "aluno", nome="Solto")
 
         ranking = ranking_da_turma("solto@teste.com")
 
@@ -4071,9 +4080,6 @@ class TestesContratoFrontBack(unittest.TestCase):
             # A atividade com gabarito, só para o professor dono. A tela de
             # edição usa os dados da lista, e as questões não são editáveis.
             "GET /atividades/{atividade_id}",
-            # Cadastro público de aluno. A interface não oferece: as contas
-            # nascem pela administração ou pela planilha.
-            "POST /cadastro",
         }
 
         self.assertEqual(set(self.contrato.rotas_nunca_chamadas(self.app)), conhecidas)
@@ -5289,6 +5295,176 @@ class TestesPrimeiroAdmin(unittest.TestCase):
         from criar_admin import criar_primeiro_admin
 
         self.assertFalse(criar_primeiro_admin("coord@med.com", "Coordenação", "curta")["sucesso"])
+
+
+class TestesConexaoDaRequisicao(BaseDelta):
+    """Uma rota que quebra no meio não pode deixar o banco travado.
+
+    Antes do FecharConexoesDaRequisicao, a conexão de uma rota que levantou
+    exceção depois de um UPDATE ficava presa ao rastro do erro, com a trava de
+    escrita na mão, e a escrita seguinte de qualquer usuário falhava com
+    "database is locked".
+    """
+
+    def setUp(self):
+        super().setUp()
+        import gc
+
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.main = main
+        self.original = main.definir_visibilidade
+        # O coletor de ciclos roda quando quer; desligado, o teste não depende
+        # da sorte de ele passar entre a rota e a verificação.
+        gc.disable()
+        main.app.dependency_overrides[main.usuario_aluno] = lambda: {"email": ALUNO, "tipo": "aluno"}
+        self.cliente = TestClient(main.app, raise_server_exceptions=False)
+
+    def tearDown(self):
+        import gc
+
+        gc.enable()
+        self.main.definir_visibilidade = self.original
+        self.main.app.dependency_overrides.clear()
+        super().tearDown()
+
+    def _trocar_regra(self, regra):
+        self.main.definir_visibilidade = regra
+        return self.cliente.put("/aluno/ranking/visibilidade", json={"aparecer": False})
+
+    def test_excecao_no_meio_da_escrita_nao_trava_o_banco(self):
+        from infra.database import abrir_conexao
+
+        def quebra_no_meio(email, aparecer):
+            conexao = abrir_conexao()
+            conexao.execute("UPDATE users SET nome = 'meio do caminho' WHERE email = ?", (ALUNO,))
+            raise ValueError("falha depois do UPDATE, antes do commit")
+
+        self.assertEqual(self._trocar_regra(quebra_no_meio).status_code, 500)
+
+        # Timeout curto: com a trava presa, isto esperaria e falharia.
+        outra = sqlite3.connect(CAMINHO_DB, timeout=0.5)
+        try:
+            nome = outra.execute("SELECT nome FROM users WHERE email = ?", (ALUNO,)).fetchone()[0]
+            outra.execute("UPDATE users SET nome = 'Aluno Um' WHERE email = ?", (ALUNO,))
+            outra.commit()
+        finally:
+            outra.close()
+
+        # E a escrita pela metade foi descartada, não gravada.
+        self.assertEqual(nome, "Aluno Um")
+
+    def test_conexao_esquecida_aberta_e_fechada_ao_fim(self):
+        from infra.database import abrir_conexao
+
+        esquecidas = []
+
+        def esquece_aberta(email, aparecer):
+            esquecidas.append(abrir_conexao())
+            return {"sucesso": True}
+
+        self.assertEqual(self._trocar_regra(esquece_aberta).status_code, 200)
+
+        with self.assertRaises(sqlite3.ProgrammingError):
+            esquecidas[0].execute("SELECT 1")
+
+
+class TestesSeedDeDemonstracao(unittest.TestCase):
+    """O seed é o que aparece na apresentação. Se uma função mudar de
+    assinatura ou passar a recusar alguma coisa, ele não quebra: as regras
+    devolvem `sucesso: False` e o seed segue em frente — e a tela abre vazia
+    na frente de quem está assistindo.
+
+    Por isso o teste confere o resultado **pelo que as telas mostram**, e não
+    pelo que o seed imprimiu. Roda sem o Ollama (a indexação é simulada fora
+    do ar, como numa máquina sem ele).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import contextlib
+        import io
+        from unittest import mock
+
+        for extra in ("", "-wal", "-shm"):
+            if os.path.exists(CAMINHO_DB + extra):
+                os.remove(CAMINHO_DB + extra)
+
+        import seed_demo
+
+        def ollama_fora(material_id, *args, **kwargs):
+            raise RuntimeError("Ollama fora do ar")
+
+        with mock.patch("regras.chat_ia.indexar_material", ollama_fora), \
+                contextlib.redirect_stdout(io.StringIO()):
+            seed_demo.main()
+            cls.contagem_primeira = cls._contar()
+            # Rodar de novo não pode duplicar nada: o README promete.
+            seed_demo.main()
+            cls.contagem_segunda = cls._contar()
+
+    @classmethod
+    def tearDownClass(cls):
+        for extra in ("", "-wal", "-shm"):
+            if os.path.exists(CAMINHO_DB + extra):
+                os.remove(CAMINHO_DB + extra)
+
+    @staticmethod
+    def _contar():
+        conexao = sqlite3.connect(CAMINHO_DB)
+        tabelas = ("users", "coortes", "turmas", "matriculas", "materiais", "atividades",
+                   "entregas", "acessos_material", "mensagens", "avisos", "denuncias",
+                   "favoritos", "anotacoes")
+        contagem = {t: conexao.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tabelas}
+        conexao.close()
+        return contagem
+
+    def test_rodar_de_novo_nao_duplica(self):
+        self.assertEqual(self.contagem_primeira, self.contagem_segunda)
+
+    def test_turma_de_alunos_com_a_excecao(self):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        por_disciplina = dict(conexao.execute(
+            "SELECT t.nome, COUNT(m.aluno_id) FROM turmas t"
+            " LEFT JOIN matriculas m ON m.turma_id = t.id GROUP BY t.id"
+        ).fetchall())
+        conexao.close()
+
+        self.assertEqual(
+            por_disciplina, {"Cardiologia I": 8, "Anatomia": 8, "Fisiologia": 7, "Histologia": 3}
+        )
+
+    def test_professor_tem_o_que_corrigir_e_uma_mensagem_nova(self):
+        from regras.mensagens import listar_conversas
+
+        atividades = listar_atividades("professor@deltacare.com")["atividades"]
+        conversas = listar_conversas("professor@deltacare.com")["conversas"]
+
+        self.assertEqual(sum(a["a_corrigir"] for a in atividades), 1)
+        self.assertEqual([c["titulo"] for c in conversas if c["nao_lidas"]], ["Ana Beatriz Rocha"])
+
+    def test_ranking_com_a_turma_toda_e_quem_pediu_para_sair_fora(self):
+        from regras.ranking import ranking_da_turma
+
+        ranking = ranking_da_turma("aluno@deltacare.com")
+
+        self.assertEqual(ranking["total"], 8)
+        self.assertEqual(ranking["eu"]["posicao"], 1)
+        self.assertNotIn("Júlia Fernandes", [linha["nome"] for linha in ranking["topo"]])
+
+    def test_aluna_ve_avisos_e_o_semestre_anterior(self):
+        from regras.avisos import listar_avisos_recebidos
+        from regras.semestres import historico_do_aluno
+
+        avisos = listar_avisos_recebidos("aluno@deltacare.com")["avisos"]
+        historico = historico_do_aluno("aluno@deltacare.com")["semestres"]
+
+        self.assertEqual({a["titulo"] for a in avisos}, {"Prova antecipada", "Semana acadêmica"})
+        self.assertEqual(
+            [d["nome"] for s in historico for d in s["disciplinas"]], ["Histologia"]
+        )
 
 
 if __name__ == "__main__":
