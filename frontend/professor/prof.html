@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Área do Professor</title>
-    <link rel="stylesheet" href="../style_dashboard.css?v=28">
+    <link rel="stylesheet" href="../style_dashboard.css?v=29">
 </head>
 <body>
     <div class="app">
@@ -82,14 +82,8 @@
 
                 <div class="topo-acoes">
                     <button type="button" class="seletor-turma" id="seletorTurma">
-                        Turma 3A · 2026/2
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                        Carregando...
                     </button>
-
-                    <label class="busca">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-                        <input type="search" placeholder="Buscar" id="campoBusca">
-                    </label>
 
                     <div class="area-notificacoes">
                         <button type="button" class="botao-icone" id="botaoNotificacoes" aria-label="Notificações">
@@ -125,6 +119,10 @@
                     <span class="stat-rotulo">Materiais agendados</span>
                     <strong class="stat-valor" id="statMateriaisAgendados">0</strong>
                 </article>
+                <article class="stat-cartao">
+                    <span class="stat-rotulo">Entregas para corrigir</span>
+                    <strong class="stat-valor" id="statParaCorrigir">0</strong>
+                </article>
             </section>
 
             <section class="painel">
@@ -133,7 +131,7 @@
                         <h2 class="cartao-titulo">Minhas disciplinas</h2>
                         <div class="grade-turmas grade-turmas--compacta" id="listaTurmas"></div>
                         <p class="estado-vazio" id="semTurmas" hidden>
-                            Você ainda não tem turmas atribuídas. A administração é quem cria e atribui turmas.
+                            Você não tem disciplinas neste semestre. A administração é quem cria e atribui disciplinas.
                         </p>
                     </div>
 
@@ -152,34 +150,36 @@
                         </a>
                         <a href="turmas.html" class="acao">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 20v-2a4 4 0 0 0-3-3.9"/></svg>
-                            Ver turmas
+                            Ver disciplinas
                         </a>
                     </div>
 
-                    <!-- Módulos ainda não construídos. Ficam declarados como
-                         indisponíveis em vez de preenchidos com dados de exemplo
-                         que passariam por reais. -->
-                    <div class="cartao cartao--indisponivel">
-                        <h2 class="cartao-titulo">Atividades e desempenho</h2>
-                        <p>Correção de entregas, pontuação e os tópicos com maior índice de erro fazem parte do módulo de Atividades.</p>
-                        <a href="atividades.html" class="etiqueta-breve etiqueta-breve--link">Ver o que vem</a>
+                    <div class="cartao">
+                        <h2 class="cartao-titulo">Para corrigir</h2>
+                        <ul class="lista-recentes" id="listaParaCorrigir"></ul>
+                        <a href="atividades.html" class="acao bloco-acao">Ver atividades</a>
                     </div>
 
-                    <div class="cartao cartao--indisponivel">
+                    <div class="cartao">
                         <h2 class="cartao-titulo">Mensagens</h2>
-                        <p>A conversa direta entre professor e aluno ainda não existe. Hoje o aluno tira dúvidas com o assistente de IA.</p>
-                        <a href="mensagens.html" class="etiqueta-breve etiqueta-breve--link">Ver o que vem</a>
+                        <ul class="lista-recentes" id="listaMensagens"></ul>
+                        <a href="mensagens.html" class="acao bloco-acao">Abrir mensagens</a>
+                    </div>
+
+                    <div class="cartao" id="cartaoAvisosProfessor" hidden>
+                        <h2 class="cartao-titulo">Avisos da coordenação</h2>
+                        <div class="avisos-lista" id="listaAvisosProfessor"></div>
                     </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <script src="../config.js?v=28"></script>
-    <script src="../dialogo.js?v=28"></script>
-    <script src="../auth.js?v=28"></script>
-    <script src="../perfil.js?v=28"></script>
-    <script src="../notificacoes.js?v=28"></script>
-    <script src="prof.js?v=28"></script>
+    <script src="../config.js?v=29"></script>
+    <script src="../dialogo.js?v=29"></script>
+    <script src="../auth.js?v=29"></script>
+    <script src="../perfil.js?v=29"></script>
+    <script src="../notificacoes.js?v=29"></script>
+    <script src="prof.js?v=29"></script>
 </body>
 </html>

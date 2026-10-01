@@ -1,12 +1,11 @@
 /**
  * Dashboard do professor.
  *
- * Todos os números desta tela vêm da API. Antes havia calendário, entregas,
- * gráfico de erros e mensagens preenchidos com dados de exemplo (alunos e
- * disciplinas inventados, de outra área que não medicina). Foram removidos:
- * num sistema que uma faculdade vai avaliar, tela com dado falso levanta a
- * dúvida de o que mais ali não é real. Os módulos que ainda não existem
- * aparecem declarados como indisponíveis, não simulados.
+ * Todos os números desta tela vêm da API, e só do semestre vigente. Nada é
+ * exemplo: sem dado, cada bloco diz que está vazio. Num sistema que uma
+ * faculdade vai avaliar, tela com dado falso levanta a dúvida de o que mais
+ * ali não é real — e tela dizendo que um módulo "ainda não existe" quando
+ * ele existe é o mesmo problema, ao contrário.
  */
 
 const usuario = exigirAcesso("professor");
@@ -15,7 +14,6 @@ if (usuario) {
     montarSaudacao(usuario);
     ligarMenuAvatar();
     ligarNotificacoes();
-    ligarPlaceholders();
     carregarResumoTurmas();
     ligarRodapePerfil();
 }
@@ -40,6 +38,16 @@ function formatarData(iso) {
     return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
+/**
+ * Tudo da tela inicial, do semestre vigente.
+ *
+ * As disciplinas de semestres passados ficam em Semestres anteriores: somá-las
+ * aqui faria "Alunos matriculados" crescer a cada semestre sem que o professor
+ * tivesse mais aluno nenhum.
+ *
+ * Cada bloco carrega independente: um erro em mensagens não pode apagar as
+ * disciplinas da tela.
+ */
 async function carregarResumoTurmas() {
     const seletor = document.querySelector("#seletorTurma");
 
@@ -49,31 +57,32 @@ async function carregarResumoTurmas() {
             api("/materiais"),
         ]);
 
-        const turmas = (await respostaTurmas.json()).turmas || [];
-        const materiais = (await respostaMateriais.json()).materiais || [];
+        const todas = (await respostaTurmas.json()).turmas || [];
+        const turmas = todas.filter((t) => t.vigente !== false);
+        const vigentes = new Set(turmas.map((t) => t.id));
+        const materiais = ((await respostaMateriais.json()).materiais || [])
+            .filter((m) => vigentes.has(m.turma_id));
 
         preencherEstatisticas(turmas, materiais);
         montarTurmas(turmas);
         montarMateriaisRecentes(materiais);
 
-        if (turmas.length === 0) {
-            seletor.textContent = "Nenhuma turma";
-            seletor.onclick = () => { window.location.href = "turmas.html"; };
-            return;
-        }
-
-        const rotulo = turmas.length === 1
-            ? `${turmas[0].nome} · ${turmas[0].semestre}`
-            : `${turmas[0].nome} · ${turmas[0].semestre} (+${turmas.length - 1})`;
-
-        seletor.innerHTML = `
-            ${rotulo}
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        `;
+        // textContent, e não innerHTML: o nome da disciplina é digitado pela
+        // administração e não pode ser interpretado como HTML.
+        seletor.textContent = turmas.length === 0
+            ? "Nenhuma disciplina"
+            : turmas.length === 1
+                ? `${turmas[0].nome} · ${turmas[0].semestre}`
+                : `${turmas[0].nome} · ${turmas[0].semestre} (+${turmas.length - 1})`;
         seletor.onclick = () => { window.location.href = "turmas.html"; };
     } catch (erro) {
         console.error("Erro ao carregar o resumo:", erro);
+        seletor.textContent = "Disciplinas";
     }
+
+    carregarParaCorrigir();
+    carregarMensagens();
+    carregarAvisos();
 }
 
 function preencherEstatisticas(turmas, materiais) {
@@ -85,6 +94,122 @@ function preencherEstatisticas(turmas, materiais) {
     document.querySelector("#statAlunos").textContent = totalAlunos;
     document.querySelector("#statMateriaisPublicados").textContent = publicados;
     document.querySelector("#statMateriaisAgendados").textContent = agendados;
+}
+
+/** Um item de lista com um número à esquerda e duas linhas de texto. */
+function itemComContador(numero, titulo, detalhe, link) {
+    const item = document.createElement("li");
+
+    const contador = document.createElement("span");
+    contador.className = "contador-nao-lidas";
+    contador.textContent = numero;
+
+    const info = document.createElement("div");
+    info.className = "recente-info";
+    const forte = document.createElement("strong");
+    forte.textContent = titulo;
+    const linha = document.createElement("span");
+    linha.textContent = detalhe;
+    info.appendChild(forte);
+    info.appendChild(linha);
+
+    item.appendChild(contador);
+    item.appendChild(info);
+
+    if (link) {
+        item.classList.add("lista-recentes-link");
+        item.addEventListener("click", () => { window.location.href = link; });
+    }
+    return item;
+}
+
+function itemVazio(texto) {
+    const item = document.createElement("li");
+    item.className = "lista-recentes-vazio";
+    item.textContent = texto;
+    return item;
+}
+
+async function carregarParaCorrigir() {
+    const lista = document.querySelector("#listaParaCorrigir");
+    try {
+        const resposta = await api("/atividades");
+        const atividades = (await resposta.json()).atividades || [];
+        const esperando = atividades
+            .filter((a) => a.a_corrigir > 0)
+            .sort((a, b) => b.a_corrigir - a.a_corrigir);
+
+        const total = esperando.reduce((soma, a) => soma + a.a_corrigir, 0);
+        document.querySelector("#statParaCorrigir").textContent = total;
+
+        lista.textContent = "";
+        if (!esperando.length) {
+            lista.appendChild(itemVazio("Nada esperando correção."));
+            return;
+        }
+        esperando.slice(0, 5).forEach((atividade) => lista.appendChild(itemComContador(
+            atividade.a_corrigir,
+            atividade.titulo,
+            atividade.turma_nome,
+            "atividades.html"
+        )));
+    } catch (erro) {
+        console.error("Erro ao carregar correções:", erro);
+        lista.textContent = "";
+        lista.appendChild(itemVazio("Não foi possível carregar."));
+    }
+}
+
+async function carregarMensagens() {
+    const lista = document.querySelector("#listaMensagens");
+    try {
+        const resposta = await api("/mensagens/conversas");
+        const conversas = (await resposta.json()).conversas || [];
+        const novas = conversas.filter((c) => c.nao_lidas > 0);
+
+        lista.textContent = "";
+        if (!novas.length) {
+            lista.appendChild(itemVazio("Nenhuma mensagem nova."));
+            return;
+        }
+        novas.slice(0, 4).forEach((conversa) => lista.appendChild(itemComContador(
+            conversa.nao_lidas,
+            conversa.titulo,
+            conversa.ultima_mensagem || conversa.subtitulo,
+            "mensagens.html"
+        )));
+    } catch (erro) {
+        console.error("Erro ao carregar mensagens:", erro);
+        lista.textContent = "";
+        lista.appendChild(itemVazio("Não foi possível carregar."));
+    }
+}
+
+/** Só aparece quando há aviso: um cartão vazio na tela inicial não diz nada. */
+async function carregarAvisos() {
+    const cartao = document.querySelector("#cartaoAvisosProfessor");
+    const lista = document.querySelector("#listaAvisosProfessor");
+    try {
+        const resposta = await api("/avisos/recebidos");
+        const avisos = ((await resposta.json()).avisos || []).slice(0, 3);
+        cartao.hidden = !avisos.length;
+        lista.textContent = "";
+
+        avisos.forEach((aviso) => {
+            const item = document.createElement("article");
+            item.className = "aviso" + (aviso.em_destaque ? " aviso--urgente" : "");
+            const titulo = document.createElement("h3");
+            titulo.textContent = aviso.urgente ? `Urgente: ${aviso.titulo}` : aviso.titulo;
+            const texto = document.createElement("p");
+            texto.className = "aviso-conteudo";
+            texto.textContent = aviso.conteudo;
+            item.appendChild(titulo);
+            item.appendChild(texto);
+            lista.appendChild(item);
+        });
+    } catch (erro) {
+        console.error("Erro ao carregar avisos:", erro);
+    }
 }
 
 function montarTurmas(turmas) {
@@ -208,17 +333,4 @@ function ligarMenuAvatar() {
     document.addEventListener("click", () => {
         lista.hidden = true;
     });
-}
-
-function ligarPlaceholders() {
-    document.querySelectorAll("[data-em-breve]").forEach((elemento) => {
-        elemento.addEventListener("click", (evento) => {
-            evento.preventDefault();
-            avisoEmBreve(elemento.dataset.emBreve);
-        });
-    });
-}
-
-async function avisoEmBreve(nomeFuncionalidade) {
-    await avisar(`${nomeFuncionalidade} ainda não faz parte desta versão.`, "Módulo em construção");
 }

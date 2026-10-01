@@ -38,7 +38,22 @@ DISCIPLINAS_PROFESSOR = "Cardiologia; Clínica Médica"
 MATRICULA_ALUNO = "2026001234"
 
 TURMA_NOME = "Cardiologia I"
-TURMA_SEMESTRE = "2026.2"
+
+
+def _semestre_vigente() -> str:
+    """O semestre vem do sistema, e não fixo aqui.
+
+    Era "2026.2" escrito à mão. Depois que o formato virou um só (2026/2), a
+    busca por "2026.2" deixou de achar a disciplina, o seed tentava criar de
+    novo, levava "já existe" e saía com erro — e a partir de 2027 a disciplina
+    de demonstração viraria "semestre anterior" sozinha.
+    """
+    from regras.semestres import semestre_vigente
+
+    return semestre_vigente()
+
+
+TURMA_SEMESTRE = None  # resolvido em main(), depois de o banco existir
 
 MATERIAL_TITULO = "Aula 3 - Insuficiencia Cardiaca Aguda"
 
@@ -315,9 +330,12 @@ def criar_material_indexado(turma_id: int) -> None:
 
 
 def main() -> None:
+    global TURMA_SEMESTRE
+
     print(f"Banco: {CAMINHO_DB}\n")
 
     configurar_banco()
+    TURMA_SEMESTRE = _semestre_vigente()
 
     print("Contas:")
     criar_admin_inicial()
@@ -331,6 +349,13 @@ def main() -> None:
 
     print("\nMaterial:")
     criar_material_indexado(turma_id)
+
+    # O resto do semestre: turma de alunos, mais disciplinas e professores,
+    # atividades com entregas, avisos, mensagens e um semestre anterior. Sem
+    # isso, metade das telas abre vazia na demonstração.
+    from seed_semestre import popular_semestre
+
+    popular_semestre(turma_id)
 
     print("\n" + "=" * 58)
     print("Pronto. Contas de demonstracao (senha unica):")

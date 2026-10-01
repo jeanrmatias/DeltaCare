@@ -916,3 +916,35 @@ test("a estrela não acende quando o servidor recusa", async () => {
     assert.equal(material.favorito, false);
     assert.deepEqual(ctx.erros, ["Material não encontrado."]);
 });
+
+
+// ---------------------------------------------------------------- endereço da API
+/**
+ * Era "http://127.0.0.1:8000" fixo: no servidor da instituição, o navegador de
+ * cada aluno procuraria a API no próprio computador do aluno.
+ */
+function enderecoPara(local, sobrescrito) {
+    const ctx = {
+        console,
+        window: { location: local, ...(sobrescrito ? { DELTACARE_API_URL: sobrescrito } : {}) },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync("config.js", "utf-8"), ctx, { filename: "config.js" });
+    return vm.runInContext("API_URL", ctx);
+}
+
+test("em produção a API é a mesma origem da página", () => {
+    const local = { port: "", protocol: "https:", hostname: "deltacare.moinhos.org.br",
+                    origin: "https://deltacare.moinhos.org.br" };
+    assert.equal(enderecoPara(local), "https://deltacare.moinhos.org.br");
+});
+
+test("no servidor de desenvolvimento a API fica na porta 8000 do mesmo computador", () => {
+    const local = { port: "5500", protocol: "http:", hostname: "localhost", origin: "http://localhost:5500" };
+    assert.equal(enderecoPara(local), "http://localhost:8000");
+});
+
+test("um endereço definido explicitamente vence a dedução", () => {
+    const local = { port: "", protocol: "https:", hostname: "a.com", origin: "https://a.com" };
+    assert.equal(enderecoPara(local, "https://api.b.com"), "https://api.b.com");
+});

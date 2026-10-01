@@ -25,6 +25,9 @@ env/
 # de onde o backend foi iniciado, então rodar o seed da raiz cria `uploads/` na
 # raiz, e rodar de dentro de backend/ cria `backend/uploads/`. As duas ficam fora.
 uploads/
+# Cópias de segurança (backend/backup.py): têm dado de aluno e não vão para o
+# repositório.
+backups/
 
 # Variáveis de ambiente / segredos (OLLAMA_URL, chaves de API no futuro)
 .env

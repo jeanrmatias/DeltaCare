@@ -289,11 +289,21 @@ def solicitar_recuperacao(email: str) -> dict:
     conexao.commit()
     conexao.close()
 
-    # Ainda não há um serviço de e-mail configurado, então por enquanto o
-    # código só é impresso no console do backend (simulando o envio). Basta
-    # trocar esta linha por um envio real (SMTP, SendGrid etc.) quando
-    # houver um serviço disponível.
-    print(f"[Delta Care] Código de recuperação para {email}: {token} (válido por {VALIDADE_TOKEN_MINUTOS} min)")
+    # Em segundo plano: enviar leva um ou dois segundos e só acontece quando a
+    # conta existe. Esperando aqui, o tempo de resposta diria quem é aluno
+    # (ver infra/email.enviar_em_segundo_plano). Sem SMTP configurado, o
+    # código vai para o console do servidor, como antes.
+    from infra.email import enviar_em_segundo_plano
+
+    enviar_em_segundo_plano(
+        email,
+        "Delta Care — código para redefinir sua senha",
+        f"Seu código de recuperação é: {token}\n\n"
+        f"Ele vale por {VALIDADE_TOKEN_MINUTOS} minutos e pode ser usado uma vez só. "
+        f"Depois de {MAX_TENTATIVAS_RESET} tentativas erradas, ele deixa de valer e é "
+        "preciso pedir outro.\n\n"
+        "Se não foi você que pediu, ignore este e-mail: sua senha continua a mesma.",
+    )
 
     return {"mensagem": RESPOSTA_RECUPERACAO}
 

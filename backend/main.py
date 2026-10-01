@@ -6,7 +6,8 @@ import anyio
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from infra.database import configurar_banco
@@ -188,6 +189,17 @@ app.add_middleware(
 )
 
 limpar_sessoes_expiradas()
+
+# Sem SMTP, "Esqueci minha senha" não chega a ninguém: o código vai para este
+# console. Em desenvolvimento é o esperado; em produção é um defeito, e o aviso
+# na subida é o que impede de descobrir isso só quando um aluno reclamar.
+from infra.email import email_configurado  # noqa: E402
+
+if not email_configurado():
+    print(
+        "[Delta Care] AVISO: DELTACARE_SMTP_HOST não definido. Os e-mails de recuperação "
+        "de senha não serão enviados; o código aparece neste console."
+    )
 
 
 # =========================================================================
@@ -429,7 +441,14 @@ class RespostaRequest(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"mensagem": "Backend funcionando :)"}
+    """Quem digita o endereço do sistema cai nas telas, e não num JSON."""
+    return RedirectResponse(url="/app/index.html")
+
+
+@app.get("/saude")
+def saude():
+    """Para monitoramento: responde enquanto o processo está de pé."""
+    return {"status": "ok"}
 
 
 # ---------------------------- rotas públicas ----------------------------
@@ -1168,3 +1187,20 @@ async def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usua
 @app.get("/chat/historico")
 def historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
     return buscar_historico(aluno["email"], turma_id)
+
+
+# ---------------------------- as telas ----------------------------
+# Em produção, este mesmo processo entrega o front em /app/: tela e API na
+# mesma origem, então o front não precisa saber o endereço da API (ver
+# frontend/config.js) e o CORS nem entra em jogo. Na frente fica um proxy com
+# HTTPS (deploy/Caddyfile).
+#
+# Só a pasta frontend/ é servida — código público de tela. Os arquivos
+# enviados (uploads/) continuam fora: só saem pelas rotas que conferem
+# permissão.
+#
+# Montado por último: as rotas da API, declaradas acima, têm prioridade.
+PASTA_FRONT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+
+if os.path.isdir(PASTA_FRONT):
+    app.mount("/app", StaticFiles(directory=PASTA_FRONT, html=True), name="telas")

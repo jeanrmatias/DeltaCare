@@ -3795,3 +3795,15 @@ dialog.visualizador:not([open]) {
     color: var(--color-success);
     font-weight: 700;
 }
+
+
+/* Item da tela inicial do professor que leva a algum lugar (correção,
+   mensagem): o cursor e o fundo dizem que dá para clicar. */
+.lista-recentes-link {
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+
+.lista-recentes-link:hover {
+    background: var(--color-bg);
+}

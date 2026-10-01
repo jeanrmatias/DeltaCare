@@ -4029,12 +4029,45 @@ class TestesContratoFrontBack(unittest.TestCase):
     def test_todo_elemento_que_um_script_procura_existe(self):
         self.assertEqual(self.contrato.ids_ausentes(), [])
 
+    def test_nenhuma_tela_anuncia_como_futuro_o_que_ja_existe(self):
+        """O painel do professor passou dias dizendo que mensagens 'ainda não
+        existe' com o módulo pronto. Promessa de futuro só vale na página do
+        catálogo (em-breve.html), que lê de modulos.js."""
+        import glob
+
+        frases = ("ainda não existe", "Ver o que vem", "cartao--indisponivel")
+        achados = []
+        for pagina in glob.glob(os.path.join(self.contrato.FRONT, "**", "*.html"), recursive=True):
+            if pagina.endswith("em-breve.html"):
+                continue
+            texto = open(pagina, encoding="utf-8").read()
+            achados += [f"{os.path.relpath(pagina, self.contrato.FRONT)}: {f}" for f in frases if f in texto]
+
+        self.assertEqual(achados, [])
+
+    def test_todo_link_em_breve_tem_entrada_no_catalogo(self):
+        """Link para um módulo que saiu do catálogo abre 'Módulo não
+        encontrado' — o sinal de que alguém esqueceu de trocar o menu."""
+        import glob
+        import re
+
+        catalogo = open(os.path.join(self.contrato.FRONT, "modulos.js"), encoding="utf-8").read()
+        chaves = set(re.findall(r'^    "([a-z-]+)": \{', catalogo, re.M))
+        orfaos = set()
+        for pagina in glob.glob(os.path.join(self.contrato.FRONT, "**", "*.html"), recursive=True):
+            texto = open(pagina, encoding="utf-8").read()
+            orfaos |= set(re.findall(r"em-breve\.html\?modulo=([a-z-]+)", texto)) - chaves
+
+        self.assertEqual(orfaos, set())
+
     def test_rotas_sem_uso_no_front_sao_so_as_conhecidas(self):
         """Rota nova sem tela, ou tela que deixou de chamar uma rota, aparece
         aqui. Cada item da lista tem motivo para estar nela."""
         conhecidas = {
-            # Do próprio FastAPI e da raiz de saúde.
-            "GET /", "GET /docs", "GET /docs/oauth2-redirect", "GET /openapi.json", "GET /redoc",
+            # Do próprio FastAPI; a raiz, que só redireciona para as telas; e a
+            # de saúde, que é para o monitoramento e não para a tela.
+            "GET /", "GET /saude",
+            "GET /docs", "GET /docs/oauth2-redirect", "GET /openapi.json", "GET /redoc",
             # A atividade com gabarito, só para o professor dono. A tela de
             # edição usa os dados da lista, e as questões não são editáveis.
             "GET /atividades/{atividade_id}",
@@ -4906,6 +4939,356 @@ class TestesLimitesDaSupervisao(BaseSupervisao):
             cliente.get(f"/admin/conteudo/materiais/{self.rascunho}/arquivo", headers=cab(ADMIN)).status_code, 404
         )
         self.assertIn(cliente.get("/admin/conteudo", headers=cab(PROFESSOR)).status_code, (401, 403))
+
+
+
+# =========================================================================
+# E-mail
+#
+# Um servidor SMTP de verdade, mínimo, sobe dentro do teste: o smtplib fala o
+# protocolo inteiro com ele. Um dublê da biblioteca provaria só que o código
+# chama a função; este prova que a mensagem sai e chega.
+# =========================================================================
+
+class ServidorSmtpDeTeste:
+    """SMTP mínimo, sem TLS: guarda as mensagens recebidas em `caixa`."""
+
+    def __init__(self, demora_no_envio=0.0):
+        import socket
+        import threading
+
+        self.caixa = []
+        self.demora = demora_no_envio
+        self._socket = socket.socket()
+        self._socket.bind(("127.0.0.1", 0))
+        self._socket.listen()
+        self.porta = self._socket.getsockname()[1]
+        self._ativo = True
+        threading.Thread(target=self._atender, daemon=True).start()
+
+    def _atender(self):
+        import time
+
+        while self._ativo:
+            try:
+                conexao, _ = self._socket.accept()
+            except OSError:
+                return
+            arquivo = conexao.makefile("rwb")
+
+            def responder(linha):
+                arquivo.write(linha.encode() + b"\r\n")
+                arquivo.flush()
+
+            responder("220 teste")
+            dados = None
+            while True:
+                linha = arquivo.readline()
+                if not linha:
+                    break
+                comando = linha.decode(errors="replace").strip()
+                if dados is not None:
+                    if comando == ".":
+                        time.sleep(self.demora)
+                        self.caixa.append("\n".join(dados))
+                        dados = None
+                        responder("250 ok")
+                    else:
+                        dados.append(comando)
+                    continue
+                verbo = comando.split(" ")[0].upper()
+                if verbo == "EHLO":
+                    responder("250 teste")
+                elif verbo == "DATA":
+                    dados = []
+                    responder("354 pode mandar")
+                elif verbo == "QUIT":
+                    responder("221 tchau")
+                    break
+                else:
+                    responder("250 ok")
+            conexao.close()
+
+    def parar(self):
+        self._ativo = False
+        self._socket.close()
+
+
+class TestesEmail(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        self._ambiente = {k: v for k, v in os.environ.items() if k.startswith("DELTACARE_SMTP")}
+
+    def tearDown(self):
+        for chave in [k for k in os.environ if k.startswith("DELTACARE_SMTP")]:
+            del os.environ[chave]
+        os.environ.update(self._ambiente)
+        super().tearDown()
+
+    def configurar(self, servidor=None, porta=None):
+        os.environ["DELTACARE_SMTP_HOST"] = "127.0.0.1"
+        os.environ["DELTACARE_SMTP_PORTA"] = str(porta if porta is not None else servidor.porta)
+        os.environ["DELTACARE_SMTP_SEGURANCA"] = "nenhuma"
+        os.environ["DELTACARE_SMTP_REMETENTE"] = "Delta Care <nao-responda@teste.com>"
+
+    def codigo_de(self, email):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        codigo = conexao.execute("SELECT reset_token FROM users WHERE email = ?", (email,)).fetchone()[0]
+        conexao.close()
+        return codigo
+
+    def esperar_caixa(self, servidor, quantas=1, limite=5.0):
+        import time
+
+        inicio = time.time()
+        while len(servidor.caixa) < quantas and time.time() - inicio < limite:
+            time.sleep(0.02)
+
+    def test_sem_servidor_configurado_nao_envia_nem_quebra(self):
+        from infra.email import enviar_email
+
+        self.assertFalse(enviar_email("a@b.com", "Assunto", "Texto"))
+
+    def test_a_mensagem_sai_e_chega(self):
+        from infra.email import enviar_email
+
+        servidor = ServidorSmtpDeTeste()
+        self.configurar(servidor)
+        try:
+            self.assertTrue(enviar_email("aluno@med.com", "Teste de envio", "Corpo da mensagem."))
+        finally:
+            servidor.parar()
+
+        recebida = servidor.caixa[0]
+        self.assertIn("To: aluno@med.com", recebida)
+        self.assertIn("Subject: Teste de envio", recebida)
+        self.assertIn("Corpo da mensagem.", recebida)
+
+    def test_o_codigo_de_recuperacao_chega_por_email(self):
+        servidor = ServidorSmtpDeTeste()
+        self.configurar(servidor)
+        try:
+            solicitar_recuperacao(ALUNO)
+            self.esperar_caixa(servidor)
+        finally:
+            servidor.parar()
+
+        self.assertEqual(len(servidor.caixa), 1)
+        self.assertIn(f"To: {ALUNO}", servidor.caixa[0])
+        self.assertIn(self.codigo_de(ALUNO), servidor.caixa[0])
+
+    def test_conta_inexistente_nao_recebe_nada(self):
+        import time
+
+        servidor = ServidorSmtpDeTeste()
+        self.configurar(servidor)
+        try:
+            solicitar_recuperacao("ninguem@lugar.com")
+            time.sleep(0.3)
+        finally:
+            servidor.parar()
+
+        self.assertEqual(servidor.caixa, [])
+
+    def test_servidor_de_email_fora_do_ar_nao_derruba_a_rota(self):
+        """A resposta é a mesma: a falha do e-mail não pode virar erro na tela
+        nem uma resposta diferente que conte se a conta existe."""
+        import socket
+
+        livre = socket.socket()
+        livre.bind(("127.0.0.1", 0))
+        porta_fechada = livre.getsockname()[1]
+        livre.close()
+        self.configurar(porta=porta_fechada)
+
+        from infra.email import enviar_email
+
+        self.assertFalse(enviar_email("a@b.com", "Assunto", "Texto"))
+        self.assertEqual(
+            solicitar_recuperacao(ALUNO)["mensagem"],
+            solicitar_recuperacao("ninguem@lugar.com")["mensagem"],
+        )
+
+    def test_a_falha_de_envio_nao_escreve_o_codigo_no_log(self):
+        """Log é lido por mais gente que o dono da conta."""
+        import contextlib
+        import io
+
+        from infra.email import enviar_email
+
+        self.configurar(porta=1)
+        saida = io.StringIO()
+        with contextlib.redirect_stdout(saida):
+            enviar_email("a@b.com", "Código", "Seu código é 482913")
+
+        self.assertNotIn("482913", saida.getvalue())
+
+    def test_servidor_lento_nao_revela_quem_tem_conta(self):
+        """Enviar só acontece para conta real. Se a rota esperasse o envio,
+        conta real responderia segundos mais devagar que a inexistente."""
+        import time
+
+        servidor = ServidorSmtpDeTeste(demora_no_envio=1.5)
+        self.configurar(servidor)
+        try:
+            inicio = time.perf_counter()
+            solicitar_recuperacao(ALUNO)
+            com_conta = time.perf_counter() - inicio
+
+            inicio = time.perf_counter()
+            solicitar_recuperacao("ninguem@lugar.com")
+            sem_conta = time.perf_counter() - inicio
+
+            self.esperar_caixa(servidor)
+        finally:
+            servidor.parar()
+
+        self.assertLess(com_conta, 0.5, f"esperou o envio: {com_conta:.2f}s")
+        self.assertLess(abs(com_conta - sem_conta), 0.5)
+        self.assertEqual(len(servidor.caixa), 1, "e o e-mail chegou mesmo assim")
+
+
+
+# =========================================================================
+# Implantação: backup e as telas servidas pela API
+# =========================================================================
+
+class TestesBackup(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        import tempfile
+
+        self.destino = tempfile.mkdtemp(prefix="deltacare_backup_teste_")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.destino, ignore_errors=True)
+        super().tearDown()
+
+    def test_a_copia_abre_e_tem_os_dados(self):
+        from backup import fazer_backup
+
+        pasta = fazer_backup(self.destino, manter=5)
+
+        copia = sqlite3.connect(os.path.join(pasta, "deltacare.db"))
+        emails = {linha[0] for linha in copia.execute("SELECT email FROM users")}
+        copia.close()
+        self.assertIn(ALUNO, emails)
+
+    def test_pega_o_que_ainda_esta_so_no_wal(self):
+        """No modo WAL, o que acabou de ser gravado pode não estar no .db
+        ainda. Copiar o arquivo perderia; a API de backup do SQLite não."""
+        from backup import fazer_backup
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("PRAGMA wal_autocheckpoint=0")
+        conexao.execute(
+            "INSERT INTO users (email, senha, tipo, nome) VALUES ('recente@teste.com', 'x', 'aluno', 'Recente')"
+        )
+        conexao.commit()
+
+        pasta = fazer_backup(self.destino, manter=5)
+        conexao.close()
+
+        copia = sqlite3.connect(os.path.join(pasta, "deltacare.db"))
+        achado = copia.execute("SELECT 1 FROM users WHERE email = 'recente@teste.com'").fetchone()
+        copia.close()
+        self.assertIsNotNone(achado)
+
+    def test_leva_os_arquivos_enviados(self):
+        from backup import fazer_backup
+        from infra.arquivos import PASTA_ENTREGAS
+
+        os.makedirs(PASTA_ENTREGAS, exist_ok=True)
+        with open(os.path.join(PASTA_ENTREGAS, "trabalho.pdf"), "wb") as arquivo:
+            arquivo.write(b"%PDF-1.4 trabalho")
+
+        pasta = fazer_backup(self.destino, manter=5)
+
+        self.assertTrue(os.path.isfile(os.path.join(pasta, "uploads", "entregas", "trabalho.pdf")))
+
+    def test_guarda_so_os_mais_recentes(self):
+        import time
+
+        from backup import fazer_backup
+
+        for _ in range(4):
+            fazer_backup(self.destino, manter=2)
+            time.sleep(1.05)  # o nome da pasta tem precisão de segundo
+
+        self.assertEqual(len(os.listdir(self.destino)), 2)
+
+
+class TestesTelasServidasPelaApi(unittest.TestCase):
+    """Em produção a API entrega as telas em /app/: mesma origem, sem CORS."""
+
+    @classmethod
+    def setUpClass(cls):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cls.cliente = TestClient(main.app)
+
+    def test_a_raiz_leva_as_telas(self):
+        resposta = self.cliente.get("/", follow_redirects=False)
+
+        self.assertIn(resposta.status_code, (302, 307))
+        self.assertEqual(resposta.headers["location"], "/app/index.html")
+
+    def test_as_telas_abrem(self):
+        for caminho in ("/app/index.html", "/app/aluno/inicio.html", "/app/config.js", "/app/style_dashboard.css"):
+            with self.subTest(caminho=caminho):
+                self.assertEqual(self.cliente.get(caminho).status_code, 200)
+
+    def test_nao_sai_da_pasta_das_telas(self):
+        """Só frontend/ é servido. Banco, código do servidor e uploads não."""
+        for caminho in ("/app/../backend/main.py", "/app/%2e%2e/backend/main.py",
+                        "/app/..%2fbackend%2fdeltacare.db", "/app/../uploads/"):
+            with self.subTest(caminho=caminho):
+                self.assertEqual(self.cliente.get(caminho).status_code, 404)
+
+    def test_monitoramento(self):
+        self.assertEqual(self.cliente.get("/saude").json(), {"status": "ok"})
+
+
+
+class TestesPrimeiroAdmin(unittest.TestCase):
+    """Num servidor novo, a primeira conta de confiança nasce por aqui — e não
+    pelo seed, que cria contas com a senha de demonstração."""
+
+    def setUp(self):
+        for extra in ("", "-wal", "-shm"):
+            if os.path.exists(CAMINHO_DB + extra):
+                os.remove(CAMINHO_DB + extra)
+
+    tearDown = setUp
+
+    def test_cria_o_primeiro_e_ele_entra(self):
+        from criar_admin import criar_primeiro_admin
+
+        resultado = criar_primeiro_admin("Coord@Med.com", "Coordenação", "senha-forte-123")
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        login = realizar_login("coord@med.com", "senha-forte-123")
+        self.assertTrue(login["sucesso"])
+        self.assertEqual(login["tipo"], "adm")
+
+    def test_recusa_se_ja_existe_administracao(self):
+        """Senão o script viraria um jeito de ganhar acesso total sem ninguém saber."""
+        from criar_admin import criar_primeiro_admin
+
+        criar_primeiro_admin("coord@med.com", "Coordenação", "senha-forte-123")
+
+        self.assertFalse(criar_primeiro_admin("outro@med.com", "Outro", "senha-forte-456")["sucesso"])
+
+    def test_senha_curta_e_recusada(self):
+        from criar_admin import criar_primeiro_admin
+
+        self.assertFalse(criar_primeiro_admin("coord@med.com", "Coordenação", "curta")["sucesso"])
 
 
 if __name__ == "__main__":

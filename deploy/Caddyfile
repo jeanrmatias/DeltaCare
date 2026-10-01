@@ -1,0 +1,19 @@
+# Caddy na frente do Delta Care: HTTPS automático (certificado Let's Encrypt,
+# renovado sozinho). Troque o domínio pelo da instituição.
+deltacare.instituicao.edu.br {
+	encode gzip
+
+	# Arquivo de até 15MB chega em base64 dentro do JSON (~20MB), mais folga.
+	request_body {
+		max_size 25MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:8000
+}

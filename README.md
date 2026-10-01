@@ -49,7 +49,7 @@ verdade — não são dados de fachada no navegador.
 | Deploy | Vercel (interface) |
 
 Nenhuma dependência de front-end é baixada: não há Bootstrap, jQuery nem build
-step. O `requirements.txt` do backend tem três pacotes.
+step. O `requirements.txt` do backend tem cinco pacotes.
 
 ### Onde e como usamos Inteligência Artificial no desenvolvimento
 
@@ -91,6 +91,9 @@ Para rodar: suba o backend (ver **Configuração**) e sirva o front com
 backend/
   main.py                  - API FastAPI: rotas e dependências de autenticação
   seed_demo.py             - cria os dados de demonstração
+  seed_semestre.py         - o resto do semestre de demonstração (chamado pelo seed_demo)
+  criar_admin.py           - cria o primeiro admin numa instalação nova
+  backup.py                - cópia conferida do banco e dos arquivos enviados
   testes.py                - testes das regras (rodam sem o Ollama)
   rodar_testes.py          - roda os mesmos testes em paralelo
   contrato_front.py        - confere se o front chama rotas que existem
@@ -190,6 +193,8 @@ arquivos globais com `../` (ex.: `../auth.js`), e os `<script>`/`<link>` levam
    | `DELTACARE_IA_SIMULTANEAS` | `4` | Chamadas ao modelo ao mesmo tempo. Não é limite de perguntas: quem passa espera sem travar o resto do sistema. Suba conforme o servidor do modelo aguentar |
    | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
    | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
+   | `DELTACARE_SMTP_HOST` e afins | (vazio) | Servidor de e-mail da recuperação de senha. Vazio, o código só aparece no console — o servidor avisa ao subir. Lista completa em [`deploy/deltacare.env.exemplo`](deploy/deltacare.env.exemplo) |
+   | `DELTACARE_BACKUPS` | `backups/` ao lado do banco | Onde o `backup.py` guarda as cópias |
 
 3. Suba o backend:
 
@@ -206,8 +211,9 @@ arquivos globais com `../` (ex.: `../auth.js`), e os `<script>`/`<link>` levam
    restarts falhando em silêncio. Para reiniciar, encerre o processo e suba de
    novo.
 
-   Teste em <http://127.0.0.1:8000> — deve responder
-   `{"mensagem": "Backend funcionando :)"}`.
+   Teste em <http://127.0.0.1:8000/saude> — deve responder `{"status": "ok"}`.
+   A raiz (<http://127.0.0.1:8000>) já abre as telas: a API também as serve,
+   em `/app/`.
 
 4. Abra o frontend:
 
@@ -223,8 +229,9 @@ arquivos globais com `../` (ex.: `../auth.js`), e os `<script>`/`<link>` levam
    `Cache-Control: no-store`. Sem isso o navegador guarda os `.js` antigos e
    você fica depurando um comportamento que já não está no código.
 
-   Se o backend estiver rodando em outro endereço/porta, ajuste `API_URL`
-   em [`frontend/config.js`](frontend/config.js).
+   O front descobre sozinho onde está a API (ver
+   [`frontend/config.js`](frontend/config.js)): na porta 5500 ela está na 8000
+   do mesmo computador; em produção, na mesma origem.
 
 ## Dados de demonstração
 
@@ -233,9 +240,23 @@ cd backend
 python seed_demo.py
 ```
 
-Cria as três contas, uma turma com professor e aluno matriculado, e um PDF
-de exemplo já indexado para o chat. Pode rodar mais de uma vez — o que já
-existe é reaproveitado.
+Monta um semestre plausível de medicina, pelas mesmas funções que as telas
+usam:
+
+- a turma de alunos **MED 3A** com Cardiologia I, Anatomia e Fisiologia, três
+  professores e oito alunos (Pedro Albuquerque fica fora de Fisiologia, por
+  aproveitamento de estudos — o caso de exceção);
+- atividades com prazo e entregas de vários alunos, uma dissertativa já
+  corrigida e outra esperando o professor, o que dá ranking com gente em
+  posições diferentes (Júlia Fernandes escolheu não aparecer);
+- mensagens (uma não lida para o professor), um aviso urgente da disciplina e
+  um geral da coordenação, uma denúncia aberta, favorito e anotação;
+- o semestre anterior com **MED 2A** e Histologia, com PDF indexado, para a
+  tela Semestres anteriores e a busca dentro do material.
+
+Pode rodar mais de uma vez — o que já existe é reaproveitado. As contas extras
+seguem o padrão `nome.sobrenome@deltacare.com` (ex.: `lucas.martins@`,
+`beatriz.lemos@`), todas com a senha `demo123`.
 
 | Perfil | E-mail | Senha |
 |---|---|---|
@@ -251,8 +272,9 @@ material, como tratamento de apendicite: ele deve recusar a segunda.
 
 ## Fluxo manual (se quiser testar sem o seed)
 
-1. O primeiro admin só nasce pelo `seed_demo.py`: o cadastro público cria
-   apenas aluno, e `POST /admin/usuarios` exige um admin já logado.
+1. O primeiro admin nasce pelo `criar_admin.py` (ou pelo `seed_demo.py`): o
+   cadastro público cria apenas aluno, e `POST /admin/usuarios` exige um
+   admin já logado.
 2. Login como admin → cria uma turma e atribui a um professor.
 3. Cadastro público (`/cadastro`, tela de login) cria uma conta de aluno →
    admin matricula esse aluno na turma.
@@ -278,13 +300,54 @@ de outra pessoa apenas trocando esse campo.
 
 - Sem HTTPS: o token viaja em texto claro. Em rede local de demonstração é
   aceitável; para uso real é obrigatório antes de qualquer dado de aluno.
-- Sem rate limiting no login — nada impede tentativas repetidas de senha.
-- SQLite (sem concorrência de verdade), storage de arquivo em disco local,
-  e-mail de recuperação de senha só imprime no console: tudo adequado para
-  demo, não para produção.
+- SQLite aceita um escritor por vez: aguenta uma faculdade (60 entregas
+  simultâneas se enfileiram em ~2s), não uma rede de faculdades.
+- Arquivos enviados ficam no disco do servidor, não num serviço de storage.
 - Chat indexa apenas PDF (vídeo e link ficam de fora do escopo inicial).
-- Dashboard do professor tem partes ainda mockadas (entregas, gráfico,
-  mensagens).
+
+## Implantação
+
+Um servidor Linux, com GPU se o modelo de IA rodar nele. Um processo só serve
+a API **e** as telas (em `/app/`); na frente, o [Caddy](https://caddyserver.com)
+cuida do HTTPS. Os arquivos estão em [`deploy/`](deploy).
+
+1. **Código e dependências**
+   ```
+   git clone <repositório> /opt/deltacare
+   cd /opt/deltacare && python3 -m venv .venv
+   .venv/bin/pip install -r requirements.txt
+   ```
+2. **Configuração:** copie `deploy/deltacare.env.exemplo` para
+   `/etc/deltacare.env`, preencha (domínio, SMTP, pastas de dados) e
+   `chmod 600 /etc/deltacare.env`. Crie a pasta dos dados
+   (`/var/lib/deltacare`) com dono `deltacare`.
+3. **Primeira conta de administração:**
+   ```
+   cd /opt/deltacare/backend
+   set -a; . /etc/deltacare.env; set +a
+   ../.venv/bin/python criar_admin.py
+   ```
+   **Nunca rode o `seed_demo.py` em produção:** ele cria contas com a senha
+   `demo123`.
+4. **Serviço:** copie `deploy/deltacare.service` para
+   `/etc/systemd/system/` e `systemctl enable --now deltacare`.
+5. **HTTPS:** instale o Caddy, ponha o domínio no `deploy/Caddyfile`, copie
+   para `/etc/caddy/Caddyfile` e `systemctl reload caddy`. O certificado sai e
+   se renova sozinho.
+6. **Backup diário** (crontab do usuário `deltacare`):
+   ```
+   30 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python backup.py >> /var/log/deltacare-backup.log 2>&1
+   ```
+   O `backup.py` copia o banco pela API do SQLite (cópia consistente com o
+   sistema no ar), confere a cópia e guarda as últimas 14. **Leve as cópias
+   para fora do servidor** — backup na mesma máquina não sobrevive ao disco.
+7. **Conferir:** `https://<domínio>/saude` responde `{"status": "ok"}`, e
+   `https://<domínio>/` abre a tela de login. Peça o código de recuperação de
+   senha para uma conta sua: se o e-mail não chegar, o SMTP está errado (o
+   log do serviço diz o motivo).
+
+**Atualizar:** `git pull`, `pip install -r requirements.txt`, `systemctl
+restart deltacare`. O banco migra sozinho na subida; faça um backup antes.
 
 ## Testes
 
