@@ -726,6 +726,44 @@ def configurar_banco(silencioso: bool = False):
         "  ON mensagens (turma_id, aluno_id, criado_em)"
     )
 
+    # Privacidade (regras/privacidade.py). A conta excluída passa por dois
+    # estados: **desativada** (não entra, mas os dados continuam, para a
+    # administração poder voltar atrás) e, 45 dias depois, **anonimizada**
+    # (nome e e-mail somem; notas e entregas ficam, sem dono identificável).
+    cursor.execute("PRAGMA table_info(users)")
+    colunas_users = {linha[1] for linha in cursor.fetchall()}
+    if "desativado_em" not in colunas_users:
+        cursor.execute("ALTER TABLE users ADD COLUMN desativado_em TEXT")
+    if "anonimizado_em" not in colunas_users:
+        cursor.execute("ALTER TABLE users ADD COLUMN anonimizado_em TEXT")
+
+    # Os pedidos que o titular faz sobre os próprios dados. Ficam guardados
+    # depois de atendidos, inclusive a exportação (que é automática): provar
+    # que o pedido foi atendido, e quando, também é obrigação da LGPD.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS solicitacoes_privacidade (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            status TEXT NOT NULL,
+            campo TEXT,
+            valor_novo TEXT,
+            motivo TEXT,
+            resposta TEXT,
+            criado_em TEXT NOT NULL,
+            decidido_em TEXT,
+            decidido_por INTEGER,
+            anonimizar_em TEXT,
+            concluido_em TEXT,
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (decidido_por) REFERENCES users (id)
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_solicitacoes_privacidade_status"
+        "  ON solicitacoes_privacidade (status, criado_em)"
+    )
+
     conexao.commit()
     conexao.close()
 

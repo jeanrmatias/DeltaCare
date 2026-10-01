@@ -1116,6 +1116,11 @@ body {
     color: #157A3C;
 }
 
+.badge-status--perigo {
+    background: var(--color-danger-bg);
+    color: #B42318;
+}
+
 
 /* =========================
    Estado vazio

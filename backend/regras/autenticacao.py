@@ -84,7 +84,7 @@ def realizar_login(email: str, senha: str) -> dict:
             ),
         }
 
-    cursor.execute("SELECT id, senha, tipo, nome FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT id, senha, tipo, nome, desativado_em FROM users WHERE email = ?", (email,))
     usuario = cursor.fetchone()
 
     # **Tempo igual para conta que existe e que não existe.** Sem o hash de
@@ -108,7 +108,17 @@ def realizar_login(email: str, senha: str) -> dict:
     conexao.commit()
     conexao.close()
 
-    user_id, _, tipo, nome = usuario
+    user_id, _, tipo, nome, desativado_em = usuario
+
+    # Conta com exclusão aprovada (regras/privacidade.py). Só é dito **depois**
+    # de a senha conferir: antes disso, "desativada" contaria a qualquer um que
+    # aquele e-mail é de alguém daqui.
+    if desativado_em:
+        return {
+            "sucesso": False,
+            "mensagem": "Esta conta foi desativada a pedido. Para reativar, fale com a secretaria.",
+        }
+
     pagina = PAGINAS.get(tipo)
 
     # Perfil sem tela (valor inesperado na coluna `tipo`): não há para onde
@@ -225,7 +235,9 @@ def solicitar_recuperacao(email: str) -> dict:
     conexao = _conectar()
     cursor = conexao.cursor()
 
-    cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+    # Conta desativada recebe o mesmo silêncio que conta inexistente: trocar a
+    # senha não a reativa, então mandar código seria só ruído.
+    cursor.execute("SELECT id FROM users WHERE email = ? AND desativado_em IS NULL", (email,))
     usuario = cursor.fetchone()
 
     # **A mesma resposta para conta que existe e conta que não existe.**

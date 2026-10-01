@@ -5,9 +5,9 @@
  * solto, sem botão nem tratador — clicar não fazia nada. Agora abre um diálogo
  * com os dados reais da conta.
  *
- * **Só leitura.** Editar o próprio cadastro (autosserviço) é item de escopo
- * futuro, registrado no backlog. Mostrar o que já existe é outra coisa, e
- * é o que faz o menu deixar de ser um beco sem saída.
+ * **Só leitura.** O aluno corrige um dado pedindo à administração, pela tela
+ * Meus dados (aluno/meus-dados.html), que confere com o registro acadêmico
+ * antes de trocar.
  */
 
 const ROTULOS_PERFIL_CONTA = {
@@ -109,12 +109,20 @@ async function abrirPerfil() {
 
     caixa.appendChild(lista);
 
-    // Aviso do que ainda não dá para fazer, em vez de um botão "Editar" que
-    // abriria outro beco sem saída.
+    // O aluno pede correção, cópia e exclusão pela tela Meus dados (LGPD).
+    // Professor e administração seguem pela secretaria.
     const nota = document.createElement("p");
     nota.className = "perfil-nota";
-    nota.textContent =
-        "Para alterar estes dados, fale com a administração. A edição pelo próprio usuário entra numa próxima versão.";
+    if (dados.tipo === "aluno") {
+        nota.textContent = "Algum dado errado? Peça a correção, baixe uma cópia ou peça a exclusão em ";
+        const link = document.createElement("a");
+        link.href = "meus-dados.html";
+        link.textContent = "Meus dados";
+        nota.appendChild(link);
+        nota.appendChild(document.createTextNode("."));
+    } else {
+        nota.textContent = "Para alterar estes dados, fale com a administração.";
+    }
     caixa.appendChild(nota);
 
     const acoes = document.createElement("div");

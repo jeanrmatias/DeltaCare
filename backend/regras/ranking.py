@@ -89,7 +89,7 @@ def ranking_da_turma(aluno_email: str, coorte_id: int | None = None) -> dict:
         """
         SELECT u.id, COALESCE(NULLIF(u.nome, ''), u.email), u.ranking_oculto
           FROM matriculas_coorte mc JOIN users u ON u.id = mc.aluno_id
-         WHERE mc.coorte_id = ?
+         WHERE mc.coorte_id = ? AND u.desativado_em IS NULL
         """,
         (escolhida[0],),
     ).fetchall()

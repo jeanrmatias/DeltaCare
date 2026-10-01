@@ -10,7 +10,8 @@ Isto monta um semestre plausível de uma faculdade de medicina:
   esperando o professor), material aberto em quantidades diferentes, o que
   dá um ranking com gente em posições diferentes;
 - mensagens, avisos (um urgente da disciplina, um geral da coordenação),
-  uma denúncia aberta, favoritos e uma anotação;
+  uma denúncia aberta, favoritos, uma anotação e um pedido de correção de
+  dados esperando a administração;
 - o semestre anterior, com Histologia e um PDF indexado, para Semestres
   anteriores e a busca dentro do PDF terem o que mostrar.
 
@@ -39,6 +40,7 @@ from regras.denuncias import criar_denuncia
 from regras.favoritos import marcar_favorito
 from regras.materiais import criar_material
 from regras.mensagens import abrir_conversa, enviar_mensagem
+from regras.privacidade import solicitar as solicitar_privacidade
 from regras.ranking import definir_visibilidade
 from regras.semestres import normalizar_semestre, semestre_vigente
 from regras.turmas import criar_turma
@@ -319,6 +321,11 @@ def popular_semestre(cardiologia_id: int) -> None:
                        "pressao arterial sistolica cair abaixo de 92 mmHg")
     # Uma aluna que prefere não aparecer, para a tela mostrar o caso.
     definir_visibilidade("julia.fernandes@deltacare.com", aparecer=False)
+
+    # Um pedido esperando a administração na tela Privacidade. Pedir de novo
+    # é recusado pela própria regra (um pedido igual em aberto por vez).
+    solicitar_privacidade("rafael.moreira@deltacare.com", "correcao", "nome", "Rafael Moreira Lima",
+                          "Meu nome saiu sem o último sobrenome.")
 
     print(f"\nSemestre anterior ({anterior}):")
     med2a = _coorte("MED 2A", anterior)

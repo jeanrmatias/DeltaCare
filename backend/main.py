@@ -51,6 +51,16 @@ from regras.anotacoes import (
     listar_anotacoes,
 )
 from regras.favoritos import desmarcar_favorito, listar_favoritos, marcar_favorito
+from regras.privacidade import (
+    anonimizar_vencidas,
+    cancelar as cancelar_solicitacao_privacidade,
+    decidir as decidir_solicitacao_privacidade,
+    exportar_dados,
+    listar_minhas as listar_minhas_solicitacoes_privacidade,
+    listar_solicitacoes as listar_solicitacoes_privacidade,
+    reverter_exclusao,
+    solicitar as solicitar_privacidade,
+)
 from regras.avisos import (
     excluir_aviso,
     listar_avisos_enviados,
@@ -192,6 +202,8 @@ app.add_middleware(
 app.add_middleware(FecharConexoesDaRequisicao)
 
 limpar_sessoes_expiradas()
+# Exclusões que venceram o prazo enquanto o servidor estava parado.
+anonimizar_vencidas()
 
 # Sem SMTP, "Esqueci minha senha" não chega a ninguém: o código vai para este
 # console. Em desenvolvimento é o esperado; em produção é um defeito, e o aviso
@@ -1177,6 +1189,59 @@ async def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usua
 @app.get("/chat/historico")
 def historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
     return buscar_historico(aluno["email"], turma_id)
+
+
+# ---------------------------- privacidade (LGPD) ----------------------------
+# Regras e decisões em regras/privacidade.py. A cópia dos dados é na hora; a
+# correção e a exclusão viram pedido para a administração.
+
+class SolicitacaoPrivacidadeRequest(BaseModel):
+    tipo: str
+    campo: str = ""
+    valor_novo: str = ""
+    motivo: str = ""
+
+
+class DecisaoPrivacidadeRequest(BaseModel):
+    aprovar: bool
+    resposta: str = ""
+
+
+@app.get("/aluno/privacidade/exportar")
+def exportar_dados_rota(aluno: dict = Depends(usuario_aluno)):
+    return exportar_dados(aluno["email"])
+
+
+@app.get("/aluno/privacidade/solicitacoes")
+def minhas_solicitacoes_privacidade_rota(aluno: dict = Depends(usuario_aluno)):
+    return listar_minhas_solicitacoes_privacidade(aluno["email"])
+
+
+@app.post("/aluno/privacidade/solicitacoes")
+def solicitar_privacidade_rota(dados: SolicitacaoPrivacidadeRequest, aluno: dict = Depends(usuario_aluno)):
+    return solicitar_privacidade(aluno["email"], dados.tipo, dados.campo, dados.valor_novo, dados.motivo)
+
+
+@app.delete("/aluno/privacidade/solicitacoes/{solicitacao_id}")
+def cancelar_solicitacao_privacidade_rota(solicitacao_id: int, aluno: dict = Depends(usuario_aluno)):
+    return cancelar_solicitacao_privacidade(aluno["email"], solicitacao_id)
+
+
+@app.get("/admin/privacidade/solicitacoes")
+def listar_solicitacoes_privacidade_rota(status: str = "", admin: dict = Depends(usuario_admin)):
+    return listar_solicitacoes_privacidade(admin["email"], status)
+
+
+@app.put("/admin/privacidade/solicitacoes/{solicitacao_id}")
+def decidir_solicitacao_privacidade_rota(
+    solicitacao_id: int, dados: DecisaoPrivacidadeRequest, admin: dict = Depends(usuario_admin)
+):
+    return decidir_solicitacao_privacidade(admin["email"], solicitacao_id, dados.aprovar, dados.resposta)
+
+
+@app.post("/admin/privacidade/solicitacoes/{solicitacao_id}/reverter")
+def reverter_exclusao_rota(solicitacao_id: int, admin: dict = Depends(usuario_admin)):
+    return reverter_exclusao(admin["email"], solicitacao_id)
 
 
 # ---------------------------- as telas ----------------------------

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delta Care | Privacidade e uso de dados</title>
-    <link rel="stylesheet" href="tokens.css?v=30">
+    <link rel="stylesheet" href="tokens.css?v=31">
     <style>
         body {
             margin: 0;
@@ -78,29 +78,37 @@
         <h1>Privacidade e uso de dados</h1>
         <p class="subtitulo">Delta Care — plataforma de apoio ao estudo em saúde</p>
 
+        <p>
+            A instituição de ensino é a <strong>controladora</strong> dos dados desta
+            plataforma: é ela que decide para que eles servem e responde por eles.
+        </p>
+
         <h2>Que dados a plataforma guarda</h2>
         <ul>
-            <li><strong>Conta:</strong> e-mail e senha. A senha nunca é guardada em texto — fica só o hash (PBKDF2 com salt individual), que não permite recuperar a senha original.</li>
-            <li><strong>Vínculo acadêmico:</strong> em quais turmas você está matriculado e qual o seu perfil (aluno, professor ou administração).</li>
-            <li><strong>Material de aula:</strong> os arquivos que o professor publica e o texto extraído deles para o assistente de estudos.</li>
-            <li><strong>Conversas com o assistente:</strong> suas perguntas, as respostas e os materiais citados, para você poder retomar o estudo depois.</li>
+            <li><strong>Cadastro:</strong> nome, e-mail, matrícula e perfil (aluno, professor ou administração). A senha nunca é guardada em texto — fica só o hash (PBKDF2 com salt individual), que não permite recuperar a senha original.</li>
+            <li><strong>Vínculo acadêmico:</strong> a turma e as disciplinas que você cursa, em cada semestre.</li>
+            <li><strong>Atividades:</strong> suas entregas, os arquivos anexados, as notas e as devolutivas do professor.</li>
+            <li><strong>Estudo:</strong> quais materiais você abriu e quando (é o que calcula seu nível e o ranking), seus favoritos e suas anotações.</li>
+            <li><strong>Conversas:</strong> as perguntas ao assistente de estudos, com as respostas e os materiais citados, e as mensagens trocadas com os professores.</li>
+            <li><strong>Avisos e notificações</strong> que você recebeu, e as denúncias de conteúdo que fez.</li>
             <li><strong>Sessão:</strong> um token temporário que identifica o seu acesso, com validade de 12 horas.</li>
         </ul>
 
         <h2>Onde os dados ficam</h2>
         <p>
-            O modelo de inteligência artificial roda <strong>na infraestrutura da
-            própria instituição</strong>. Nem o material de aula nem as perguntas dos
-            alunos são enviados a serviços de terceiros — não há chamada a APIs
-            externas de IA em nenhum ponto do sistema.
+            Nos servidores da própria instituição, com acesso por HTTPS. O modelo de
+            inteligência artificial também roda lá: nem o material de aula nem as
+            perguntas dos alunos são enviados a serviços de terceiros — não há chamada a
+            APIs externas de IA em nenhum ponto do sistema.
         </p>
 
         <h2>Quem enxerga o quê</h2>
         <ul>
-            <li>O aluno acessa apenas o material publicado nas turmas em que está matriculado. Rascunhos e materiais agendados são invisíveis para ele.</li>
-            <li>O professor acessa apenas as turmas atribuídas a ele e os materiais que ele mesmo criou.</li>
-            <li>A administração gerencia contas, turmas e matrículas.</li>
-            <li>As conversas de um aluno com o assistente são individuais e não ficam visíveis para outros alunos.</li>
+            <li>O aluno acessa apenas o material publicado nas disciplinas em que está matriculado.</li>
+            <li>O professor vê as disciplinas que leciona: o material, as entregas e as notas dos alunos delas, e as mensagens que recebe.</li>
+            <li>A administração gerencia contas, turmas e matrículas e acompanha o conteúdo publicado. <strong>Não lê</strong> suas entregas, suas anotações nem suas conversas com o assistente.</li>
+            <li>Suas anotações são só suas: nenhum outro perfil tem acesso a elas.</li>
+            <li>No ranking da turma aparece só o topo, e você pode escolher não aparecer.</li>
         </ul>
         <p>
             Essas regras são verificadas no servidor a cada requisição, e não apenas
@@ -109,24 +117,33 @@
 
         <h2>Seus direitos (LGPD)</h2>
         <p>
-            A Lei Geral de Proteção de Dados garante a você o direito de confirmar o
-            tratamento, acessar, corrigir, solicitar a exclusão e obter a portabilidade
-            dos seus dados. Para exercer qualquer um deles, procure a coordenação
-            acadêmica da instituição, que é a controladora dos dados desta plataforma.
+            A Lei Geral de Proteção de Dados garante a você acessar, corrigir, levar
+            consigo e pedir a exclusão dos seus dados. Na plataforma, pela tela
+            <strong>Meus dados</strong> (no seu perfil):
         </p>
+        <ul>
+            <li><strong>Cópia dos dados:</strong> você baixa na hora, sem precisar pedir a ninguém.</li>
+            <li><strong>Correção</strong> de nome, e-mail ou matrícula: a administração confere com o registro acadêmico e responde pela própria plataforma.</li>
+            <li><strong>Exclusão da conta:</strong> a administração avalia o pedido. Aprovado, a conta é desativada na hora.</li>
+        </ul>
 
         <h2>Por quanto tempo guardamos</h2>
         <p>
-            Os dados são mantidos enquanto durar o vínculo acadêmico. O histórico de
-            conversas com o assistente pode ser apagado a pedido do aluno, sem que isso
-            afete o acesso ao material das turmas.
+            Enquanto durar o vínculo acadêmico. Com a exclusão da conta aprovada, os dados
+            pessoais são <strong>anonimizados 45 dias depois</strong>: nome, e-mail,
+            matrícula, anotações, favoritos, notificações e as conversas com o assistente e
+            com os professores deixam de existir. Até o fim desse prazo, a secretaria pode
+            reativar a conta — é o caso de quem trancou e vai ser realocado.
+        </p>
+        <p>
+            Notas, entregas e matrículas continuam, sem nada que identifique você: a
+            instituição é obrigada a guardar o registro acadêmico.
         </p>
 
         <div class="aviso">
-            <strong>Versão de demonstração.</strong> Este é um protótipo acadêmico.
-            Ainda não há HTTPS configurado nem política formal de retenção aprovada
-            pela instituição — itens necessários antes de qualquer uso com dados reais
-            de estudantes. Não cadastre informação pessoal verdadeira nesta versão.
+            <strong>Antes de usar com dados reais:</strong> a instituição precisa indicar o
+            encarregado pelo tratamento de dados (DPO) e o canal de contato dele, e aprovar
+            formalmente esta política.
         </div>
 
     </main>

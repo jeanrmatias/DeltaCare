@@ -5416,7 +5416,7 @@ class TestesSeedDeDemonstracao(unittest.TestCase):
         conexao = sqlite3.connect(CAMINHO_DB)
         tabelas = ("users", "coortes", "turmas", "matriculas", "materiais", "atividades",
                    "entregas", "acessos_material", "mensagens", "avisos", "denuncias",
-                   "favoritos", "anotacoes")
+                   "favoritos", "anotacoes", "solicitacoes_privacidade")
         contagem = {t: conexao.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tabelas}
         conexao.close()
         return contagem
@@ -5454,6 +5454,13 @@ class TestesSeedDeDemonstracao(unittest.TestCase):
         self.assertEqual(ranking["eu"]["posicao"], 1)
         self.assertNotIn("Júlia Fernandes", [linha["nome"] for linha in ranking["topo"]])
 
+    def test_administracao_tem_um_pedido_de_privacidade_esperando(self):
+        from regras.privacidade import listar_solicitacoes
+
+        pendentes = listar_solicitacoes("adm@deltacare.com", "pendente")["solicitacoes"]
+
+        self.assertEqual([p["aluno"]["nome"] for p in pendentes], ["Rafael Moreira"])
+
     def test_aluna_ve_avisos_e_o_semestre_anterior(self):
         from regras.avisos import listar_avisos_recebidos
         from regras.semestres import historico_do_aluno
@@ -5465,6 +5472,362 @@ class TestesSeedDeDemonstracao(unittest.TestCase):
         self.assertEqual(
             [d["nome"] for s in historico for d in s["disciplinas"]], ["Histologia"]
         )
+
+
+# =========================================================================
+# Privacidade (LGPD) — regras/privacidade.py
+#
+# As decisões da instituição: cópia dos dados na hora; correção e exclusão
+# passam pela administração; exclusão é desativação imediata e anonimização
+# 45 dias depois, reversível até lá.
+# =========================================================================
+
+class BasePrivacidade(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        from regras.anotacoes import criar_anotacao
+        from regras.favoritos import marcar_favorito
+
+        material_id = self.criar_material_simples("Ciclo cardíaco")["material_id"]
+        self.material_id = material_id
+        marcar_favorito(ALUNO, material_id)
+        criar_anotacao(ALUNO, material_id, "Revisar a fase isovolumétrica.")
+        enviar_mensagem(ALUNO, self.turma_id, "Professor, a prova cobre valvopatias?")
+
+        atividade = criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Quiz de sopros", tipo="objetiva", rascunho=False,
+            questoes=[{"enunciado": "Sopro sistólico em foco mitral sugere?",
+                       "alternativas": ["Insuficiência mitral", "Estenose aórtica"], "correta": 0}],
+        )
+        enviar_entrega(ALUNO, atividade["atividade_ids"][0], [0])
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        aluno_id = conexao.execute("SELECT id FROM users WHERE email = ?", (ALUNO,)).fetchone()[0]
+        self.aluno_id = aluno_id
+        # O chat de verdade precisa do Ollama; a linha é o que importa aqui.
+        conexao.execute(
+            "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, criado_em)"
+            " VALUES (?, ?, 'user', 'Qual a dose de ataque?', '2026-09-01T10:00:00+00:00')",
+            (aluno_id, self.turma_id),
+        )
+        conexao.commit()
+        conexao.close()
+
+    def _contar(self, sql, *parametros):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        valor = conexao.execute(sql, parametros).fetchone()[0]
+        conexao.close()
+        return valor
+
+    def _pedir_exclusao_aprovada(self):
+        from regras.privacidade import decidir, solicitar
+
+        pedido = solicitar(ALUNO, "exclusao", motivo="Transferência para outra faculdade.")
+        self.assertTrue(pedido["sucesso"], pedido)
+        self.assertTrue(decidir(ADMIN, pedido["id"], True)["sucesso"])
+        return pedido["id"]
+
+
+class TestesExportacao(BasePrivacidade):
+
+    def test_copia_tem_os_dados_do_aluno_e_nada_de_senha(self):
+        from regras.privacidade import exportar_dados
+
+        dados = exportar_dados(ALUNO)["dados"]
+        texto = json.dumps(dados, ensure_ascii=False)
+
+        self.assertEqual(dados["titular"]["email"], ALUNO)
+        self.assertEqual(dados["anotacoes"][0]["texto"], "Revisar a fase isovolumétrica.")
+        self.assertEqual(dados["favoritos"][0]["material"], "Ciclo cardíaco")
+        self.assertEqual(dados["entregas"][0]["nota"], 10)
+        self.assertEqual(dados["entregas"][0]["respostas"], [0])
+        self.assertEqual(dados["mensagens_com_professores"][0]["autor"], "você")
+        self.assertEqual(dados["conversas_com_o_assistente"][0]["conteudo"], "Qual a dose de ataque?")
+        self.assertEqual(dados["conversas_com_o_assistente"][0]["autor"], "você")
+        self.assertNotIn("pbkdf2", texto.lower())
+        self.assertNotIn("senha", dados["titular"])
+
+    def test_copia_nao_traz_dado_de_outro_aluno(self):
+        """O colega tem de tudo numa disciplina que só ele cursa. Na mesma
+        disciplina do titular, um vazamento da lista de disciplinas passaria
+        despercebido: o nome seria o mesmo."""
+        from regras.anotacoes import criar_anotacao
+        from regras.favoritos import marcar_favorito
+        from regras.privacidade import exportar_dados
+
+        neuro = criar_turma(ADMIN, PROFESSOR2, "Neurologia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO_FORA, neuro)
+        material = self.criar_material_simples("Vias motoras", professor=PROFESSOR2, turma_id=neuro)["material_id"]
+        marcar_favorito(ALUNO_FORA, material)
+        registrar_acesso_material(ALUNO_FORA, material)
+        criar_anotacao(ALUNO_FORA, material, "Anotação particular do colega.")
+        enviar_mensagem(ALUNO_FORA, neuro, "Mensagem particular do colega.")
+        atividade = criar_atividade_em_turmas(
+            PROFESSOR2, [neuro], titulo="Quiz de reflexos", tipo="objetiva", rascunho=False,
+            questoes=[{"enunciado": "Reflexo patelar?", "alternativas": ["L4", "S1"], "correta": 0}],
+        )
+        enviar_entrega(ALUNO_FORA, atividade["atividade_ids"][0], [0])
+        criar_denuncia(ALUNO_FORA, material, "outro", "Denúncia particular do colega.")
+        matricular_na_coorte(ADMIN, ALUNO_FORA, criar_coorte(ADMIN, "MED 5B", SEMESTRE_DOS_TESTES)["coorte"]["id"])
+        from regras.privacidade import solicitar
+
+        solicitar(ALUNO_FORA, "exclusao", motivo="Pedido particular do colega.")
+        conexao = sqlite3.connect(CAMINHO_DB)
+        colega_id = conexao.execute("SELECT id FROM users WHERE email = ?", (ALUNO_FORA,)).fetchone()[0]
+        conexao.execute(
+            "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, criado_em)"
+            " VALUES (?, ?, 'user', 'Pergunta particular do colega.', '2026-09-01T10:00:00+00:00')",
+            (colega_id, neuro),
+        )
+        conexao.commit()
+        conexao.close()
+
+        texto = json.dumps(exportar_dados(ALUNO)["dados"], ensure_ascii=False)
+
+        for rastro in ("Neurologia", "MED 5B", "Vias motoras", "Quiz de reflexos", "particular do colega", ALUNO_FORA):
+            self.assertNotIn(rastro, texto)
+
+    def test_copia_fica_registrada_mas_nao_entra_na_fila_da_administracao(self):
+        from regras.privacidade import exportar_dados, listar_minhas, listar_solicitacoes
+
+        exportar_dados(ALUNO)
+
+        self.assertEqual([s["tipo"] for s in listar_minhas(ALUNO)["solicitacoes"]], ["exportacao"])
+        self.assertEqual(listar_solicitacoes(ADMIN)["solicitacoes"], [])
+
+    def test_so_aluno_exporta(self):
+        from regras.privacidade import exportar_dados
+
+        self.assertFalse(exportar_dados(PROFESSOR)["sucesso"])
+
+
+class TestesCorrecao(BasePrivacidade):
+
+    def test_aprovada_troca_o_dado_e_a_administracao_viu_o_antes(self):
+        from regras.privacidade import decidir, listar_solicitacoes, solicitar
+
+        pedido = solicitar(ALUNO, "correcao", "nome", "Aluno Um da Silva")
+        item = listar_solicitacoes(ADMIN)["solicitacoes"][0]
+
+        self.assertEqual(item["valor_atual"], "Aluno Um")
+        self.assertTrue(decidir(ADMIN, pedido["id"], True)["sucesso"])
+        self.assertEqual(self._contar("SELECT nome FROM users WHERE email = ?", ALUNO), "Aluno Um da Silva")
+
+    def test_email_corrigido_vira_o_login(self):
+        from regras.privacidade import decidir, solicitar
+
+        pedido = solicitar(ALUNO, "correcao", "email", "  Aluno.Um@Teste.com ")
+        decidir(ADMIN, pedido["id"], True)
+
+        self.assertTrue(realizar_login("aluno.um@teste.com", SENHA)["sucesso"])
+        self.assertFalse(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_email_de_outra_conta_e_recusado_na_aprovacao(self):
+        """Conferido na hora de aprovar, e não só no pedido: o e-mail pode ter
+        sido dado a outra pessoa enquanto o pedido esperava na fila."""
+        from regras.privacidade import decidir, solicitar
+
+        pedido = solicitar(ALUNO, "correcao", "email", "livre@teste.com")
+        criar_conta_staff(ADMIN, "livre@teste.com", SENHA, "aluno", nome="Chegou antes")
+
+        self.assertFalse(decidir(ADMIN, pedido["id"], True)["sucesso"])
+        self.assertEqual(self._contar("SELECT COUNT(*) FROM users WHERE email = ?", ALUNO), 1)
+
+    def test_campo_fora_da_lista_nao_entra(self):
+        """O nome do campo vai para o SQL: só a lista fechada pode passar."""
+        from regras.privacidade import solicitar
+
+        for campo in ("tipo", "senha", "nome = 'x', tipo"):
+            self.assertFalse(solicitar(ALUNO, "correcao", campo, "adm")["sucesso"], campo)
+
+    def test_recusa_exige_motivo_e_avisa_o_aluno(self):
+        from regras.privacidade import decidir, solicitar
+
+        pedido = solicitar(ALUNO, "correcao", "matricula", "RM 12345")
+
+        self.assertFalse(decidir(ADMIN, pedido["id"], False)["sucesso"])
+        self.assertTrue(decidir(ADMIN, pedido["id"], False, "A matrícula confere com a secretaria.")["sucesso"])
+        titulos = [n["titulo"] for n in listar_notificacoes(ALUNO)["notificacoes"]]
+        self.assertIn("Correção de dados: pedido recusado", titulos)
+
+    def test_um_pedido_igual_em_aberto_por_vez(self):
+        from regras.privacidade import solicitar
+
+        self.assertTrue(solicitar(ALUNO, "correcao", "nome", "Um")["sucesso"])
+        self.assertFalse(solicitar(ALUNO, "correcao", "nome", "Dois")["sucesso"])
+        self.assertTrue(solicitar(ALUNO, "correcao", "matricula", "RM 1")["sucesso"])
+
+    def test_aluno_cancela_o_proprio_e_nao_o_alheio(self):
+        from regras.privacidade import cancelar, solicitar
+
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+        pedido = solicitar(ALUNO, "correcao", "nome", "Outro nome")
+
+        self.assertFalse(cancelar(ALUNO_FORA, pedido["id"])["sucesso"])
+        self.assertTrue(cancelar(ALUNO, pedido["id"])["sucesso"])
+
+    def test_so_administracao_decide(self):
+        from regras.privacidade import decidir, listar_solicitacoes, solicitar
+
+        pedido = solicitar(ALUNO, "correcao", "nome", "Outro nome")
+
+        self.assertFalse(decidir(PROFESSOR, pedido["id"], True)["sucesso"])
+        self.assertFalse(decidir(ALUNO, pedido["id"], True)["sucesso"])
+        self.assertFalse(listar_solicitacoes(PROFESSOR)["sucesso"])
+
+
+class TestesExclusao(BasePrivacidade):
+
+    def test_aprovada_desativa_na_hora(self):
+        sessao = realizar_login(ALUNO, SENHA)["token"]
+
+        self._pedir_exclusao_aprovada()
+
+        from infra.sessoes import buscar_usuario_da_sessao
+
+        self.assertIsNone(buscar_usuario_da_sessao(sessao))
+        login = realizar_login(ALUNO, SENHA)
+        self.assertFalse(login["sucesso"])
+        self.assertIn("desativada", login["mensagem"])
+
+    def test_sessao_que_escapou_da_limpeza_nao_abre_nada(self):
+        """A desativação apaga as sessões; este é o filtro de reserva, para a
+        sessão criada depois (banco restaurado de backup, corrida)."""
+        from infra.sessoes import buscar_usuario_da_sessao, criar_sessao
+
+        self._pedir_exclusao_aprovada()
+
+        self.assertIsNone(buscar_usuario_da_sessao(criar_sessao(self.aluno_id)))
+
+    def test_desativada_so_e_dita_a_quem_sabe_a_senha(self):
+        """Senão a mensagem contaria a qualquer um que o e-mail é de aluno daqui."""
+        self._pedir_exclusao_aprovada()
+
+        self.assertEqual(realizar_login(ALUNO, "senha-errada")["mensagem"], "E-mail ou senha incorretos.")
+
+    def test_desativada_nao_recebe_codigo_de_recuperacao(self):
+        self._pedir_exclusao_aprovada()
+
+        solicitar_recuperacao(ALUNO)
+
+        self.assertIsNone(self._contar("SELECT reset_token FROM users WHERE email = ?", ALUNO))
+
+    def test_desativada_sai_do_ranking(self):
+        from regras.ranking import ranking_da_turma
+
+        coorte = criar_coorte(ADMIN, "MED 3A", SEMESTRE_DOS_TESTES)["coorte"]["id"]
+        matricular_na_coorte(ADMIN, ALUNO, coorte)
+        matricular_na_coorte(ADMIN, ALUNO_FORA, coorte)
+        self.assertEqual(ranking_da_turma(ALUNO_FORA)["total"], 2)
+
+        self._pedir_exclusao_aprovada()
+
+        self.assertEqual(ranking_da_turma(ALUNO_FORA)["total"], 1)
+
+    def test_revertida_no_prazo_volta_a_entrar(self):
+        from regras.privacidade import reverter_exclusao
+
+        pedido_id = self._pedir_exclusao_aprovada()
+
+        self.assertTrue(reverter_exclusao(ADMIN, pedido_id)["sucesso"])
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_dentro_do_prazo_nada_e_apagado(self):
+        from regras.privacidade import PRAZO_ANONIMIZACAO_DIAS, anonimizar_vencidas
+
+        self._pedir_exclusao_aprovada()
+        quase = datetime.now(timezone.utc) + timedelta(days=PRAZO_ANONIMIZACAO_DIAS - 1)
+
+        self.assertEqual(anonimizar_vencidas(quase), 0)
+        self.assertEqual(self._contar("SELECT COUNT(*) FROM anotacoes WHERE aluno_id = ?", self.aluno_id), 1)
+
+
+class TestesAnonimizacao(BasePrivacidade):
+
+    def setUp(self):
+        super().setUp()
+        from regras.privacidade import PRAZO_ANONIMIZACAO_DIAS, anonimizar_vencidas, solicitar
+
+        # Um pedido de correção antigo, já atendido, guarda o e-mail: tem que sumir também.
+        solicitar(ALUNO, "correcao", "email", "pessoal@gmail.com", "Uso este e-mail.")
+        self.pedido_id = self._pedir_exclusao_aprovada()
+        self.passou = datetime.now(timezone.utc) + timedelta(days=PRAZO_ANONIMIZACAO_DIAS + 1)
+        self.anonimizadas = anonimizar_vencidas(self.passou)
+
+    def test_some_o_que_identifica(self):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        nome, email, matricula = conexao.execute(
+            "SELECT nome, email, matricula FROM users WHERE id = ?", (self.aluno_id,)
+        ).fetchone()
+        conexao.close()
+
+        self.assertEqual(self.anonimizadas, 1)
+        self.assertEqual(nome, "Aluno removido")
+        self.assertNotIn("aluno1", email)
+        self.assertIsNone(matricula)
+
+    def test_some_o_que_e_pessoal(self):
+        for tabela, coluna in (("anotacoes", "aluno_id"), ("favoritos", "aluno_id"),
+                               ("chat_mensagens", "aluno_id"), ("mensagens", "aluno_id"),
+                               ("notificacoes", "user_id"), ("sessoes", "user_id")):
+            self.assertEqual(
+                self._contar(f"SELECT COUNT(*) FROM {tabela} WHERE {coluna} = ?", self.aluno_id), 0, tabela
+            )
+        self.assertEqual(
+            self._contar("SELECT COUNT(*) FROM solicitacoes_privacidade WHERE valor_novo LIKE '%gmail%'"), 0
+        )
+
+    def test_registro_academico_fica(self):
+        self.assertEqual(self._contar("SELECT nota FROM entregas WHERE aluno_id = ?", self.aluno_id), 10)
+        self.assertEqual(self._contar("SELECT COUNT(*) FROM matriculas WHERE aluno_id = ?", self.aluno_id), 1)
+
+    def test_ninguem_entra_e_nao_ha_volta(self):
+        from regras.privacidade import reverter_exclusao
+
+        self.assertFalse(realizar_login(ALUNO, SENHA)["sucesso"])
+        self.assertFalse(reverter_exclusao(ADMIN, self.pedido_id)["sucesso"])
+
+    def test_rodar_de_novo_nao_faz_nada(self):
+        from regras.privacidade import anonimizar_vencidas
+
+        self.assertEqual(anonimizar_vencidas(self.passou), 0)
+
+
+class TestesRotasPrivacidade(BaseDelta):
+    """Cada rota com o perfil certo — a regra confere, mas a rota é a porta."""
+
+    def setUp(self):
+        super().setUp()
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+
+    def _cab(self, email):
+        token = self.cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_aluno_pede_e_administracao_decide(self):
+        aluno, admin = self._cab(ALUNO), self._cab(ADMIN)
+
+        pedido = self.cliente.post("/aluno/privacidade/solicitacoes", headers=aluno,
+                                   json={"tipo": "correcao", "campo": "nome", "valor_novo": "Aluno Um Souza"}).json()
+        fila = self.cliente.get("/admin/privacidade/solicitacoes", headers=admin).json()
+        decisao = self.cliente.put(f"/admin/privacidade/solicitacoes/{pedido['id']}", headers=admin,
+                                   json={"aprovar": True}).json()
+
+        self.assertEqual([s["id"] for s in fila["solicitacoes"]], [pedido["id"]])
+        self.assertTrue(decisao["sucesso"], decisao)
+        self.assertEqual(self.cliente.get("/eu", headers=aluno).json()["nome"], "Aluno Um Souza")
+
+    def test_cada_lado_so_na_propria_porta(self):
+        aluno, professor = self._cab(ALUNO), self._cab(PROFESSOR)
+
+        self.assertEqual(self.cliente.get("/admin/privacidade/solicitacoes", headers=aluno).status_code, 403)
+        self.assertEqual(self.cliente.get("/aluno/privacidade/exportar", headers=professor).status_code, 403)
+        self.assertEqual(self.cliente.get("/aluno/privacidade/exportar").status_code, 401)
 
 
 if __name__ == "__main__":

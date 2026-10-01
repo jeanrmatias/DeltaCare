@@ -68,12 +68,15 @@ def buscar_usuario_da_sessao(token: str):
 
     conexao = _conectar()
     cursor = conexao.cursor()
+    # Conta desativada não tem sessão válida. A desativação já apaga as
+    # sessões; o filtro aqui é o cinto junto do suspensório — uma sessão que
+    # escapasse (criada no mesmo instante, banco restaurado) não abriria nada.
     cursor.execute(
         '''
         SELECT u.id, u.email, u.tipo, s.expira_em
         FROM sessoes s
         JOIN users u ON u.id = s.user_id
-        WHERE s.token = ?
+        WHERE s.token = ? AND u.desativado_em IS NULL
         ''',
         (token,),
     )

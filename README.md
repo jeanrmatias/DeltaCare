@@ -1,16 +1,18 @@
 # Delta Care
 
-Plataforma de ensino para uma faculdade de medicina: turmas, materiais de
-aula e um chat de IA que responde ao aluno **só** com base no material que o
-professor publicou (RAG restrito, sem completar lacuna com conhecimento
-externo do modelo).
+Plataforma de ensino para uma faculdade de medicina. Organiza turmas,
+disciplinas, material de aula, atividades e notas, e tem um assistente de
+estudos com IA que responde ao aluno **só** com base no material que o
+professor publicou (RAG restrito: sem completar lacuna com conhecimento do
+modelo).
 
-Projeto acadêmico, pensado como demonstrativo — um deploy por instituição,
-não SaaS multi-tenant.
+É pensada para rodar nos servidores da própria instituição — uma instalação
+por faculdade, com o modelo de IA também local. Nenhum dado de aluno sai para
+serviço de terceiros.
 
 ---
 
-## Entrega — Challenge Hospital Moinhos de Vento · Sprint 3
+## Entrega — Challenge Hospital Moinhos de Vento
 
 **FIAP · 1º Engenharia de Software · Semi Presencial — Porto Alegre**
 
@@ -21,54 +23,103 @@ não SaaS multi-tenant.
 | Matheus Marques De Souza | RM573203 |
 
 - **Repositório:** https://github.com/jeanrmatias/DeltaCare
+- Sprint 3 entregue em 25/09/2026 (ver [`SPRINT_3.md`](SPRINT_3.md)).
 
 ### Contas para teste
 
-A solução tem autenticação. Todas as contas usam a mesma senha:
+Criadas pelo `backend/seed_demo.py`, que grava no banco de verdade — não são
+dados de fachada no navegador. Todas usam a senha `demo123`:
 
-| Perfil | E-mail | Senha |
-|---|---|---|
-| Administração | `adm@deltacare.com` | `demo123` |
-| Professor | `professor@deltacare.com` | `demo123` |
-| Aluno | `aluno@deltacare.com` | `demo123` |
+| Perfil | E-mail |
+|---|---|
+| Administração | `adm@deltacare.com` |
+| Professor | `professor@deltacare.com` |
+| Aluno | `aluno@deltacare.com` |
 
-As contas são criadas pelo `backend/seed_demo.py`, que grava no banco de
-verdade — não são dados de fachada no navegador.
+O seed cria também outros professores e alunos, no padrão
+`nome.sobrenome@deltacare.com` (ex.: `lucas.martins@`, `beatriz.lemos@`) —
+ver **Dados de demonstração**.
 
-### Tecnologias utilizadas
+---
+
+## O que a plataforma faz
+
+Vocabulário: **turma** é o grupo de alunos que anda junto no semestre (ex.:
+MED 3A); **disciplina** é a matéria (ex.: Cardiologia I). Uma turma tem várias
+disciplinas, e quem entra na turma é matriculado em todas elas — menos nas que
+a administração marcar como exceção (aproveitamento de estudos, por exemplo).
+
+**Aluno**
+- **Início:** nível e faixa do semestre (bronze, prata, ouro, platina),
+  sequência de dias de estudo, avisos e as disciplinas com o material recente.
+- **Chat de estudos:** pergunta ao assistente sobre o material das
+  disciplinas; a resposta cita de onde veio, e o que não está no material ele
+  recusa, oferecendo levar a dúvida ao professor.
+- **Materiais** e **Atividades** (objetivas, corrigidas na hora, e
+  dissertativas, com ou sem arquivo anexo), **Desempenho** por disciplina e
+  por tópico.
+- **Mensagens** com os professores, **Favoritos**, **Anotações** (privadas —
+  nem a administração lê), **Ranking** da turma (só o topo aparece, e dá para
+  sair dele) e **Semestres anteriores**, com busca dentro dos PDFs.
+- **Denúncias** de conteúdo e **Meus dados** (no perfil): cópia de tudo,
+  pedido de correção e de exclusão da conta.
+
+**Professor**
+- **Início** com o que tem para corrigir, mensagens não lidas e avisos.
+- **Materiais** (PDF, documento, vídeo, link; rascunho e publicação agendada),
+  **Atividades** e correção das entregas, **Calendário**, **Disciplinas**,
+  **Chat** com os alunos, **Desempenho** da turma, **Avisos** e **Semestres
+  anteriores**.
+
+**Administração**
+- **Turmas** (com as exceções por disciplina), **Disciplinas**, **Usuários**
+  (um a um ou importando planilha CSV/XLSX) e o **semestre vigente**.
+- **Denúncias**, **Avisos** para a instituição inteira, **Conteúdo**
+  (supervisão do que os professores publicaram) e **Privacidade** (pedidos dos
+  alunos sobre os próprios dados).
+- **Relatórios** ainda não existe: o menu leva a uma página que diz o que o
+  módulo vai fazer, em vez de simular com dados de exemplo.
+
+---
+
+## Tecnologias
 
 | Camada | O que é usado |
 |---|---|
-| Interface | HTML5 semântico, CSS3 (Flexbox, CSS Grid, variáveis CSS, mobile first com media queries), JavaScript ES6+ sem framework |
-| Componentização | Módulos JS próprios: diálogos, notificações, visualizador de material, renderizador de Markdown, perfil, catálogo de módulos |
-| Persistência no navegador | `localStorage` (progresso e preferências) e `sessionStorage` (token da sessão) |
-| API | Python 3 com FastAPI |
-| Banco | SQLite |
+| Interface | HTML5 semântico, CSS3 (Flexbox, Grid, variáveis, mobile first) e JavaScript ES6+ sem framework |
+| Design system | `frontend/tokens.css` (cores, espaçamento, tipografia) e a fonte Inter, do Google Fonts |
+| Componentes | Módulos JS próprios: diálogos, notificações, visualizador de material, Markdown, perfil, calendário |
+| Sessão no navegador | `sessionStorage` (o token some ao fechar a aba) |
+| API | Python 3.10+ com FastAPI, servida pelo Uvicorn |
+| Banco | SQLite (modo WAL, chaves estrangeiras cobradas) |
 | IA do produto | Ollama local: `gpt-oss:20b` (chat) e `nomic-embed-text` (embeddings) |
-| Testes | `unittest` no backend, `node:test` no front, validador de HTML próprio |
-| Deploy | Vercel (interface) |
+| E-mail | SMTP da instituição, pela biblioteca padrão do Python |
+| Testes | `unittest` no backend, `node:test` no front, validador de HTML e conferência front↔back próprios |
+| Implantação | Servidor Linux com systemd, Caddy na frente (HTTPS automático) |
 
-Nenhuma dependência de front-end é baixada: não há Bootstrap, jQuery nem build
-step. O `requirements.txt` do backend tem cinco pacotes.
+O front não baixa biblioteca nenhuma (sem Bootstrap, jQuery ou build step). O
+backend tem cinco pacotes no `requirements.txt` — FastAPI, Uvicorn, Pydantic,
+pypdf e AnyIO —, com versão presa; o resto (hash de senha, e-mail, banco,
+leitura de XLSX) vem da biblioteca padrão.
 
 ### Onde e como usamos Inteligência Artificial no desenvolvimento
 
-Usamos o **Claude Code (Anthropic)** como par de programação durante as Sprints
-2 e 3. A IA foi usada para: implementar os itens do relatório de melhorias a
-partir da descrição do problema, escrever a suíte de testes automatizados,
-construir o módulo de atividades e revisar a documentação. Em todos os casos o
-fluxo foi o mesmo: a equipe
-descreveu o problema e o critério de aceite, a IA propôs a implementação, e a
-equipe revisou, testou e decidiu o que entrava — inclusive recusando sugestões
-(por exemplo, importar planilha a partir de PDF foi avaliado e descartado, e a
-troca de `sessionStorage` por `localStorage` para o token de sessão foi
-rejeitada por ser pior em segurança). Erros introduzidos pela IA aconteceram e
-estão registrados na retrospectiva do `SPRINT_3.md`; foi por causa de um deles
-que passamos a validar o HTML com parser em vez de expressão regular.
+Usamos o **Claude Code (Anthropic)** como par de programação a partir da
+Sprint 2. O fluxo é sempre o mesmo: a equipe descreve o problema e o critério
+de aceite, a IA propõe a implementação, e a equipe revisa, testa e decide o
+que entra — inclusive recusando sugestões (importar planilha a partir de PDF
+foi avaliado e descartado; trocar `sessionStorage` por `localStorage` para o
+token foi rejeitado por ser pior em segurança).
 
-Isso é distinto da IA **dentro do produto**: o assistente de estudos do aluno
-roda em Ollama local e responde apenas a partir do material publicado pelo
-professor.
+Todo teste novo é conferido reintroduzindo o defeito que ele deveria pegar: se
+o teste continua passando com o defeito, ele não serve e é refeito. Erros
+introduzidos pela IA aconteceram e estão registrados na retrospectiva do
+`SPRINT_3.md`; foi por causa de um deles que passamos a validar o HTML com
+parser em vez de expressão regular.
+
+Isso é distinto da IA **dentro do produto**: o assistente de estudos roda em
+Ollama, na infraestrutura da instituição, e responde apenas a partir do
+material publicado pelo professor.
 
 ---
 
@@ -77,161 +128,86 @@ professor.
 O front não tem modo de contingência: se a API não responder, a tela diz que
 não conseguiu falar com o servidor e para por aí.
 
-Isso é decisão de produto, não limitação. O Delta Care é usado por uma
-instituição de ensino — mostrar turma, material ou nota fictícios quando o
-servidor cai seria pior do que não mostrar nada, porque quem está na tela não
-teria como saber que está olhando para algo que não existe.
+Isso é decisão de produto, não limitação. Mostrar turma, material ou nota
+fictícios quando o servidor cai seria pior do que não mostrar nada, porque
+quem está na tela não teria como saber que está olhando para algo que não
+existe.
 
-Para rodar: suba o backend (ver **Configuração**) e sirva o front com
-`python frontend/servir.py`.
+## Como rodar
 
-## Estrutura
+**Pré-requisitos:** Python 3.10+, [Ollama](https://ollama.com) e um navegador.
+Node 18+ só para os testes do front.
 
-```
-backend/
-  main.py                  - API FastAPI: rotas e dependências de autenticação
-  seed_demo.py             - cria os dados de demonstração
-  seed_semestre.py         - o resto do semestre de demonstração (chamado pelo seed_demo)
-  criar_admin.py           - cria o primeiro admin numa instalação nova
-  backup.py                - cópia conferida do banco e dos arquivos enviados
-  testes.py                - testes das regras (rodam sem o Ollama)
-  rodar_testes.py          - roda os mesmos testes em paralelo
-  contrato_front.py        - confere se o front chama rotas que existem
-
-  infra/                   - infraestrutura: o que o sistema USA
-    database.py              schema e caminho único do banco
-    security.py              hash de senha (PBKDF2, sem dependência externa)
-    sessoes.py               token de sessão
-    arquivos.py              gravação dos uploads
-
-  regras/                  - regras de negócio: o que o sistema DECIDE
-    autenticacao.py          login, contas, recuperação de senha
-    turmas.py                disciplinas, professores, usuários
-    coortes.py               turma de alunos (MED 3A) e exceções por disciplina
-    semestres.py             semestre vigente e histórico dos anteriores
-    ranking.py               ranking da turma pelo XP do semestre
-    avisos.py                professor e coordenação escrevendo para as turmas
-    favoritos.py             material guardado pelo aluno, entre semestres
-    anotacoes.py             caderno do aluno — privado, sem rota para mais ninguém
-    materiais.py             materiais na visão do PROFESSOR
-    aluno.py                 materiais na visão do ALUNO, XP e acompanhamento
-    atividades.py            atividades, entregas e correção
-    desempenho.py            notas, evolução e erro por tópico
-    denuncias.py             conteúdo reportado: quem reporta e quem trata
-    matriculas.py            matrículas
-    notificacoes.py          avisos gerados por eventos reais
-    importacao.py            leitura de planilha CSV/XLSX (sem dependência)
-    chat_ia.py               RAG: indexação, busca híbrida, resposta
-
-frontend/
-  index.html                - login
-  privacidade.html          - política de privacidade (LGPD)
-  servir.py                 - servidor estático de desenvolvimento (no-store)
-
-  config.js                 - endereço da API
-  auth.js                   - token de sessão e helper api() autenticado
-  dialogo.js                - diálogos próprios (substituem alert/confirm/prompt)
-  markdown.js               - renderiza a resposta da IA (sem innerHTML)
-  notificacoes.js           - sino e painel de notificações
-  visualizador.js           - abre material na plataforma, sem download
-  calendario.js             - seletor de data e hora (digitado ou pelo calendário)
-  reportar.js               - reportar material de dentro da própria lista
-  denuncias.js              - acompanhamento das denúncias (aluno e professor)
-  modulos.js                - catálogo dos módulos ainda não construídos
-  testes.mjs                - testes do JavaScript (node testes.mjs)
-
-  administracao/            - adm.html, adm-turmas.html, usuarios.html
-  professor/                - prof.html, turmas.html, materiais.html
-  aluno/                    - inicio.html, aluno.html (chat), materiais.html
-
-  */em-breve.html           - página de módulo planejado, uma por perfil
-```
-
-> A pasta do administrador chama-se `administracao`, mas o valor de `tipo`
-> no banco é `adm`. Os dois já estiveram trocados e quebraram o
-> redirecionamento do login.
-
-Páginas dentro de `administracao/`, `professor/` e `aluno/` referenciam os
-arquivos globais com `../` (ex.: `../auth.js`), e os `<script>`/`<link>` levam
-`?v=N` — ao mexer em .js ou .css compartilhado, suba esse número.
-
-## Pré-requisitos
-
-- Python 3.10+
-- [Ollama](https://ollama.com) instalado e rodando, com os modelos de chat e
-  de embedding baixados (veja abaixo)
-- Um navegador para abrir o frontend (ele é HTML/JS estático, sem build)
-
-## Configuração
-
-1. Instale as dependências do backend:
+1. **Dependências:**
 
    ```
    pip install -r requirements.txt
    ```
 
-2. Suba o Ollama e baixe os modelos usados pelo chat:
+2. **Modelos de IA** (com o Ollama rodando):
 
    ```
    ollama pull gpt-oss:20b
    ollama pull nomic-embed-text
    ```
 
-   > Se a GPU disponível for menor (ex.: 12GB de VRAM), o `gpt-oss:20b` pode
-   > ficar lento por fazer offload para RAM/CPU. Para testar o fluxo mais
-   > rápido, um modelo de chat menor (ex.: `llama3.1:8b`) também funciona —
-   > basta baixá-lo e definir a variável de ambiente `MODELO_CHAT`.
+   > Com GPU menor (ex.: 12GB de VRAM), o `gpt-oss:20b` fica lento por fazer
+   > offload para RAM/CPU. Um modelo menor, como o `llama3.1:8b`, também
+   > funciona: baixe-o e defina `MODELO_CHAT=llama3.1:8b`.
 
-   A configuração vem de variáveis de ambiente. Os padrões servem para rodar
-   na máquina; no servidor da instituição, as quatro primeiras mudam:
-
-   | Variável | Padrão | Para quê |
-   |---|---|---|
-   | `OLLAMA_URL` | `http://localhost:11434` | Onde está o servidor do modelo |
-   | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
-   | `DELTACARE_ORIGENS` | `http://127.0.0.1:5500,http://localhost:5500` | Endereços de onde o navegador pode chamar a API (vários, separados por vírgula) |
-   | `DELTACARE_IA_SIMULTANEAS` | `4` | Chamadas ao modelo ao mesmo tempo. Não é limite de perguntas: quem passa espera sem travar o resto do sistema. Suba conforme o servidor do modelo aguentar |
-   | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
-   | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
-   | `DELTACARE_SMTP_HOST` e afins | (vazio) | Servidor de e-mail da recuperação de senha. Vazio, o código só aparece no console — o servidor avisa ao subir. Lista completa em [`deploy/deltacare.env.exemplo`](deploy/deltacare.env.exemplo) |
-   | `DELTACARE_BACKUPS` | `backups/` ao lado do banco | Onde o `backup.py` guarda as cópias |
-
-3. Suba o backend:
+3. **Backend:**
 
    ```
    cd backend
    uvicorn main:app
    ```
 
-   Na primeira execução, `configurar_banco()` cria o `deltacare.db` (SQLite)
-   na pasta `backend/` automaticamente — não precisa criar nada à mão.
+   Na primeira execução o banco (`deltacare.db`) é criado sozinho; nas
+   seguintes, migrado sozinho. Confira em <http://127.0.0.1:8000/saude>.
 
    **Sem `--reload`, de propósito:** o reloader do uvicorn já deixou aqui um
-   worker órfão segurando a porta 8000 e servindo código antigo, com os
-   restarts falhando em silêncio. Para reiniciar, encerre o processo e suba de
-   novo.
+   processo órfão segurando a porta 8000 e servindo código antigo. Para
+   reiniciar, encerre e suba de novo.
 
-   Teste em <http://127.0.0.1:8000/saude> — deve responder `{"status": "ok"}`.
-   A raiz (<http://127.0.0.1:8000>) já abre as telas: a API também as serve,
-   em `/app/`.
-
-4. Abra o frontend:
+4. **Telas.** A própria API já as serve: abra <http://127.0.0.1:8000>. Para
+   desenvolver o front, use o servidor sem cache:
 
    ```
    cd frontend
    python servir.py
    ```
 
-   Acesse <http://127.0.0.1:5500>. Não abra o HTML direto com `file://` —
-   alguns navegadores bloqueiam as requisições à API nesse modo.
+   e abra <http://127.0.0.1:5500>. O `servir.py` existe em vez do
+   `python -m http.server` porque envia `Cache-Control: no-store` — sem isso o
+   navegador guarda `.js` antigo e você depura um comportamento que já não
+   está no código. Não abra o HTML por `file://`.
 
-   O `servir.py` existe em vez do `python -m http.server` porque envia
-   `Cache-Control: no-store`. Sem isso o navegador guarda os `.js` antigos e
-   você fica depurando um comportamento que já não está no código.
+   O front descobre sozinho onde está a API
+   ([`frontend/config.js`](frontend/config.js)): na porta 5500, na 8000 do
+   mesmo computador; em qualquer outro caso, na mesma origem da página.
 
-   O front descobre sozinho onde está a API (ver
-   [`frontend/config.js`](frontend/config.js)): na porta 5500 ela está na 8000
-   do mesmo computador; em produção, na mesma origem.
+5. **Dados de demonstração** (opcional, ver abaixo): `python seed_demo.py`,
+   dentro de `backend/`.
+
+### Configuração
+
+Tudo por variável de ambiente. Os padrões servem para rodar na máquina; o
+modelo completo para o servidor está em
+[`deploy/deltacare.env.exemplo`](deploy/deltacare.env.exemplo).
+
+| Variável | Padrão | Para quê |
+|---|---|---|
+| `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
+| `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
+| `DELTACARE_ORIGENS` | `http://127.0.0.1:5500,http://localhost:5500` | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
+| `OLLAMA_URL` | `http://localhost:11434` | Onde está o servidor do modelo |
+| `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
+| `MODELO_EMBEDDING` | `nomic-embed-text` | Modelo que indexa o material |
+| `ESFORCO_RACIOCINIO` | `low` | Esforço de raciocínio do modelo (modelos que não raciocinam ignoram). `low` corta o tempo de resposta pela metade sem perder qualidade, medido |
+| `DELTACARE_IA_SIMULTANEAS` | `4` | Chamadas ao modelo ao mesmo tempo. **Não é limite de perguntas:** quem passa espera, sem travar login nem telas. Suba conforme o servidor do modelo aguentar |
+| `DELTACARE_SMTP_HOST`, `_PORTA`, `_SEGURANCA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | vazio, `587`, `starttls` | E-mail da recuperação de senha e dos avisos de privacidade. Sem host, o código aparece no console — e o servidor avisa ao subir |
+| `DELTACARE_BACKUPS` | `backups/` ao lado do banco | Onde o `backup.py` guarda as cópias |
+| `DELTACARE_BACKUPS_MANTER` | `14` | Quantas cópias o `backup.py` mantém |
 
 ## Dados de demonstração
 
@@ -243,73 +219,94 @@ python seed_demo.py
 Monta um semestre plausível de medicina, pelas mesmas funções que as telas
 usam:
 
-- a turma de alunos **MED 3A** com Cardiologia I, Anatomia e Fisiologia, três
+- a turma **MED 3A** com Cardiologia I, Anatomia e Fisiologia, três
   professores e oito alunos (Pedro Albuquerque fica fora de Fisiologia, por
   aproveitamento de estudos — o caso de exceção);
 - atividades com prazo e entregas de vários alunos, uma dissertativa já
-  corrigida e outra esperando o professor, o que dá ranking com gente em
-  posições diferentes (Júlia Fernandes escolheu não aparecer);
+  corrigida e outra esperando o professor; o ranking tem gente em posições
+  diferentes (Júlia Fernandes escolheu não aparecer);
 - mensagens (uma não lida para o professor), um aviso urgente da disciplina e
-  um geral da coordenação, uma denúncia aberta, favorito e anotação;
-- o semestre anterior com **MED 2A** e Histologia, com PDF indexado, para a
-  tela Semestres anteriores e a busca dentro do material.
+  um geral da coordenação, uma denúncia aberta, favorito e anotação, e um
+  pedido de correção de dados esperando a administração;
+- o semestre anterior, com a turma **MED 2A** e Histologia, com PDF indexado,
+  para a tela Semestres anteriores e a busca dentro do material.
 
-Pode rodar mais de uma vez — o que já existe é reaproveitado. As contas extras
-seguem o padrão `nome.sobrenome@deltacare.com` (ex.: `lucas.martins@`,
-`beatriz.lemos@`), todas com a senha `demo123`.
+Pode rodar mais de uma vez — o que já existe é reaproveitado (há teste para
+isso). Sem o Ollama no ar, tudo é criado e só a indexação dos PDFs fica para
+quando ele subir.
 
-| Perfil | E-mail | Senha |
-|---|---|---|
-| Admin | `adm@deltacare.com` | `demo123` |
-| Professor | `professor@deltacare.com` | `demo123` |
-| Aluno | `aluno@deltacare.com` | `demo123` |
-
-O conteúdo do PDF é fictício de propósito (um "Protocolo Delta-7" e um
+O conteúdo dos PDFs é fictício de propósito (um "Protocolo Delta-7" e um
 medicamento "Cardiolex" que não existem). Assim dá para provar que o
 assistente respondeu lendo o material, e não com conhecimento próprio do
-modelo — pergunte a dose do Cardiolex e depois pergunte algo fora do
-material, como tratamento de apendicite: ele deve recusar a segunda.
+modelo: pergunte a dose do Cardiolex e depois algo fora do material, como
+tratamento de apendicite — ele deve recusar a segunda.
 
-## Fluxo manual (se quiser testar sem o seed)
+**Nunca rode o seed em produção:** ele cria contas com a senha `demo123`.
 
-1. O primeiro admin nasce pelo `criar_admin.py` (ou pelo `seed_demo.py`):
-   não existe cadastro público, e `POST /admin/usuarios` exige um admin já
-   logado.
-2. Login como admin → cria uma turma e atribui a um professor.
-3. Admin cria a conta do aluno (Usuários → Nova conta, ou importando a
-   planilha) e matricula na turma.
-4. Login como professor → sobe um material do tipo PDF na turma → publica
-   (tira do rascunho). Isso dispara a indexação para o chat
-   automaticamente (`regras.chat_ia.indexar_material`).
-5. Login como aluno → abre a turma → pergunta algo sobre o conteúdo do PDF
-   no chat. A resposta deve citar o material como fonte.
+### Sem o seed
 
-## Autenticação
+1. O primeiro admin nasce pelo `criar_admin.py`: não existe cadastro público,
+   e `POST /admin/usuarios` exige um admin já logado.
+2. Como admin: crie a turma (ex.: MED 3A), as disciplinas com seus
+   professores e as contas dos alunos (uma a uma ou pela planilha), e
+   matricule os alunos na turma.
+3. Como professor: suba um PDF na disciplina e publique. A publicação dispara
+   a indexação para o chat.
+4. Como aluno: pergunte no chat algo do conteúdo do PDF. A resposta cita o
+   material como fonte.
 
-O login devolve um token de sessão, guardado na tabela `sessoes` e enviado
-pelo front no header `Authorization: Bearer <token>` (ver
-[`backend/infra/sessoes.py`](backend/infra/sessoes.py) e [`frontend/auth.js`](frontend/auth.js)).
+## Segurança
 
-Nenhuma rota protegida aceita identidade vinda do cliente: quem está
-chamando é sempre deduzido do token, pelas dependências `usuario_logado` e
-`exigir_perfil` em [`backend/main.py`](backend/main.py). Antes disso, o
-backend acreditava no e-mail enviado pelo front, o que permitia agir em nome
-de outra pessoa apenas trocando esse campo.
+- **Sessão por token.** O login devolve um token (validade de 12 horas),
+  enviado em `Authorization: Bearer`. Nenhuma rota aceita identidade vinda do
+  cliente: quem está chamando é deduzido do token
+  ([`backend/infra/sessoes.py`](backend/infra/sessoes.py)). Antes disso, o
+  backend acreditava no e-mail enviado pelo front, e bastava trocá-lo para agir
+  em nome de outra pessoa.
+- **Cada perfil na sua porta.** As rotas exigem o perfil certo, e as regras
+  conferem de novo o vínculo (o professor só vê as disciplinas dele; o aluno,
+  só o material publicado das disciplinas em que está matriculado).
+- **Senha** guardada como PBKDF2-SHA256 com salt individual (260 mil
+  iterações).
+- **Login com limite:** 5 erros em 15 minutos bloqueiam o e-mail por um tempo.
+  Conta que existe e que não existe respondem igual — na mensagem **e** no
+  tempo de resposta —, para a tela não servir de verificador de quem é aluno
+  daqui. A recuperação de senha segue o mesmo cuidado.
+- **Sem cadastro público:** toda conta nasce pela administração ou pela
+  planilha.
+- **Banco que não trava:** toda conexão aberta durante uma requisição é
+  fechada ao fim dela, mesmo que a rota tenha quebrado no meio
+  ([`backend/infra/database.py`](backend/infra/database.py)).
+- **Privado pela ausência de rota:** anotações e entregas não têm rota para a
+  administração. Não é a tela que esconde; é o servidor que não entrega.
 
-## Limitações conhecidas
+## Privacidade (LGPD)
 
-- Sem HTTPS: o token viaja em texto claro. Em rede local de demonstração é
-  aceitável; para uso real é obrigatório antes de qualquer dado de aluno.
-- SQLite aceita um escritor por vez: aguenta uma faculdade (60 entregas
-  simultâneas se enfileiram em ~2s), não uma rede de faculdades.
-- Arquivos enviados ficam no disco do servidor, não num serviço de storage.
-- Chat indexa apenas PDF (vídeo e link ficam de fora do escopo inicial).
+O aluno exerce os direitos de titular pela tela **Meus dados** (link no
+perfil); as regras estão em
+[`backend/regras/privacidade.py`](backend/regras/privacidade.py), e a política
+em [`frontend/privacidade.html`](frontend/privacidade.html).
+
+| Pedido | Quem decide | O que acontece |
+|---|---|---|
+| Cópia dos dados | ninguém — sai na hora | Arquivo JSON com cadastro, disciplinas, entregas e notas, acessos, favoritos, anotações, conversas e notificações. Fica registrado que foi entregue. |
+| Correção (nome, e-mail, matrícula) | administração | A tela **Privacidade** mostra o valor de hoje ao lado do pedido; aprovado, troca na hora. |
+| Exclusão da conta | administração | Aprovada, a conta é **desativada** (não entra, sessões encerradas, sai do ranking) e o aluno recebe e-mail. **45 dias depois** é anonimizada. Até lá, a administração pode reverter. |
+
+A anonimização apaga nome, e-mail, matrícula, anotações, favoritos,
+notificações e conversas (com o assistente e com os professores). Notas,
+entregas, matrículas e acessos ficam, ligados a um "Aluno removido": é o
+registro acadêmico que a instituição precisa guardar.
+
+Antes de uso com dados reais, a instituição precisa indicar o encarregado de
+dados (DPO) e aprovar a política.
 
 ## Implantação
 
 Um servidor Linux, com GPU se o modelo de IA rodar nele. Um processo só serve
-a API **e** as telas (em `/app/`); na frente, o [Caddy](https://caddyserver.com)
-cuida do HTTPS. Os arquivos estão em [`deploy/`](deploy).
+a API **e** as telas (em `/app/`); na frente, o
+[Caddy](https://caddyserver.com) cuida do HTTPS. Os arquivos estão em
+[`deploy/`](deploy).
 
 1. **Código e dependências**
    ```
@@ -327,64 +324,149 @@ cuida do HTTPS. Os arquivos estão em [`deploy/`](deploy).
    set -a; . /etc/deltacare.env; set +a
    ../.venv/bin/python criar_admin.py
    ```
-   **Nunca rode o `seed_demo.py` em produção:** ele cria contas com a senha
-   `demo123`.
 4. **Serviço:** copie `deploy/deltacare.service` para
-   `/etc/systemd/system/` e `systemctl enable --now deltacare`.
+   `/etc/systemd/system/` e `systemctl enable --now deltacare`. Um processo
+   só, de propósito: o SQLite aceita um escritor por vez.
 5. **HTTPS:** instale o Caddy, ponha o domínio no `deploy/Caddyfile`, copie
    para `/etc/caddy/Caddyfile` e `systemctl reload caddy`. O certificado sai e
    se renova sozinho.
-6. **Backup diário** (crontab do usuário `deltacare`):
+6. **Rotinas diárias** (crontab do usuário `deltacare`):
    ```
    30 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python backup.py >> /var/log/deltacare-backup.log 2>&1
+   45 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python anonimizar_vencidas.py >> /var/log/deltacare-lgpd.log 2>&1
    ```
    O `backup.py` copia o banco pela API do SQLite (cópia consistente com o
    sistema no ar), confere a cópia e guarda as últimas 14. **Leve as cópias
    para fora do servidor** — backup na mesma máquina não sobrevive ao disco.
+   O `anonimizar_vencidas.py` anonimiza as contas cuja exclusão passou dos 45
+   dias; o servidor também faz isso ao subir e quando a administração abre a
+   fila, e o agendamento cobre o servidor que fica meses no ar sem ninguém
+   abrir a fila.
 7. **Conferir:** `https://<domínio>/saude` responde `{"status": "ok"}`, e
    `https://<domínio>/` abre a tela de login. Peça o código de recuperação de
    senha para uma conta sua: se o e-mail não chegar, o SMTP está errado (o
    log do serviço diz o motivo).
 
-**Atualizar:** `git pull`, `pip install -r requirements.txt`, `systemctl
-restart deltacare`. O banco migra sozinho na subida; faça um backup antes.
+**Atualizar:** backup, `git pull`, `pip install -r requirements.txt` e
+`systemctl restart deltacare`. O banco migra sozinho na subida.
 
 ## Testes
 
 ```
 cd backend
-python rodar_testes.py  # regras de negócio, em paralelo (~25s)
-python testes.py        # os mesmos, em série (~2min)
+python rodar_testes.py   # regras e rotas, em paralelo (~45s)
+python testes.py         # os mesmos, em série
+python contrato_front.py # toda chamada do front tem rota no back?
 
 cd ../frontend
-node testes.mjs         # JavaScript
-python testar_html.py   # estrutura das páginas
+node testes.mjs          # JavaScript
+python testar_html.py    # estrutura das páginas
 ```
 
-**Backend:** permissões, visibilidade de material, sessão, notificações,
-importação de planilha, progresso do aluno e integridade do banco ao excluir.
-Rodam num banco temporário e **não precisam do Ollama ligado** — as funções que
-falam com o modelo entram como parâmetro, que é para isso que elas foram
-isoladas em `regras/chat_ia.py`.
+- **Backend (451 testes):** permissões de cada perfil, visibilidade de
+  material, sessão e limite de login, turmas e exceções, atividades e
+  correção, XP e ranking, avisos, privacidade e anonimização, integridade do
+  banco ao excluir, e o próprio seed. Rodam num banco temporário e **não
+  precisam do Ollama** — as funções que falam com o modelo entram como
+  parâmetro.
+- **Front (74 testes):** Markdown (inclusive que HTML vindo do modelo **não**
+  é interpretado), diálogos, calendário, endereço da API e os rótulos de
+  status da privacidade conferidos contra o backend. Usa um DOM mínimo escrito
+  no próprio arquivo, em vez do jsdom.
+- **Páginas (35):** HTML validado por parser.
+- **Contrato front↔back:** lê as chamadas `api()` do front e confere com as
+  rotas do backend, e os `querySelector` contra os ids das páginas. Pega a
+  tela que chama uma rota que não existe antes de alguém clicar.
 
-**Frontend:** renderização de Markdown (incluindo que HTML vindo do modelo
-**não** é interpretado), nome de exibição, formatos que o visualizador aceita e
-consistência entre os links do menu e o catálogo de módulos. Usa um DOM mínimo
-escrito no próprio arquivo, em vez do jsdom — as funções testadas usam meia
-dúzia de métodos, e uma dependência de 3 MB para isso seria desproporcional.
+## Estrutura
 
-Requer Node 18+ (só para os testes; a aplicação não usa Node).
+```
+backend/
+  main.py                  - API: rotas, perfis e o middleware de conexões
+  seed_demo.py             - dados de demonstração (chama o seed_semestre.py)
+  seed_semestre.py         - o semestre de demonstração completo
+  criar_admin.py           - primeiro admin numa instalação nova
+  backup.py                - cópia conferida do banco e dos arquivos enviados
+  anonimizar_vencidas.py   - LGPD: anonimiza exclusões vencidas (1x por dia)
+  testes.py                - testes do backend
+  rodar_testes.py          - os mesmos testes, em paralelo
+  contrato_front.py        - confere o front contra as rotas
+
+  infra/                   - o que o sistema USA
+    database.py              esquema, migrações e caminho único do banco
+    sessoes.py               token de sessão
+    security.py              hash de senha (PBKDF2)
+    email.py                 envio por SMTP, em segundo plano
+    arquivos.py              gravação dos uploads
+
+  regras/                  - o que o sistema DECIDE
+    autenticacao.py          login, contas, recuperação de senha
+    coortes.py               turma de alunos e exceções por disciplina
+    turmas.py                disciplinas, professores, usuários
+    matriculas.py            matrículas
+    semestres.py             semestre vigente e histórico
+    materiais.py             material na visão do professor
+    aluno.py                 material na visão do aluno, XP e nível
+    atividades.py            atividades, entregas e correção
+    desempenho.py            notas, evolução e erro por tópico
+    calendario.py            prazos e liberações do mês
+    ranking.py               ranking da turma pelo XP do semestre
+    mensagens.py             conversa aluno ↔ professor
+    avisos.py                avisos de professor e coordenação
+    notificacoes.py          notificações geradas por eventos reais
+    favoritos.py             material guardado pelo aluno
+    anotacoes.py             caderno privado do aluno
+    denuncias.py             conteúdo reportado
+    conteudo.py              supervisão do conteúdo pela administração
+    privacidade.py           LGPD: cópia, correção, exclusão, anonimização
+    importacao.py            planilha CSV/XLSX
+    chat_ia.py               RAG: indexação, busca híbrida e resposta
+
+deploy/                    - serviço systemd, Caddyfile e modelo de configuração
+
+frontend/
+  index.html, script.js    - login e recuperação de senha
+  privacidade.html         - política de privacidade
+  servir.py                - servidor de desenvolvimento sem cache
+  tokens.css               - design system (cores, espaços, tipografia)
+  config.js                - onde está a API
+  auth.js                  - sessão e o helper api()
+  *.js                     - módulos compartilhados: diálogos, notificações,
+                             perfil, Markdown, visualizador, calendário,
+                             mensagens, avisos, histórico, denúncias,
+                             privacidade, catálogo de módulos
+  testes.mjs, testar_html.py
+
+  aluno/                   - 13 telas
+  professor/               - 11 telas
+  administracao/           - 9 telas
+```
+
+A pasta da administração chama-se `administracao`, mas o `tipo` no banco é
+`adm` — os dois já estiveram trocados e quebraram o redirecionamento do login.
+Os `<script>` e `<link>` levam `?v=N`: ao mexer em `.js` ou `.css`, suba esse
+número em todas as páginas, senão o navegador continua com o antigo.
+
+## Limitações conhecidas
+
+- **SQLite aceita um escritor por vez:** aguenta uma faculdade (60 entregas
+  simultâneas se enfileiram em ~2s), não uma rede de faculdades.
+- **HTTPS depende do Caddy.** Rodando o uvicorn direto numa rede, o token
+  viaja em texto claro.
+- **A implantação (systemd e Caddy) ainda não rodou num servidor real.**
+- Arquivos enviados ficam no disco do servidor, não num serviço de storage.
+- O chat indexa só PDF (vídeo e link ficam de fora).
+- Professor e administração não têm a tela Meus dados: os pedidos deles sobre
+  dados pessoais seguem pela secretaria.
+- Relatórios para a coordenação ainda não existem.
 
 ## Documentos relacionados
 
-- [`SPRINT_3.md`](SPRINT_3.md) — entrega da Sprint 3 da disciplina Software &
-  Total Experience Design: objetivo, sprint backlog com as user stories e seus
-  critérios de aceite, decisões de experiência, incremento e retrospectiva.
-- [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil:
-  criar contas e turmas, publicar material com rascunho e agendamento, e como
-  o aluno usa o assistente de estudos.
-- [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas de arquitetura, fluxo de
-  autenticação, funcionamento do RAG, modelo de dados e matriz de permissões.
-- [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com
-  as perguntas a fazer no chat, respostas para as dúvidas mais prováveis e
-  plano B se algum serviço cair.
+- [`SPRINT_3.md`](SPRINT_3.md) — entrega da Sprint 3: backlog com as user
+  stories e critérios de aceite, decisões de experiência, incremento e
+  retrospectiva.
+- [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil.
+- [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas, fluxo de autenticação, RAG,
+  modelo de dados e matriz de permissões.
+- [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com as
+  perguntas a fazer no chat e plano B se algum serviço cair.

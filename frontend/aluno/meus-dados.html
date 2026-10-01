@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delta Care | Atividades</title>
+    <title>Delta Care | Meus dados</title>
     <link rel="stylesheet" href="../style_dashboard.css?v=31">
     <link rel="stylesheet" href="../style_aluno.css?v=31">
 </head>
@@ -36,7 +36,7 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2Z"/><path d="M12 6.5v13"/></svg>
                     Materiais
                 </a>
-                <a href="atividades.html" class="sidebar-link ativo">
+                <a href="atividades.html" class="sidebar-link">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg>
                     Atividades
                 </a>
@@ -81,8 +81,8 @@
         <main class="conteudo">
             <header class="topo">
                 <div class="topo-saudacao">
-                    <h1>Atividades</h1>
-                    <p>O que os seus professores propuseram, com prazo, nota e devolutiva.</p>
+                    <h1>Meus dados</h1>
+                    <p>Uma cópia de tudo, correção do que estiver errado e exclusão da conta.</p>
                 </div>
 
                 <div class="topo-acoes">
@@ -91,60 +91,92 @@
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>
                         </button>
                     </div>
-                    <label class="campo campo--seletor" id="seletorTurmaCampo">
-                        <select id="seletorTurma"></select>
-                    </label>
                 </div>
             </header>
 
-            <section class="stats" id="resumoAtividades" hidden>
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">A fazer</span>
-                    <strong class="stat-valor" id="statPendentes">0</strong>
-                </article>
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">Entregues</span>
-                    <strong class="stat-valor" id="statEntregues">0</strong>
-                </article>
-                <article class="stat-cartao">
-                    <span class="stat-rotulo">Corrigidas</span>
-                    <strong class="stat-valor stat-valor--sucesso" id="statCorrigidas">0</strong>
-                </article>
+            <section class="cartao">
+                <h2 class="cartao-titulo">Baixar uma cópia</h2>
+                <p class="campo-dica">
+                    Tudo o que a plataforma guarda sobre você: cadastro, disciplinas, entregas e
+                    notas, material que abriu, favoritos, anotações, conversas com o assistente e
+                    com os professores. Sai na hora, num arquivo que qualquer programa abre.
+                </p>
+                <div class="campo campo--acoes">
+                    <button type="button" class="acao acao--primaria" id="botaoExportar">Baixar meus dados</button>
+                </div>
+                <p class="formulario-mensagem" id="mensagemExportar"></p>
             </section>
 
-            <section class="lista-materiais" id="lista"></section>
-            <p class="estado-vazio" id="vazio" hidden>
-                Nenhuma atividade liberada nas suas turmas por enquanto.
-            </p>
+            <section class="cartao">
+                <h2 class="cartao-titulo">Corrigir um dado</h2>
+                <p class="campo-dica">
+                    A administração confere com o registro acadêmico antes de trocar. Você recebe
+                    uma notificação com a resposta.
+                </p>
+                <form class="formulario" id="formularioCorrecao">
+                    <div class="formulario--linha">
+                        <label class="campo">
+                            <span>O que está errado</span>
+                            <select id="correcaoCampo">
+                                <option value="nome">Nome</option>
+                                <option value="email">E-mail</option>
+                                <option value="matricula">Matrícula</option>
+                            </select>
+                        </label>
+                        <label class="campo campo--larga">
+                            <span>Como deveria ser</span>
+                            <input type="text" id="correcaoValor" required maxlength="500">
+                        </label>
+                    </div>
+                    <div class="formulario--linha">
+                        <label class="campo campo--larga">
+                            <span>Observação (opcional)</span>
+                            <input type="text" id="correcaoMotivo" maxlength="500" placeholder="Ex.: meu nome saiu sem o segundo sobrenome">
+                        </label>
+                    </div>
+                    <div class="formulario--linha">
+                        <div class="campo campo--acoes">
+                            <button type="submit" class="acao acao--primaria">Enviar pedido</button>
+                        </div>
+                    </div>
+                    <p class="formulario-mensagem" id="mensagemCorrecao"></p>
+                </form>
+            </section>
 
-            <dialog class="visualizador" id="painelAtividade">
-                <div class="visualizador-cabecalho">
-                    <div>
-                        <h2 class="visualizador-titulo" id="atividadeTitulo">Atividade</h2>
-                        <p class="visualizador-detalhe" id="atividadeDetalhe"></p>
-                    </div>
-                    <div class="visualizador-acoes">
-                        <button type="button" class="acao" id="fecharAtividade">Fechar</button>
-                    </div>
+            <section class="cartao">
+                <h2 class="cartao-titulo">Excluir minha conta</h2>
+                <p class="campo-dica">
+                    O pedido vai para a administração. Aprovado, a conta é desativada na hora e,
+                    <strong id="prazoAnonimizacao">45</strong> dias depois, seus dados pessoais são
+                    anonimizados: nome, e-mail, matrícula, anotações, favoritos e conversas deixam de
+                    existir. Notas e entregas continuam no registro acadêmico da faculdade, que é
+                    obrigada a guardá-lo, mas sem nada que identifique você. Até o fim do prazo,
+                    a secretaria pode reativar a conta.
+                </p>
+                <div class="campo campo--acoes">
+                    <button type="button" class="acao acao--perigo" id="botaoExcluir">Pedir a exclusão da conta</button>
                 </div>
-                <div class="visualizador-corpo visualizador-corpo--texto" id="atividadeCorpo"></div>
-                <div class="visualizador-rodape" id="atividadeRodape">
-                    <p class="formulario-mensagem" id="atividadeMensagem"></p>
-                    <div class="campo--acoes">
-                        <button type="button" class="acao" id="botaoSalvarProgresso">Salvar progresso</button>
-                        <button type="button" class="acao acao--primaria" id="botaoEntregar">Entregar</button>
-                    </div>
-                </div>
-            </dialog>
+                <p class="formulario-mensagem" id="mensagemExclusao"></p>
+            </section>
+
+            <section class="cartao">
+                <h2 class="cartao-titulo">Seus pedidos</h2>
+                <p class="estado-vazio" id="vazio" hidden></p>
+                <div class="lista-materiais" id="listaPedidos"></div>
+            </section>
+
+            <p class="campo-dica">
+                Como a plataforma trata seus dados: <a href="../privacidade.html">política de privacidade</a>.
+            </p>
         </main>
     </div>
 
     <script src="../config.js?v=31"></script>
     <script src="../dialogo.js?v=31"></script>
-    <script src="../visualizador.js?v=31"></script>
     <script src="../auth.js?v=31"></script>
     <script src="../perfil.js?v=31"></script>
     <script src="../notificacoes.js?v=31"></script>
-    <script src="atividades.js?v=31"></script>
+    <script src="../privacidade.js?v=31"></script>
+    <script src="meus-dados.js?v=31"></script>
 </body>
 </html>

@@ -150,7 +150,7 @@ function montarAmbiente() {
     contexto.globalThis = contexto;
     vm.createContext(contexto);
 
-    for (const arquivo of ["auth.js", "markdown.js", "modulos.js", "visualizador.js"]) {
+    for (const arquivo of ["auth.js", "markdown.js", "modulos.js", "visualizador.js", "privacidade.js"]) {
         vm.runInContext(fs.readFileSync(arquivo, "utf-8"), contexto, { filename: arquivo });
     }
 
@@ -947,4 +947,35 @@ test("no servidor de desenvolvimento a API fica na porta 8000 do mesmo computado
 test("um endereço definido explicitamente vence a dedução", () => {
     const local = { port: "", protocol: "https:", hostname: "a.com", origin: "https://a.com" };
     assert.equal(enderecoPara(local, "https://api.b.com"), "https://api.b.com");
+});
+
+// ---------------------------------------------------------------- privacidade
+test("a cópia dos dados leva a data no nome, para duas cópias não se sobrescreverem", () => {
+    const nome = doContexto("nomeArquivoDaCopia")("2026-10-01T14:03:00+00:00");
+    assert.equal(nome, "delta-care-meus-dados-2026-10-01.json");
+});
+
+test("todo status que o servidor grava tem nome na tela", () => {
+    // Lido do próprio backend: um status novo lá sem rótulo aqui apareceria
+    // para o aluno como "agendada" cru, ou como nada.
+    const regras = fs.readFileSync("../backend/regras/privacidade.py", "utf-8");
+    const gravados = new Set([
+        ...[...regras.matchAll(/status = '(\w+)'/g)].map((m) => m[1]),
+        ...[...regras.matchAll(/VALUES \(\?, \?, '(\w+)'/g)].map((m) => m[1]),
+        ...[...regras.matchAll(/'exportacao', '(\w+)'/g)].map((m) => m[1]),
+    ]);
+    const rotulos = doContexto("STATUS_PRIVACIDADE");
+
+    assert.ok(gravados.size >= 6, `poucos status encontrados: ${[...gravados]}`);
+    for (const status of gravados) {
+        assert.ok(rotulos[status], `status sem rótulo: ${status}`);
+    }
+});
+
+test("conta desativada aparece em destaque, e status desconhecido não quebra a tela", () => {
+    const selo = doContexto("seloDeStatus");
+
+    assert.match(selo("agendada").className, /badge-status--perigo/);
+    assert.equal(selo("agendada").textContent, "Conta desativada");
+    assert.equal(selo("inventado").textContent, "inventado");
 });
