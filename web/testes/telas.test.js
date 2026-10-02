@@ -147,6 +147,7 @@ test("toda tela do professor e da administração abre com o título certo", () 
       "/professor/materiais": "Materiais", "/professor/atividades": "Atividades", "/professor/calendario": "Calendário",
       "/professor/disciplinas": "Disciplinas", "/professor/mensagens": "Mensagens", "/professor/desempenho": "Desempenho",
       "/professor/denuncias": "Denúncias", "/professor/avisos": "Avisos", "/professor/historico": "Semestres anteriores",
+      "/professor/lacunas": "Lacunas do material",
     }],
     adm: [ADM, {
       "/admin/turmas": "Turmas", "/admin/disciplinas": "Disciplinas", "/admin/usuarios": "Usuários", "/admin/denuncias": "Denúncias",

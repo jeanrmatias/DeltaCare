@@ -65,12 +65,15 @@ Regras:
 - Não deduza. Cada afirmação da resposta precisa estar escrita no material sobre aquele assunto. Se o material diz que um medicamento é usado em certo estágio, e em outro ponto fala de um tipo de tratamento para o mesmo estágio, isso NÃO diz qual é a classe do medicamento — não afirme que ele é daquele tipo.
 - A pergunta pode estar coberta por inteiro, em parte ou nada:
   - Por inteiro: responda.
-  - Em parte (o material fala do assunto, mas não responde exatamente o que foi perguntado — por exemplo, diz para que um medicamento é usado, mas não o que ele é): apresente o que o material traz sobre o assunto. Não responda só "o material não cobre": o que ele traz é útil para o aluno.
-  - Nada (o material não fala do assunto): diga claramente que o material disponibilizado não cobre esse ponto, e pare por aí.
+  - Em parte (o material fala do assunto, mas não responde exatamente o que foi perguntado — por exemplo, diz para que um medicamento é usado e em que dose, mas não o que ele é: a classe, o mecanismo): apresente o que o material traz sobre o assunto. Não responda só "o material não cobre": o que ele traz é útil para o aluno.
+  - Nada (o material não fala do assunto): diga numa frase que o material disponibilizado não cobre esse ponto, sem acrescentar mais nada ao texto.
+- "O que é X?" só tem cobertura completa se o material disser o que X é (a natureza, a classe, a definição). Dizer para que X serve, quando se usa ou em que dose é cobertura parcial.
 - No campo "lacuna", escreva em poucas palavras o que a pergunta pede e o material NÃO traz (ex.: para "por que se faz o exame X?", se o material só descreve como fazer: "o motivo do exame"). Deixe vazio se a cobertura for completa. A plataforma mostra a lacuna ao aluno; não a repita dentro da resposta.
+- No campo "assunto", escreva só o termo principal da pergunta, em 1 a 3 palavras: o nome do medicamento, da doença, do procedimento ou do conceito, como o material escreve (ex.: "metformina", "escala de Glasgow"). O aspecto perguntado não entra no assunto: para "qual a classe da metformina?", o assunto é "metformina" e "classe" vai na lacuna. Nada sobre quem pergunta nem dado pessoal.
 - Não complete lacunas com conhecimento próprio, e não sugira o que o aluno deve fazer em seguida — disso a plataforma cuida.
 - Quando ajudar o aluno a se localizar no material, mencione a seção ou o tópico de onde veio a informação (ex.: "na seção de critérios de interrupção").
 - Seja didático, claro e objetivo, no nível de um estudante de medicina.
+- Responda sempre no formato JSON pedido, com todos os campos — inclusive quando o material não cobrir nada.
 - Escreva a resposta no campo "resposta" e, em "fontes_usadas", liste apenas os materiais que você realmente usou. Em "cobertura", diga se o material cobriu a pergunta "completa", em "parcial" ou "nenhuma". Com cobertura "nenhuma", deixe "fontes_usadas" vazio. Não escreva "Fonte:" dentro da resposta — o sistema já mostra as fontes para o aluno.
 """
 
@@ -109,8 +112,9 @@ def montar_schema_resposta(titulos_disponiveis: list) -> dict:
             "fontes_usadas": {"type": "array", "items": schema_fonte},
             "cobertura": {"type": "string", "enum": list(COBERTURAS)},
             "lacuna": {"type": "string"},
+            "assunto": {"type": "string"},
         },
-        "required": ["resposta", "fontes_usadas", "cobertura", "lacuna"],
+        "required": ["resposta", "fontes_usadas", "cobertura", "lacuna", "assunto"],
     }
 
 
@@ -157,20 +161,57 @@ def gerar_resposta_chat(mensagens: list, schema: dict | None = None) -> dict:
     conteudo = _chamar_ollama("/api/chat", corpo)["message"]["content"]
 
     if not schema:
-        return {"resposta": conteudo, "fontes_usadas": None, "cobertura": None, "lacuna": ""}
+        return {"resposta": conteudo, "fontes_usadas": None, "cobertura": None, "lacuna": "", "assunto": ""}
 
     try:
         dados = json.loads(conteudo)
     except json.JSONDecodeError:
-        # Não deveria acontecer com decodificação restrita, mas se acontecer é
-        # melhor mostrar o texto cru do que derrubar a resposta do aluno.
-        return {"resposta": conteudo.strip(), "fontes_usadas": None, "cobertura": None, "lacuna": ""}
+        return _resposta_fora_do_formato(conteudo)
 
     return {
         "resposta": (dados.get("resposta") or "").strip(),
         "fontes_usadas": dados.get("fontes_usadas"),
         "cobertura": dados.get("cobertura"),
         "lacuna": (dados.get("lacuna") or "").strip(),
+        "assunto": (dados.get("assunto") or "").strip(),
+    }
+
+
+_CAMPO_SOLTO = re.compile(r"^(resposta|assunto|lacuna|cobertura|fontes_usadas)\s*:\s*(.*)$", re.I)
+
+
+def _resposta_fora_do_formato(conteudo: str) -> dict:
+    """O modelo às vezes ignora o JSON — visto com o gpt-oss nas recusas, que
+    vinham como frase solta ou como "**Assunto:** ... **Cobertura:** ...".
+
+    Duas regras, as duas do lado seguro:
+    - **nenhuma fonte é atribuída.** Antes, JSON inválido citava tudo que a
+      busca trouxe; uma recusa saía com fonte e contava XP. Fonte que o modelo
+      não declarou não é fonte.
+    - **o aluno nunca vê a lista de campos.** Se veio "Campo: valor", aproveita
+      os campos; o texto mostrado é a resposta, ou, se não houver, a frase de
+      que o material não cobre.
+    """
+    campos = {}
+    soltas = []
+    for linha in conteudo.strip().splitlines():
+        limpa = linha.replace("*", "").strip()
+        achado = _CAMPO_SOLTO.match(limpa)
+        if achado:
+            campos[achado.group(1).lower()] = achado.group(2).strip()
+        elif limpa:
+            soltas.append(limpa)
+
+    cobertura = (campos.get("cobertura") or "").strip(" .").lower()
+    resposta = campos.get("resposta") or " ".join(soltas)
+    if not resposta:
+        resposta = "O material disponibilizado não cobre esse ponto."
+    return {
+        "resposta": resposta,
+        "fontes_usadas": [],
+        "cobertura": cobertura if cobertura in COBERTURAS else None,
+        "lacuna": campos.get("lacuna", ""),
+        "assunto": campos.get("assunto", ""),
     }
 
 
@@ -398,13 +439,16 @@ def montar_contexto(trechos: list) -> str:
     return "\n\n---\n\n".join(partes)
 
 
-def _salvar_mensagem(aluno_id: int, turma_id: int, papel: str, conteudo: str, fontes: list = None, lacuna: str = "") -> None:
+def _salvar_mensagem(aluno_id: int, turma_id: int, papel: str, conteudo: str, fontes: list = None,
+                     lacuna: str = "", cobertura: str = None, assunto: str = "") -> None:
     conexao = conectar()
     agora = datetime.now(timezone.utc).isoformat()
     cursor = conexao.cursor()
     cursor.execute(
-        "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, lacuna, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (aluno_id, turma_id, papel, conteudo, json.dumps(fontes) if fontes else None, lacuna or None, agora),
+        "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, lacuna, cobertura, assunto, criado_em)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (aluno_id, turma_id, papel, conteudo, json.dumps(fontes) if fontes else None, lacuna or None,
+         cobertura, (assunto or "")[:80] or None, agora),
     )
     conexao.commit()
     conexao.close()
@@ -462,9 +506,10 @@ def responder_pergunta(
     resposta_texto = resultado_modelo["resposta"]
     fontes_declaradas = resultado_modelo["fontes_usadas"]
 
-    # O schema já restringe as fontes aos títulos reais. `None` só acontece se
-    # o modelo devolver um JSON inválido (não deveria, com decodificação
-    # restrita): nesse caso cita tudo que a busca trouxe, como antes.
+    # O schema restringe as fontes aos títulos reais. `None` só vem de um
+    # modelo chamado sem schema (testes antigos): aí cita o que a busca trouxe.
+    # Resposta fora do formato chega com lista vazia — ver
+    # _resposta_fora_do_formato.
     fontes = materiais_recuperados if fontes_declaradas is None else sorted(set(fontes_declaradas))
 
     # Cobertura fora do formato (resposta de um modelo sem schema) é deduzida
@@ -480,16 +525,20 @@ def responder_pergunta(
 
     _salvar_mensagem(aluno[0], turma_id, "user", pergunta)
     # A lacuna é gravada: ela não está no texto da resposta, e sem ela uma
-    # resposta parcial, relida amanhã no histórico, pareceria completa.
-    lacuna = lacuna if cobertura == "parcial" else ""
-    _salvar_mensagem(aluno[0], turma_id, "assistant", resposta_texto, fontes=fontes, lacuna=lacuna)
+    # resposta parcial, relida amanhã no histórico, pareceria completa. Grava
+    # também na cobertura "nenhuma": para o aluno é redundante ("não cobre"),
+    # mas para o professor é o que falta (regras/lacunas.py).
+    lacuna = lacuna if cobertura in ("parcial", "nenhuma") else ""
+    _salvar_mensagem(aluno[0], turma_id, "assistant", resposta_texto, fontes=fontes, lacuna=lacuna,
+                     cobertura=cobertura, assunto=resultado_modelo.get("assunto") or "")
 
     resultado = {
         "sucesso": True,
         "resposta": resposta_texto,
         "fontes": fontes,
         "cobertura": cobertura,
-        "lacuna": lacuna,
+        # Na tela do aluno, a lacuna só aparece na resposta parcial.
+        "lacuna": lacuna if cobertura == "parcial" else "",
     }
     if cobertura == "nenhuma":
         resultado["em_outras_disciplinas"] = disciplinas_que_citam(aluno[0], turma_id, pergunta)
@@ -507,7 +556,9 @@ def _sem_material_legivel(aluno_id: int, turma_id: int, pergunta: str) -> dict:
         "ainda não tem nenhum (links e vídeos eu não leio)."
     )
     _salvar_mensagem(aluno_id, turma_id, "user", pergunta)
-    _salvar_mensagem(aluno_id, turma_id, "assistant", resposta, fontes=[])
+    # "sem_material", e não "nenhuma": para o professor é outro recado — não
+    # é um tema que falta, é a disciplina que não tem nada que o assistente leia.
+    _salvar_mensagem(aluno_id, turma_id, "assistant", resposta, fontes=[], cobertura="sem_material")
     return {
         "sucesso": True,
         "resposta": resposta,
@@ -581,15 +632,16 @@ def buscar_historico(aluno_email: str, turma_id: int) -> dict:
     cursor = conexao.cursor()
     cursor.execute(
         '''
-        SELECT papel, conteudo, fontes, lacuna, criado_em FROM chat_mensagens
+        SELECT papel, conteudo, fontes, lacuna, cobertura, criado_em FROM chat_mensagens
         WHERE aluno_id = ? AND turma_id = ?
         ORDER BY criado_em
         ''',
         (aluno[0], turma_id),
     )
     mensagens = [
-        {"papel": p, "conteudo": c, "fontes": json.loads(f) if f else [], "lacuna": l or "", "criado_em": e}
-        for p, c, f, l, e in cursor.fetchall()
+        {"papel": p, "conteudo": c, "fontes": json.loads(f) if f else [],
+         "lacuna": (l or "") if cob == "parcial" else "", "criado_em": e}
+        for p, c, f, l, cob, e in cursor.fetchall()
     ]
     conexao.close()
 

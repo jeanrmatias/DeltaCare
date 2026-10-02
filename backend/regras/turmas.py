@@ -187,6 +187,7 @@ def excluir_turma(admin_email: str, turma_id: int) -> dict:
         "DELETE FROM atividades WHERE turma_id = ?",
         "DELETE FROM mensagens WHERE turma_id = ?",
         "DELETE FROM chat_mensagens WHERE turma_id = ?",
+        "DELETE FROM lacunas_tratadas WHERE turma_id = ?",
         "DELETE FROM avisos_turmas WHERE turma_id = ?",
         "DELETE FROM excecoes_coorte WHERE turma_id = ?",
         "DELETE FROM matriculas WHERE turma_id = ?",

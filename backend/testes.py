@@ -5950,6 +5950,34 @@ class TestesCoberturaDoChat(BaseDelta):
         self.assertEqual(sem["cobertura"], "nenhuma")
         self.assertEqual(com["cobertura"], "completa")
 
+    def _ollama_respondendo(self, bruto):
+        """Troca a chamada HTTP ao Ollama: o resto de gerar_resposta_chat roda de verdade."""
+        from unittest import mock
+        return mock.patch.object(chat_ia, "_chamar_ollama", lambda caminho, corpo: {"message": {"content": bruto}})
+
+    def test_recusa_fora_do_formato_nao_cita_fonte_nem_conta_xp(self):
+        """Visto no gpt-oss: a recusa vinha como frase solta, sem JSON. O código
+        antigo citava tudo que a busca trouxe — e a recusa contava XP."""
+        with self._ollama_respondendo("O material disponibilizado não cobre o tratamento da apendicite."):
+            resultado = chat_ia.responder_pergunta(ALUNO, self.turma_id, "qual o tratamento da apendicite?",
+                                                   gerar_embedding_fn=embedding_falso)
+
+        self.assertEqual(resultado["fontes"], [])
+        self.assertEqual(resultado["cobertura"], "nenhuma")
+        self.assertEqual(resultado["resposta"], "O material disponibilizado não cobre o tratamento da apendicite.")
+
+    def test_lista_de_campos_nunca_chega_ao_aluno(self):
+        """Também visto: "**Assunto:** ... **Cobertura:** nenhuma" no lugar do JSON."""
+        bruto = "**Assunto:** tratamento de apendicite  \n**Lacuna:** tratamento  \n**Cobertura:** nenhuma"
+        with self._ollama_respondendo(bruto):
+            resultado = chat_ia.responder_pergunta(ALUNO, self.turma_id, "qual o tratamento da apendicite?",
+                                                   gerar_embedding_fn=embedding_falso)
+
+        self.assertNotIn("**", resultado["resposta"])
+        self.assertNotIn("Assunto", resultado["resposta"])
+        self.assertEqual(resultado["cobertura"], "nenhuma")
+        self.assertEqual(resultado["fontes"], [])
+
     def test_disciplina_sem_texto_legivel_nao_chama_o_modelo(self):
         """Só links: não há o que o modelo ler. Chamá-lo custava 10 a 20 s para ouvir 'não cobre'."""
         anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
@@ -6016,6 +6044,141 @@ class TestesCoberturaDoChat(BaseDelta):
         valor = conexao.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()[0]
         conexao.close()
         return valor
+
+
+# =========================================================================
+# Lacunas do material (regras/lacunas.py) — o que os alunos perguntam e o
+# material não responde, por assunto, sem nome e sem o texto da pergunta.
+# =========================================================================
+
+class TestesLacunasDoMaterial(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        criar_conta_staff(ADMIN, "aluno3@teste.com", SENHA, "aluno", nome="Aluno Tres")
+        for email in (ALUNO_FORA, "aluno3@teste.com"):
+            matricular_aluno(ADMIN, email, self.turma_id)
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 3", tipo="link",
+                                  link_url="https://exemplo.com", rascunho=False)["material_id"]
+        texto = "O Cardiolex e o agente de primeira linha para DCM-2 e DCM-3."
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
+                        (material, 0, texto, json.dumps(embedding_falso(texto))))
+        conexao.commit()
+        conexao.close()
+
+    def _perguntar(self, aluno, pergunta, cobertura, assunto, lacuna="", turma_id=None):
+        def modelo(mensagens, schema=None):
+            return {"resposta": "Resposta.", "fontes_usadas": [] if cobertura == "nenhuma" else ["Aula 3"],
+                    "cobertura": cobertura, "lacuna": lacuna, "assunto": assunto}
+        return chat_ia.responder_pergunta(aluno, turma_id or self.turma_id, pergunta,
+                                          gerar_embedding_fn=embedding_falso, gerar_resposta_fn=modelo)
+
+    def _lacunas(self, professor=PROFESSOR):
+        from regras.lacunas import listar_lacunas
+        disciplina = next(d for d in listar_lacunas(professor)["disciplinas"] if d["id"] == self.turma_id)
+        return disciplina
+
+    def test_assunto_de_dois_alunos_aparece_sem_nome_nem_pergunta(self):
+        self._perguntar(ALUNO, "Minha tia toma cardiolex, o que ele e?", "parcial", "Cardiolex", "tipo de medicamento")
+        self._perguntar(ALUNO_FORA, "o que e o cardiolex?", "parcial", "O Cardiolex", "classe do medicamento")
+
+        disciplina = self._lacunas()
+        texto = json.dumps(disciplina, ensure_ascii=False)
+
+        self.assertEqual([l["chave"] for l in disciplina["lacunas"]], ["cardiolex"])
+        lacuna = disciplina["lacunas"][0]
+        self.assertEqual((lacuna["alunos"], lacuna["perguntas"], lacuna["tipo"]), (2, 2, "parcial"))
+        self.assertEqual(sorted(lacuna["o_que_falta"]), ["classe do medicamento", "tipo de medicamento"])
+        for vazamento in ("tia", "Minha", ALUNO, ALUNO_FORA, "Aluno Um", "Aluno Dois"):
+            self.assertNotIn(vazamento, texto)
+
+    def test_o_que_falta_aparece_tambem_quando_o_material_nao_trata(self):
+        """Para o aluno, 'não cobre' basta; para o professor, 'classe do medicamento' é o recado."""
+        self._perguntar(ALUNO, "qual a classe do cardiolex?", "nenhuma", "Cardiolex", "classe do medicamento")
+        resultado = self._perguntar(ALUNO_FORA, "o cardiolex e betabloqueador?", "nenhuma", "Cardiolex", "classe do medicamento")
+
+        self.assertEqual(resultado["lacuna"], "")  # na tela do aluno, não
+        self.assertEqual(self._lacunas()["lacunas"][0]["o_que_falta"], ["classe do medicamento"])
+        self.assertEqual(chat_ia.buscar_historico(ALUNO_FORA, self.turma_id)["mensagens"][-1]["lacuna"], "")
+
+    def test_assunto_de_um_aluno_so_nao_aparece(self):
+        """Com um aluno só, o professor saberia quem perguntou — mesmo que ele pergunte várias vezes."""
+        for _ in range(3):
+            self._perguntar(ALUNO, "o que e o cardiolex?", "parcial", "Cardiolex")
+
+        disciplina = self._lacunas()
+
+        self.assertEqual(disciplina["lacunas"], [])
+        self.assertEqual(disciplina["ocultas"], 1)
+
+    def test_pergunta_respondida_por_inteiro_nao_e_lacuna(self):
+        for aluno in (ALUNO, ALUNO_FORA):
+            self._perguntar(aluno, "qual a dose?", "completa", "dose do Cardiolex")
+
+        self.assertEqual(self._lacunas()["lacunas"], [])
+
+    def test_disciplina_sem_pdf_vira_aviso_e_nao_assunto(self):
+        anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
+        for aluno in (ALUNO, ALUNO_FORA):
+            matricular_aluno(ADMIN, aluno, anatomia)
+            self._perguntar(aluno, "o que e o forame magno?", "nenhuma", "forame magno", turma_id=anatomia)
+
+        from regras.lacunas import listar_lacunas
+        disciplina = next(d for d in listar_lacunas(PROFESSOR)["disciplinas"] if d["id"] == anatomia)
+
+        self.assertEqual(disciplina["sem_material"], {"perguntas": 2, "alunos": 2})
+        self.assertEqual(disciplina["lacunas"], [])
+
+    def test_so_o_professor_da_disciplina_ve(self):
+        from regras.lacunas import listar_lacunas
+        for aluno in (ALUNO, ALUNO_FORA):
+            self._perguntar(aluno, "o que e o cardiolex?", "parcial", "Cardiolex")
+
+        self.assertFalse(listar_lacunas(PROFESSOR2, self.turma_id)["sucesso"])
+        self.assertNotIn(self.turma_id, [d["id"] for d in listar_lacunas(PROFESSOR2)["disciplinas"]])
+        self.assertFalse(listar_lacunas(ALUNO)["sucesso"])
+
+    def test_tratado_sai_da_lista_e_volta_com_pergunta_nova(self):
+        from regras.lacunas import marcar_tratada
+        for aluno in (ALUNO, ALUNO_FORA):
+            self._perguntar(aluno, "o que e o cardiolex?", "parcial", "Cardiolex")
+
+        self.assertTrue(marcar_tratada(PROFESSOR, self.turma_id, "Cardiolex")["sucesso"])
+        self.assertEqual(self._lacunas()["lacunas"], [])
+
+        for aluno in (ALUNO, "aluno3@teste.com"):
+            self._perguntar(aluno, "o cardiolex e um inotropico?", "parcial", "cardiolex")
+        self.assertEqual(self._lacunas()["lacunas"][0]["perguntas"], 2)
+
+    def test_professor_de_outra_disciplina_nao_marca(self):
+        from regras.lacunas import marcar_tratada
+
+        self.assertFalse(marcar_tratada(PROFESSOR2, self.turma_id, "Cardiolex")["sucesso"])
+
+    def test_excluir_a_disciplina_leva_os_tratados_junto(self):
+        from regras.lacunas import marcar_tratada
+        marcar_tratada(PROFESSOR, self.turma_id, "Cardiolex")
+
+        self.assertTrue(excluir_turma(ADMIN, self.turma_id)["sucesso"])
+        conexao = sqlite3.connect(CAMINHO_DB)
+        sobra = conexao.execute("SELECT COUNT(*) FROM lacunas_tratadas").fetchone()[0]
+        conexao.close()
+        self.assertEqual(sobra, 0)
+
+    def test_rota_e_so_do_professor(self):
+        from fastapi.testclient import TestClient
+
+        import main
+        cliente = TestClient(main.app)
+
+        def cabecalho(email):
+            token = cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+            return {"Authorization": f"Bearer {token}"}
+
+        self.assertEqual(cliente.get("/lacunas", headers=cabecalho(ALUNO)).status_code, 403)
+        self.assertEqual(cliente.get("/lacunas", headers=cabecalho(ADMIN)).status_code, 403)
+        self.assertTrue(cliente.get("/lacunas", headers=cabecalho(PROFESSOR)).json()["sucesso"])
 
 
 if __name__ == "__main__":

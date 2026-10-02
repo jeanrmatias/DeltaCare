@@ -24,6 +24,7 @@ export function InicioProfessor() {
   const materiais = useApi("/materiais")
   const atividades = useApi("/atividades")
   const conversas = useApi("/mensagens/conversas")
+  const lacunas = useApi("/lacunas")
 
   const vigentes = (turmas.dados?.turmas || []).filter((turma) => turma.vigente !== false)
   const idsVigentes = new Set(vigentes.map((turma) => turma.id))
@@ -35,6 +36,12 @@ export function InicioProfessor() {
   const naoLidas = (conversas.dados?.conversas || []).filter((conversa) => conversa.nao_lidas > 0)
 
   const primeiroNome = nomeExibicao(usuario).split(" ")[0]
+
+  // As lacunas das disciplinas deste semestre, as mais perguntadas primeiro.
+  const lacunasVigentes = (lacunas.dados?.disciplinas || [])
+    .filter((d) => idsVigentes.has(d.id))
+    .flatMap((d) => d.lacunas.map((l) => ({ ...l, disciplina: d.nome })))
+    .sort((a, b) => b.alunos - a.alunos || b.perguntas - a.perguntas)
 
   return (
     <>
@@ -99,6 +106,20 @@ export function InicioProfessor() {
                 titulo: conversa.titulo,
                 detalhe: conversa.ultima_mensagem || conversa.subtitulo,
                 para: "/professor/mensagens",
+              }))}
+            />
+          </Cartao>
+
+          <Cartao titulo="O que falta no material">
+            <ListaComContador
+              erro={lacunas.erro && "Não foi possível carregar."}
+              vazio="Nenhuma dúvida sem resposta no material, por enquanto."
+              itens={lacunasVigentes.slice(0, 4).map((l) => ({
+                chave: `${l.disciplina}-${l.chave}`,
+                numero: l.alunos,
+                titulo: l.assunto,
+                detalhe: `${l.disciplina}${l.o_que_falta.length ? ` · falta: ${l.o_que_falta[0]}` : ""}`,
+                para: "/professor/lacunas",
               }))}
             />
           </Cartao>

@@ -730,8 +730,28 @@ def configurar_banco(silencioso: bool = False):
     # cobertura parcial — ver regras/chat_ia.py). Gravado com a mensagem para
     # o histórico mostrar a lacuna também depois.
     cursor.execute("PRAGMA table_info(chat_mensagens)")
-    if "lacuna" not in {linha[1] for linha in cursor.fetchall()}:
+    colunas_chat = {linha[1] for linha in cursor.fetchall()}
+    if "lacuna" not in colunas_chat:
         cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN lacuna TEXT")
+    # Para as lacunas do material (regras/lacunas.py): o quanto o material
+    # cobriu a pergunta e o assunto dela em poucas palavras. É o que o
+    # professor vê — nunca o texto da pergunta.
+    if "cobertura" not in colunas_chat:
+        cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN cobertura TEXT")
+    if "assunto" not in colunas_chat:
+        cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN assunto TEXT")
+
+    # Assuntos que o professor marcou como tratados (publicou material sobre
+    # eles). Contam de novo só as perguntas feitas depois.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lacunas_tratadas (
+            turma_id INTEGER NOT NULL,
+            assunto TEXT NOT NULL,
+            tratado_em TEXT NOT NULL,
+            PRIMARY KEY (turma_id, assunto),
+            FOREIGN KEY (turma_id) REFERENCES turmas (id)
+        )
+    ''')
 
     # Privacidade (regras/privacidade.py). A conta excluída passa por dois
     # estados: **desativada** (não entra, mas os dados continuam, para a

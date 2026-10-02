@@ -28,6 +28,7 @@ export const MENUS = {
     { rotulo: "Disciplinas", caminho: "/professor/disciplinas", icone: "turmas" },
     { rotulo: "Chat", caminho: "/professor/mensagens", icone: "chat" },
     { rotulo: "Desempenho", caminho: "/professor/desempenho", icone: "desempenho" },
+    { rotulo: "Lacunas do material", caminho: "/professor/lacunas", icone: "lacunas" },
     { rotulo: "Denúncias", caminho: "/professor/denuncias", icone: "denuncias" },
     { rotulo: "Avisos", caminho: "/professor/avisos", icone: "avisos" },
     { rotulo: "Semestres anteriores", caminho: "/professor/historico", icone: "historico" },

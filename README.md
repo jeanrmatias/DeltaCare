@@ -65,7 +65,12 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
   pedido de correção e de exclusão da conta.
 
 **Professor**
-- **Início** com o que tem para corrigir, mensagens não lidas e avisos.
+- **Início** com o que tem para corrigir, mensagens não lidas, avisos e o que
+  falta no material.
+- **Lacunas do material:** o que os alunos perguntam ao assistente e o
+  material não responde — por assunto ("Cardiolex: o material cita, mas não
+  explica o que é; 4 alunos"), sem o nome nem o texto da pergunta, e só com
+  assunto de pelo menos dois alunos.
 - **Materiais** (PDF, documento, vídeo, link; rascunho e publicação agendada),
   **Atividades** e correção das entregas, **Calendário**, **Disciplinas**,
   **Chat** com os alunos, **Desempenho** da turma, **Avisos** e **Semestres
@@ -297,6 +302,13 @@ em [`frontend/privacidade.html`](frontend/privacidade.html).
 | Cópia dos dados | ninguém — sai na hora | Arquivo JSON com cadastro, disciplinas, entregas e notas, acessos, favoritos, anotações, conversas e notificações. Fica registrado que foi entregue. |
 | Correção (nome, e-mail, matrícula) | administração | A tela **Privacidade** mostra o valor de hoje ao lado do pedido; aprovado, troca na hora. |
 | Exclusão da conta | administração | Aprovada, a conta é **desativada** (não entra, sessões encerradas, sai do ranking) e o aluno recebe e-mail. **45 dias depois** é anonimizada. Até lá, a administração pode reverter. |
+
+**Lacunas do material.** A conversa com o assistente é individual, mas quando
+ele não encontra a resposta no material o professor vê o **assunto** da dúvida
+(em poucas palavras, resumido pelo modelo) e quantos alunos perguntaram —
+nunca o texto nem quem perguntou, e só a partir de dois alunos diferentes por
+assunto ([`backend/regras/lacunas.py`](backend/regras/lacunas.py)). O aluno é
+avisado disso no próprio chat e na política de privacidade.
 
 A anonimização apaga nome, e-mail, matrícula, anotações, favoritos,
 notificações e conversas (com o assistente e com os professores). Notas,

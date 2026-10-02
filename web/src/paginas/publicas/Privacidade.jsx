@@ -46,6 +46,7 @@ export function Privacidade() {
           <li>O professor vê as disciplinas que leciona: o material, as entregas e as notas dos alunos delas, e as mensagens que recebe.</li>
           <li>A administração gerencia contas, turmas e matrículas e acompanha o conteúdo publicado. <strong>Não lê</strong> suas entregas, suas anotações nem suas conversas com o assistente.</li>
           <li>Suas anotações são só suas: nenhum outro perfil tem acesso a elas.</li>
+          <li>Suas conversas com o assistente são individuais. Quando ele não encontra a resposta no material, o professor vê só o <strong>assunto</strong> da dúvida, em poucas palavras, e quantos alunos perguntaram — nunca o texto da pergunta nem quem perguntou. E um assunto só aparece para ele quando pelo menos dois alunos diferentes perguntaram. Serve para o professor saber o que falta no material.</li>
           <li>No ranking da turma aparece só o topo, e você pode escolher não aparecer.</li>
         </Lista>
         <Paragrafo>

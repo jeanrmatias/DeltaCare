@@ -151,7 +151,9 @@ function Conversa({ turma, perguntaInicial, perguntarEm }) {
             o material dela, e perguntar do Cardiolex em Anatomia sem perceber
             dá "não cobre" para algo que a plataforma tem. */}
         <p className="mb-2 text-xs text-texto-secundario">
-          Perguntando sobre o material de <strong className="text-texto">{turma.nome}</strong>
+          Perguntando sobre o material de <strong className="text-texto">{turma.nome}</strong>.{" "}
+          {/* Transparência: o aluno sabe o que o professor vê, antes de perguntar. */}
+          Quando o material não responde, o professor vê o assunto da dúvida — nunca a pergunta nem o seu nome.
         </p>
         <div className="flex gap-2.5">
         <input

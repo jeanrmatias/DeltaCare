@@ -50,6 +50,7 @@ from regras.anotacoes import (
     listar_anotacoes,
 )
 from regras.favoritos import desmarcar_favorito, listar_favoritos, marcar_favorito
+from regras.lacunas import listar_lacunas, marcar_tratada
 from regras.privacidade import (
     anonimizar_vencidas,
     cancelar as cancelar_solicitacao_privacidade,
@@ -1190,6 +1191,25 @@ async def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usua
 @app.get("/chat/historico")
 def historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
     return buscar_historico(aluno["email"], turma_id)
+
+
+# ---------------------------- lacunas do material ----------------------------
+# O que os alunos perguntam ao assistente e o material não responde, por
+# assunto e sem nome (regras/lacunas.py).
+
+class LacunaTratadaRequest(BaseModel):
+    turma_id: int
+    assunto: str
+
+
+@app.get("/lacunas")
+def listar_lacunas_rota(turma_id: Optional[int] = None, professor: dict = Depends(usuario_professor)):
+    return listar_lacunas(professor["email"], turma_id)
+
+
+@app.post("/lacunas/tratadas")
+def marcar_lacuna_tratada_rota(dados: LacunaTratadaRequest, professor: dict = Depends(usuario_professor)):
+    return marcar_tratada(professor["email"], dados.turma_id, dados.assunto)
 
 
 # ---------------------------- privacidade (LGPD) ----------------------------

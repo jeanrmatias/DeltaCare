@@ -28,6 +28,7 @@ import { AtividadesProfessor } from "./paginas/professor/Atividades"
 import { Calendario } from "./paginas/professor/Calendario"
 import { DesempenhoProfessor } from "./paginas/professor/Desempenho"
 import { Disciplinas } from "./paginas/professor/Disciplinas"
+import { Lacunas } from "./paginas/professor/Lacunas"
 import { InicioProfessor } from "./paginas/professor/Inicio"
 import { MateriaisProfessor } from "./paginas/professor/Materiais"
 import { Login } from "./paginas/publicas/Login"
@@ -75,6 +76,7 @@ export function App() {
           <Route path="/professor/disciplinas" element={<Disciplinas />} />
           <Route path="/professor/mensagens" element={<Mensagens />} />
           <Route path="/professor/desempenho" element={<DesempenhoProfessor />} />
+          <Route path="/professor/lacunas" element={<Lacunas />} />
           <Route path="/professor/avisos" element={<Avisos />} />
           <Route path="/professor/historico" element={<Historico />} />
           <Route path="/professor/denuncias" element={<Denuncias />} />
