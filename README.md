@@ -398,7 +398,7 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (484 testes):** permissões de cada perfil, visibilidade de
+- **Backend (482 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização, integridade do
   banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
@@ -418,7 +418,8 @@ python testar_html.py
 
 ## Validação de usabilidade
 
-**Situação: preparada, ainda não realizada.** Pelo menos três participantes
+**Situação: piloto feito em 02/10/2026; sessões com participantes ainda não
+realizadas.** Pelo menos três participantes
 de fora da equipe (estudantes, de preferência da área da saúde) fazem nove
 tarefas do dia a dia do aluno, pensando em voz alta. As tarefas vão do
 primeiro acesso, passando por achar o aviso, ler a aula, perguntar ao

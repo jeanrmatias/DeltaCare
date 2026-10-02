@@ -24,12 +24,12 @@ export function Mensagens() {
   const { dados, carregando, erro, recarregar } = useApi("/mensagens/conversas")
   const conversas = dados?.conversas || []
   const [ativa, setAtiva] = useState(null)
-  const [rascunho] = useState(lerRascunho)
+  const [rascunho, setRascunho] = useState(lerRascunho)
 
-  // Abre sozinha: a da pergunta que veio do chat, ou a primeira — mas não
-  // quando há não lidas, para o professor escolher por onde começar.
-  const inicial = conversas.find((c) => rascunho && c.turma_id === rascunho.turma_id)
-    ?? (!dados?.nao_lidas ? conversas[0] : null)
+  // Abre sozinha a primeira — mas não quando há não lidas, para o professor
+  // escolher por onde começar, nem quando chega uma pergunta do chat: de quem
+  // é a dúvida, quem sabe é o aluno (ver OfertaProfessor, no Chat).
+  const inicial = !rascunho && !dados?.nao_lidas ? conversas[0] : null
   const aberta = conversas.find((c) => mesma(c, ativa)) ?? (ativa ? null : inicial)
 
   return (
@@ -55,11 +55,14 @@ export function Mensagens() {
               key={chave(aberta)}
               conversa={aberta}
               professor={professor}
-              textoInicial={rascunho && aberta.turma_id === rascunho.turma_id ? rascunho.texto : ""}
+              textoInicial={rascunho?.texto ?? ""}
               aoMudar={recarregar}
+              aoEnviar={() => setRascunho(null)}
             />
           ) : (
-            <EstadoVazio>Escolha uma conversa.</EstadoVazio>
+            <EstadoVazio>
+              {rascunho ? "Escolha com qual professor falar. A sua pergunta do chat vai junto." : "Escolha uma conversa."}
+            </EstadoVazio>
           )}
         </div>
       )}
@@ -80,7 +83,7 @@ function lerRascunho() {
     const bruto = sessionStorage.getItem("deltacare_rascunho_mensagem")
     sessionStorage.removeItem("deltacare_rascunho_mensagem")
     const rascunho = bruto ? JSON.parse(bruto) : null
-    return rascunho?.turma_id ? rascunho : null
+    return rascunho?.texto ? rascunho : null
   } catch {
     return null
   }
@@ -118,7 +121,7 @@ function ItemConversa({ conversa, ativa, aoAbrir }) {
   )
 }
 
-function Conversa({ conversa, professor, textoInicial, aoMudar }) {
+function Conversa({ conversa, professor, textoInicial, aoMudar, aoEnviar }) {
   const caminho = `/mensagens?turma_id=${conversa.turma_id}${professor ? `&aluno_email=${encodeURIComponent(conversa.contraparte_email)}` : ""}`
   const { dados, carregando, erro, recarregar } = useApi(caminho)
   const [texto, setTexto] = useState(textoInicial)
@@ -153,6 +156,7 @@ function Conversa({ conversa, professor, textoInicial, aoMudar }) {
       setMensagem("")
       recarregar()
       aoMudar()
+      aoEnviar?.()
     } catch (falha) {
       console.error("Erro ao enviar mensagem:", falha)
       setMensagem(ERRO_DE_CONEXAO)

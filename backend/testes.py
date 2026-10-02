@@ -5999,53 +5999,28 @@ class TestesCoberturaDoChat(BaseDelta):
 
         self.assertEqual(resultado["cobertura"], "nenhuma")
         self.assertIn("Anatomia", resultado["resposta"])
-        self.assertEqual([d["nome"] for d in resultado["em_outras_disciplinas"]], ["Cardiologia"])
 
-    def test_aponta_a_disciplina_que_cita_o_assunto(self):
+    def test_recusa_nao_aponta_outra_disciplina(self):
+        """O Cardiolex está no material de Cardiologia, e a pergunta foi feita
+        em Anatomia. A resposta não manda para lá: o palpite pela palavra já
+        mandou pergunta de crânio para Cardiologia no teste piloto."""
         anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
         matricular_aluno(ADMIN, ALUNO, anatomia)
         self._material_com_texto(anatomia, PROFESSOR, "Cranio", "O forame magno fica na base do cranio.")
+        self._material_com_texto(self.turma_id, PROFESSOR, "Aula 4", "O Cardiolex tem dose maxima de 37,5 mg.")
+        sem_texto = criar_turma(ADMIN, PROFESSOR, "Fisiologia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, sem_texto)
 
-        resultado = self._perguntar({"resposta": "Nao cobre.", "fontes_usadas": [], "cobertura": "nenhuma", "lacuna": ""},
-                                    turma_id=anatomia)
+        respostas = (
+            self._perguntar({"resposta": "Nao cobre.", "fontes_usadas": [], "cobertura": "nenhuma", "lacuna": ""},
+                            turma_id=anatomia, pergunta="o que e o cardiolex?"),
+            chat_ia.responder_pergunta(ALUNO, sem_texto, "o que e o cardiolex?", gerar_embedding_fn=embedding_falso,
+                                       gerar_resposta_fn=lambda *a, **k: {}),
+        )
 
-        self.assertEqual([d["nome"] for d in resultado["em_outras_disciplinas"]], ["Cardiologia"])
-
-    def test_nao_aponta_disciplina_que_o_aluno_nao_cursa_nem_material_nao_liberado(self):
-        """Mesma regra de visibilidade da busca: nem disciplina alheia, nem rascunho, nem agendado."""
-        anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
-        matricular_aluno(ADMIN, ALUNO, anatomia)
-        alheia = criar_turma(ADMIN, PROFESSOR2, "Farmacologia", "2026.2")["turma"]["id"]
-        # Com outro aluno matriculado: sem ninguém, ela sumiria da busca por
-        # não ter matrícula nenhuma, e o teste não provaria nada.
-        matricular_aluno(ADMIN, ALUNO_FORA, alheia)
-        self._material_com_texto(alheia, PROFESSOR2, "Farmaco", "Cardiolex: classe e mecanismo.")
-        neuro = criar_turma(ADMIN, PROFESSOR2, "Neurologia", "2026.2")["turma"]["id"]
-        matricular_aluno(ADMIN, ALUNO, neuro)
-        self._material_com_texto(neuro, PROFESSOR2, "Rascunho", "Cardiolex em rascunho.", rascunho=True)
-        agendado = self._material_com_texto(neuro, PROFESSOR2, "Agendado", "Cardiolex na aula que ainda vai sair.")
-        conexao = sqlite3.connect(CAMINHO_DB)
-        conexao.execute("UPDATE materiais SET data_liberacao = ? WHERE id = ?",
-                        ((datetime.now(timezone.utc) + timedelta(days=7)).isoformat(), agendado))
-        conexao.commit()
-        conexao.close()
-
-        sugeridas = chat_ia.disciplinas_que_citam(self._id(ALUNO), anatomia, "o que e o cardiolex?")
-
-        self.assertEqual([d["nome"] for d in sugeridas], ["Cardiologia"])
-
-    def test_aponta_quem_cita_mais_termos_da_pergunta(self):
-        """'medicamento' sozinho está em todo lugar; quem cita 'cardiolex' é para onde ir."""
-        anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
-        matricular_aluno(ADMIN, ALUNO, anatomia)
-        neuro = criar_turma(ADMIN, PROFESSOR2, "Neurologia", "2026.2")["turma"]["id"]
-        matricular_aluno(ADMIN, ALUNO, neuro)
-        self._material_com_texto(neuro, PROFESSOR2, "Neuro", "Todo medicamento exige cuidado.")
-        self._material_com_texto(self.turma_id, PROFESSOR, "Aula 4", "O medicamento Cardiolex tem dose maxima.")
-
-        sugeridas = chat_ia.disciplinas_que_citam(self._id(ALUNO), anatomia, "o que e o medicamento cardiolex?")
-
-        self.assertEqual([d["nome"] for d in sugeridas], ["Cardiologia"])
+        for resultado in respostas:
+            with self.subTest(resposta=resultado["resposta"]):
+                self.assertNotIn("Cardiologia", json.dumps(resultado, ensure_ascii=False))
 
     def _id(self, email):
         conexao = sqlite3.connect(CAMINHO_DB)

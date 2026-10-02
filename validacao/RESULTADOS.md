@@ -1,6 +1,7 @@
 # Validação de usabilidade — resultados
 
-> **Situação: ainda não realizada.** Este arquivo é preenchido com os dados
+> **Situação: piloto feito (02/10/2026); sessões com participantes ainda não
+> realizadas.** Este arquivo é preenchido com os dados
 > das fichas, depois das sessões. Nenhum número aqui é estimado ou inventado:
 > campo vazio é sessão que ainda não aconteceu.
 
@@ -8,14 +9,20 @@
 
 | Código | Data | Perfil | Formato |
 |---|---|---|---|
-| Piloto (Matheus, equipe — não conta) | | | |
+| Piloto (Matheus, equipe — não conta) | 02/10/2026 | Integrante da equipe | Na máquina da equipe |
 | P1 | | | |
 | P2 | | | |
 | P3 | | | |
 
-**O que o piloto mudou no roteiro:**
+**O que o piloto mudou no roteiro:** nada; as tarefas correram sem tropeço
+("tá bem tranquilo").
 
--
+**O que o piloto mudou no produto:** uma pergunta sobre crânio, feita no chat
+de Anatomia (que só tem links, e o assistente lê só PDF), recebeu a sugestão
+"o assunto aparece no material de Cardiologia I", por causa de uma palavra que
+aparecia no PDF de Cardiologia. Caminho errado. A sugestão de outra disciplina
+foi retirada; a oferta de levar a dúvida ao professor ficou, sem apontar qual
+— a pergunta vai pronta para Mensagens e o aluno escolhe a conversa.
 
 ## Sucesso por tarefa
 

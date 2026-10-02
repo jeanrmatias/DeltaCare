@@ -18,17 +18,9 @@ export function Chat() {
   const { dados, carregando, erro } = useApi("/aluno/turmas")
   const turmas = dados?.turmas || []
   const [escolhida, setEscolhida] = useState(null)
-  // A pergunta que veio de outra disciplina ("isso aparece em Cardiologia I"):
-  // a conversa nova a envia assim que abre.
-  const [levada, setLevada] = useState(null)
 
   // Sem escolha ainda, a primeira (o servidor manda as do semestre antes).
   const turma = turmas.find((t) => t.id === escolhida) ?? turmas[0]
-
-  function perguntarEm(turmaId, pergunta) {
-    setLevada({ turmaId, pergunta })
-    setEscolhida(turmaId)
-  }
 
   return (
     <div className="flex min-h-[70vh] flex-col md:h-[calc(100dvh-2.5rem)]">
@@ -36,7 +28,7 @@ export function Chat() {
         titulo="Chat de estudos"
         descricao="Tire dúvidas sobre o material que o professor disponibilizou — o assistente só responde com base nele."
       >
-        {turmas.length > 0 && <SeletorDisciplina turmas={turmas} valor={turma?.id} aoMudar={(id) => { setLevada(null); setEscolhida(id) }} />}
+        {turmas.length > 0 && <SeletorDisciplina turmas={turmas} valor={turma?.id} aoMudar={setEscolhida} />}
       </Cabecalho>
 
       {carregando && <Carregando />}
@@ -48,8 +40,7 @@ export function Chat() {
       {/* key: trocar de disciplina monta uma conversa nova do zero — o estado
           da anterior (mensagens, resposta em andamento) não vaza para esta. */}
       {turma && (
-        <Conversa key={turma.id} turma={turma} perguntarEm={perguntarEm}
-          perguntaInicial={levada?.turmaId === turma.id ? levada.pergunta : ""} />
+        <Conversa key={turma.id} turma={turma} />
       )}
     </div>
   )
@@ -58,17 +49,16 @@ export function Chat() {
 const BOAS_VINDAS =
   "Oi! Pode perguntar qualquer coisa sobre o material liberado nessa disciplina que eu ajudo — só não saio do que o professor disponibilizou."
 
-function Conversa({ turma, perguntaInicial, perguntarEm }) {
+function Conversa({ turma }) {
   const historico = useApi(`/chat/historico?turma_id=${turma.id}`)
   const [novas, setNovas] = useState([])
   const [pergunta, setPergunta] = useState("")
   const [gerando, setGerando] = useState(false)
   // O que vem depois de uma resposta que o material não cobriu por inteiro:
-  // a oferta de levar ao professor e, se for o caso, a outra disciplina.
+  // a oferta de levar a dúvida ao professor.
   const [depois, setDepois] = useState(null)
   const cancelamento = useRef(null)
   const rolagem = useRef(null)
-  const jaLevada = useRef(false)
 
   const mensagens = [...(historico.dados?.mensagens || []), ...novas]
 
@@ -108,7 +98,7 @@ function Conversa({ turma, perguntaInicial, perguntarEm }) {
         // preenchê-la é o professor. Sem o campo (resposta antiga), vale a
         // regra de antes: sem fonte citada, não cobriu.
         const cobertura = dados.cobertura ?? (dados.fontes?.length ? "completa" : "nenhuma")
-        if (cobertura !== "completa") setDepois({ pergunta: texto, outras: dados.em_outras_disciplinas || [] })
+        if (cobertura !== "completa") setDepois({ pergunta: texto })
       } else {
         adicionar("assistant", dados.mensagem || "Não foi possível responder agora.")
       }
@@ -125,14 +115,6 @@ function Conversa({ turma, perguntaInicial, perguntarEm }) {
     }
   }
 
-  // A pergunta trazida de outra disciplina sai sozinha, uma vez só (o
-  // StrictMode do React roda efeitos duas vezes em desenvolvimento).
-  useEffect(() => {
-    if (!perguntaInicial || jaLevada.current) return
-    jaLevada.current = true
-    enviar(perguntaInicial)
-  }, [perguntaInicial]) // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-cartao bg-superficie shadow-cartao">
       <div ref={rolagem} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
@@ -140,10 +122,7 @@ function Conversa({ turma, perguntaInicial, perguntarEm }) {
         {historico.dados && mensagens.length === 0 && <Bolha papel="assistant" conteudo={BOAS_VINDAS} />}
         {mensagens.map((mensagem, indice) => <Bolha key={indice} {...mensagem} />)}
         {gerando && <Pensando />}
-        {depois?.outras.length > 0 && (
-          <OutraDisciplina disciplinas={depois.outras} aoPerguntar={(id) => perguntarEm(id, depois.pergunta)} />
-        )}
-        {depois && <OfertaProfessor turma={turma} pergunta={depois.pergunta} />}
+        {depois && <OfertaProfessor pergunta={depois.pergunta} />}
       </div>
 
       <form onSubmit={perguntar} className="border-t border-borda p-4">
@@ -201,23 +180,6 @@ function Bolha({ papel, conteudo, fontes, lacuna }) {
   )
 }
 
-/** "Isso aparece no material de Cardiologia I" — e o botão que leva a pergunta para lá. */
-function OutraDisciplina({ disciplinas, aoPerguntar }) {
-  const nomes = disciplinas.map((d) => d.nome).join(", ")
-  return (
-    <div className="flex max-w-[70%] flex-col items-start gap-2.5 self-start rounded-bloco border border-dashed border-primaria px-3.5 py-3">
-      <p className="text-[13px] leading-normal text-texto">
-        O assunto aparece no material de <strong>{nomes}</strong>.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {disciplinas.map((d) => (
-          <Botao key={d.id} pequeno onClick={() => aoPerguntar(d.id)}>Perguntar em {d.nome}</Botao>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 /**
  * "Pensando", com cronômetro. O modelo roda local e leva de 10 a 20 segundos:
  * sem sinal de progresso, parece travado, e o aluno manda a pergunta de novo.
@@ -246,22 +208,26 @@ function Pensando() {
 }
 
 /**
- * Quando o material não cobriu a pergunta, oferece levá-la ao professor.
+ * Quando o material não cobriu a pergunta, oferece levá-la a um professor.
  *
  * O "se" não é enfeite: a plataforma não sabe se a pergunta é da matéria.
  * Afirmar "pergunte ao professor" seria conselho sem sentido metade das
  * vezes; com a condicional, quem decide é quem perguntou. Não é uma bolha:
  * não é o assistente falando, é a plataforma oferecendo um caminho.
+ *
+ * Também não diz *qual* professor. A pergunta feita em Anatomia pode ser de
+ * outra matéria, e o palpite da plataforma já mandou uma de crânio para
+ * Cardiologia no teste piloto. Quem sabe de quem é a dúvida é o aluno: a
+ * pergunta vai pronta para Mensagens, e lá ele escolhe a conversa.
  */
-function OfertaProfessor({ turma, pergunta }) {
+function OfertaProfessor({ pergunta }) {
   const navegar = useNavigate()
-  if (!turma.professor_nome) return null
 
   function levar() {
     try {
       // A pergunta vai junto para não ser redigitada. sessionStorage, e não
       // a URL: pode ser longa e não tem por que ficar no histórico.
-      sessionStorage.setItem("deltacare_rascunho_mensagem", JSON.stringify({ turma_id: turma.id, texto: pergunta }))
+      sessionStorage.setItem("deltacare_rascunho_mensagem", JSON.stringify({ texto: pergunta }))
     } catch {
       /* sem sessionStorage a conversa abre igual, só sem o texto pronto */
     }
@@ -271,9 +237,9 @@ function OfertaProfessor({ turma, pergunta }) {
   return (
     <div className="flex max-w-[70%] flex-col items-start gap-2.5 self-start rounded-bloco border border-dashed border-borda px-3.5 py-3">
       <p className="text-[13px] leading-normal text-texto-secundario">
-        Se isso for matéria de {turma.nome}, você pode levar a dúvida ao Prof. {turma.professor_nome}.
+        Se for uma dúvida da matéria, você pode levá-la ao professor da disciplina.
       </p>
-      <Botao variante="neutra" onClick={levar} className="py-2 text-[13px]">Perguntar ao professor</Botao>
+      <Botao variante="neutra" onClick={levar} className="py-2 text-[13px]">Perguntar a um professor</Botao>
     </div>
   )
 }

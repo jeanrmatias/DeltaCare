@@ -56,8 +56,15 @@ PESO_BUSCA_LITERAL = 0.12
 # próximo passo do aluno é comportamento de produto, e o modelo improvisava uma
 # frase diferente a cada recusa — inclusive mandando procurar o professor por
 # uma pergunta que não tinha relação nenhuma com a matéria. Quem oferece o
-# caminho agora é a interface (frontend/aluno/aluno.js), e ela oferece com
-# condicional, porque a plataforma não sabe se a pergunta faz sentido.
+# caminho agora é a interface (OfertaProfessor, em web/src/paginas/aluno/
+# Chat.jsx), e ela oferece com condicional, porque a plataforma não sabe se a
+# pergunta faz sentido.
+#
+# Nem a interface aponta *qual* professor ou disciplina. Já apontou, buscando
+# as palavras da pergunta no material das outras disciplinas do aluno, e
+# errava: no teste piloto, uma pergunta de crânio feita em Anatomia foi
+# mandada para Cardiologia porque uma palavra aparecia lá. Caminho errado é
+# pior que nenhum: quem escolhe o professor é o aluno.
 PROMPT_SISTEMA = """Você é o assistente de estudos da Delta Care, plataforma de ensino de uma faculdade de medicina. Responda SOMENTE com base nos trechos de material fornecidos abaixo, que vieram do material que o professor disponibilizou para esta turma.
 
 Regras:
@@ -540,8 +547,6 @@ def responder_pergunta(
         # Na tela do aluno, a lacuna só aparece na resposta parcial.
         "lacuna": lacuna if cobertura == "parcial" else "",
     }
-    if cobertura == "nenhuma":
-        resultado["em_outras_disciplinas"] = disciplinas_que_citam(aluno[0], turma_id, pergunta)
     return resultado
 
 
@@ -565,60 +570,7 @@ def _sem_material_legivel(aluno_id: int, turma_id: int, pergunta: str) -> dict:
         "fontes": [],
         "cobertura": "nenhuma",
         "lacuna": "",
-        "em_outras_disciplinas": disciplinas_que_citam(aluno_id, turma_id, pergunta),
     }
-
-
-def disciplinas_que_citam(aluno_id: int, turma_atual: int, pergunta: str) -> list:
-    """Outras disciplinas do aluno cujo material cita os termos da pergunta.
-
-    O chat busca só na disciplina escolhida, de propósito: cada uma tem o seu
-    professor e o seu material. Mas o aluno nem sempre repara em qual está —
-    pergunta do Cardiolex no chat de Anatomia — e "o material não cobre",
-    sozinho, deixa parecer que a plataforma não tem a resposta. Aqui a tela
-    ganha o caminho: "isso aparece no material de Cardiologia I".
-
-    Busca literal pelos termos distintivos, sem chamar o modelo: é barata e
-    só precisa dizer *onde*, não responder. Mesma regra de visibilidade da
-    busca do chat: só disciplina em que o aluno está matriculado e só material
-    publicado e já liberado.
-    """
-    termos = _termos_distintivos(pergunta)
-    if not termos:
-        return []
-
-    conexao = conectar()
-    linhas = conexao.execute(
-        """
-        SELECT t.id, t.nome, t.semestre, c.texto, m.rascunho, m.data_liberacao
-          FROM matriculas mt
-          JOIN turmas t ON t.id = mt.turma_id
-          JOIN materiais m ON m.turma_id = t.id AND m.rascunho = 0
-          JOIN material_chunks c ON c.material_id = m.id
-         WHERE mt.aluno_id = ? AND t.id != ?
-        """,
-        (aluno_id, int(turma_atual)),
-    ).fetchall()
-    conexao.close()
-
-    # Quantos termos da pergunta cada disciplina cita. Fica só quem cita mais:
-    # em "o que é o medicamento cardiolex", a disciplina que cita só
-    # "medicamento" não é para onde mandar o aluno — a que cita "cardiolex" é.
-    citados = {}
-    dados = {}
-    for turma_id, nome, semestre, texto, rascunho, data_liberacao in linhas:
-        if _status_material(rascunho, data_liberacao) != "publicado":
-            continue
-        alvo = _normalizar_para_busca(texto)
-        encontrados = {termo for termo in termos if termo in alvo}
-        if encontrados:
-            citados.setdefault(turma_id, set()).update(encontrados)
-            dados[turma_id] = {"id": turma_id, "nome": nome, "semestre": semestre}
-
-    if not citados:
-        return []
-    maximo = max(len(encontrados) for encontrados in citados.values())
-    return sorted((dados[t] for t, e in citados.items() if len(e) == maximo), key=lambda d: d["nome"])
 
 
 def buscar_historico(aluno_email: str, turma_id: int) -> dict:
