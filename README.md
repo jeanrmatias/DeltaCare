@@ -416,6 +416,28 @@ python testar_html.py
   antigo) e confere com as rotas do backend, verbo incluído. Pega a tela que
   chama uma rota que não existe antes de alguém clicar.
 
+## Validação de usabilidade
+
+**Situação: preparada, ainda não realizada.** Pelo menos três participantes
+de fora da equipe (estudantes, de preferência da área da saúde) fazem nove
+tarefas do dia a dia do aluno, pensando em voz alta. As tarefas vão do
+primeiro acesso, passando por achar o aviso, ler a aula, perguntar ao
+assistente e entregar o quiz, até baixar a cópia dos próprios dados. Ao final,
+respondem ao questionário SUS. Antes delas, uma sessão piloto com um
+integrante ensaia o roteiro e não entra na conta.
+
+Medimos o sucesso e o tempo por tarefa, os problemas encontrados (com
+gravidade de 0 a 4) e a nota SUS. As sessões rodam num banco separado
+(`DELTACARE_DB=validacao.db`), com uma conta fictícia por participante.
+Ninguém é identificado no registro.
+
+Tudo em [`validacao/`](validacao/README.md): o plano, o
+[roteiro](validacao/ROTEIRO.md) com a preparação da máquina, a
+[ficha de observação](validacao/FICHA_DE_OBSERVACAO.md), o
+[termo de consentimento](validacao/TERMO_DE_CONSENTIMENTO.md), o
+[questionário SUS](validacao/QUESTIONARIO_SUS.md) e os
+[resultados](validacao/RESULTADOS.md), preenchidos depois das sessões.
+
 ## Estrutura
 
 ```
@@ -477,6 +499,9 @@ web/                       - as telas (React), entregues pela API em /app/
 
 frontend/                  - o front da Sprint 3 (HTML, CSS e JS sem framework),
                              mantido como registro; roda pelo servir.py (5500)
+
+validacao/                 - teste de usabilidade: plano, roteiro, ficha,
+                             termo, SUS e resultados
 ```
 
 A pasta de páginas da administração chama-se `admin`, mas o `tipo` no banco é
@@ -506,6 +531,8 @@ só (`INICIO_DO_PERFIL`, em `web/src/lib/usuario.js`).
 - [`SPRINT_3.md`](SPRINT_3.md) — entrega da Sprint 3: backlog com as user
   stories e critérios de aceite, decisões de experiência, incremento e
   retrospectiva.
+- [`validacao/`](validacao/README.md) — teste de usabilidade da Sprint 4:
+  plano, roteiro, ficha, termo, SUS e resultados.
 - [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil.
 - [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas, fluxo de autenticação, RAG,
   modelo de dados e matriz de permissões.
