@@ -221,10 +221,12 @@ class BaseDelta(unittest.TestCase):
         # sem ninguém ter mexido em nada.
         definir_semestre_vigente(ADMIN, SEMESTRE_DOS_TESTES)
 
-        criar_conta_staff(ADMIN, PROFESSOR, SENHA, "professor", nome="Professor Um")
-        criar_conta_staff(ADMIN, PROFESSOR2, SENHA, "professor", nome="Professor Dois")
-        criar_conta_staff(ADMIN, ALUNO, SENHA, "aluno", nome="Aluno Um")
-        criar_conta_staff(ADMIN, ALUNO_FORA, SENHA, "aluno", nome="Aluno Dois")
+        # Contas já em uso: a senha provisória (padrão de criar_conta_staff) é
+        # testada à parte, em TestesSenhaProvisoria.
+        criar_conta_staff(ADMIN, PROFESSOR, SENHA, "professor", nome="Professor Um", provisoria=False)
+        criar_conta_staff(ADMIN, PROFESSOR2, SENHA, "professor", nome="Professor Dois", provisoria=False)
+        criar_conta_staff(ADMIN, ALUNO, SENHA, "aluno", nome="Aluno Um", provisoria=False)
+        criar_conta_staff(ADMIN, ALUNO_FORA, SENHA, "aluno", nome="Aluno Dois", provisoria=False)
 
         self.turma_id = criar_turma(ADMIN, PROFESSOR, "Cardiologia", "2026.2")["turma"]["id"]
         matricular_aluno(ADMIN, ALUNO, self.turma_id)
@@ -5474,6 +5476,12 @@ class TestesSeedDeDemonstracao(unittest.TestCase):
     def test_rodar_de_novo_nao_duplica(self):
         self.assertEqual(self.contagem_primeira, self.contagem_segunda)
 
+    def test_contas_de_demonstracao_entram_sem_trocar_a_senha(self):
+        """A apresentação não pode começar com "defina a sua senha"."""
+        for email in ("aluno@deltacare.com", "professor@deltacare.com", "lucas.martins@deltacare.com"):
+            with self.subTest(email=email):
+                self.assertFalse(realizar_login(email, "demo123")["trocar_senha"])
+
     def test_turma_de_alunos_com_a_excecao(self):
         conexao = sqlite3.connect(CAMINHO_DB)
         por_disciplina = dict(conexao.execute(
@@ -6179,6 +6187,101 @@ class TestesLacunasDoMaterial(BaseDelta):
         self.assertEqual(cliente.get("/lacunas", headers=cabecalho(ALUNO)).status_code, 403)
         self.assertEqual(cliente.get("/lacunas", headers=cabecalho(ADMIN)).status_code, 403)
         self.assertTrue(cliente.get("/lacunas", headers=cabecalho(PROFESSOR)).json()["sucesso"])
+
+
+# =========================================================================
+# Senha provisória (regras/autenticacao.py + main.usuario_logado)
+#
+# A importação por planilha dá a mesma senha para a turma inteira. Sem troca
+# obrigatória, um colega que soubesse a senha da turma entrava na conta do
+# outro.
+# =========================================================================
+
+class TestesSenhaProvisoria(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+        self.cliente.post("/admin/usuarios", headers=self._cab(ADMIN), json={
+            "email": "nova@teste.com", "senha": "provisoria1", "tipo": "aluno", "nome": "Aluna Nova"})
+
+    def _login(self, email, senha):
+        return self.cliente.post("/login", json={"email": email, "senha": senha}).json()
+
+    def _cab(self, email, senha=SENHA):
+        return {"Authorization": f"Bearer {self._login(email, senha)['token']}"}
+
+    def test_conta_criada_pela_administracao_pede_troca(self):
+        self.assertTrue(self._login("nova@teste.com", "provisoria1")["trocar_senha"])
+
+    def test_conta_da_planilha_pede_troca(self):
+        planilha = base64.b64encode("nome,email\nAluno Planilha,planilha@teste.com\n".encode()).decode()
+        importar_alunos(ADMIN, planilha, "turma.csv", senha_padrao="mesma-da-turma")
+
+        self.assertTrue(realizar_login("planilha@teste.com", "mesma-da-turma")["trocar_senha"])
+
+    def test_conta_em_uso_nao_pede(self):
+        """Contas de antes da coluna, e as que declararam não ser provisórias."""
+        self.assertFalse(self._login(ADMIN, SENHA)["trocar_senha"])
+        self.assertFalse(self._login(ALUNO, SENHA)["trocar_senha"])
+
+    def test_com_senha_provisoria_a_api_recusa_tudo_menos_trocar(self):
+        """No servidor, e não só na tela: senão qualquer rota servia para entrar."""
+        cabecalho = self._cab("nova@teste.com", "provisoria1")
+
+        recusa = self.cliente.get("/aluno/turmas", headers=cabecalho)
+        self.assertEqual(recusa.status_code, 403)
+        self.assertEqual(recusa.json()["detail"]["codigo"], "trocar_senha")
+        self.assertEqual(self.cliente.get("/notificacoes", headers=cabecalho).status_code, 403)
+        self.assertEqual(self.cliente.get("/eu", headers=cabecalho).status_code, 200)
+
+    def test_trocar_libera_e_derruba_as_outras_sessoes(self):
+        outra_aba = self._cab("nova@teste.com", "provisoria1")
+        esta = self._cab("nova@teste.com", "provisoria1")
+
+        resposta = self.cliente.put("/eu/senha", headers=esta, json={"senha_atual": "provisoria1", "nova_senha": "so-minha-123"})
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.json())
+        self.assertEqual(self.cliente.get("/aluno/turmas", headers=esta).status_code, 200)
+        self.assertEqual(self.cliente.get("/eu", headers=outra_aba).status_code, 401)
+        self.assertFalse(self._login("nova@teste.com", "so-minha-123")["trocar_senha"])
+        self.assertFalse(self._login("nova@teste.com", "provisoria1")["sucesso"])
+
+    def test_troca_exige_a_senha_atual_e_uma_nova_de_verdade(self):
+        """A senha atual protege quem esqueceu a sessão aberta no laboratório."""
+        cabecalho = self._cab("nova@teste.com", "provisoria1")
+        tentativas = (
+            {"senha_atual": "chute", "nova_senha": "so-minha-123"},
+            {"senha_atual": "provisoria1", "nova_senha": "provisoria1"},
+            {"senha_atual": "provisoria1", "nova_senha": "curta"},
+        )
+        for corpo in tentativas:
+            with self.subTest(corpo=corpo):
+                self.assertFalse(self.cliente.put("/eu/senha", headers=cabecalho, json=corpo).json()["sucesso"])
+        self.assertTrue(self._login("nova@teste.com", "provisoria1")["trocar_senha"])
+
+    def test_recuperar_a_senha_tambem_conta_como_trocar(self):
+        """A senha que chega pelo código do e-mail já é escolhida pela pessoa."""
+        solicitar_recuperacao("nova@teste.com")
+        conexao = sqlite3.connect(CAMINHO_DB)
+        codigo = conexao.execute("SELECT reset_token FROM users WHERE email = ?", ("nova@teste.com",)).fetchone()[0]
+        conexao.close()
+
+        redefinir_senha("nova@teste.com", codigo, "so-minha-123")
+
+        self.assertFalse(realizar_login("nova@teste.com", "so-minha-123")["trocar_senha"])
+
+    def test_quem_ja_trocou_pode_trocar_de_novo_pelo_perfil(self):
+        cabecalho = self._cab(ALUNO)
+
+        resposta = self.cliente.put("/eu/senha", headers=cabecalho, json={"senha_atual": SENHA, "nova_senha": "outra-senha-9"})
+
+        self.assertTrue(resposta.json()["sucesso"])
+        self.assertTrue(self._login(ALUNO, "outra-senha-9")["sucesso"])
 
 
 if __name__ == "__main__":

@@ -28,7 +28,8 @@ serviço de terceiros.
 ### Contas para teste
 
 Criadas pelo `backend/seed_demo.py`, que grava no banco de verdade — não são
-dados de fachada no navegador. Todas usam a senha `demo123`:
+dados de fachada no navegador. Todas usam a senha `demo123` e entram direto,
+sem a troca de senha do primeiro acesso:
 
 | Perfil | E-mail |
 |---|---|
@@ -259,7 +260,8 @@ tratamento de apendicite — ele deve recusar a segunda.
    e `POST /admin/usuarios` exige um admin já logado.
 2. Como admin: crie a turma (ex.: MED 3A), as disciplinas com seus
    professores e as contas dos alunos (uma a uma ou pela planilha), e
-   matricule os alunos na turma.
+   matricule os alunos na turma. A senha que você define é provisória: cada
+   pessoa escolhe a sua no primeiro acesso.
 3. Como professor: suba um PDF na disciplina e publique. A publicação dispara
    a indexação para o chat.
 4. Como aluno: pergunte no chat algo do conteúdo do PDF. A resposta cita o
@@ -284,6 +286,12 @@ tratamento de apendicite — ele deve recusar a segunda.
   daqui. A recuperação de senha segue o mesmo cuidado.
 - **Sem cadastro público:** toda conta nasce pela administração ou pela
   planilha.
+- **Senha provisória troca no primeiro acesso.** A conta criada pela
+  administração ou pela planilha (que dá a mesma senha à turma inteira) entra
+  numa tela que pede uma senha nova antes de qualquer outra. Quem bloqueia é o
+  servidor: com a senha provisória, toda rota responde 403, menos ver o
+  próprio perfil, trocar a senha e sair. A troca, ali ou em **Alterar senha**
+  no perfil, pede a senha atual e encerra as outras sessões abertas da conta.
 - **Banco que não trava:** toda conexão aberta durante uma requisição é
   fechada ao fim dela, mesmo que a rota tenha quebrado no meio
   ([`backend/infra/database.py`](backend/infra/database.py)).
@@ -390,16 +398,17 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (454 testes):** permissões de cada perfil, visibilidade de
-  material, sessão e limite de login, turmas e exceções, atividades e
-  correção, XP e ranking, avisos, privacidade e anonimização, integridade do
+- **Backend (484 testes):** permissões de cada perfil, visibilidade de
+  material, sessão e limite de login, senha provisória, turmas e exceções,
+  atividades e correção, XP e ranking, avisos, privacidade e anonimização, integridade do
   banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (31 testes):** as telas são renderizadas no Node, sem
+- **Telas React (33 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
-  públicas e privadas), que todo item de menu leva a uma tela que existe,
+  públicas e privadas —, e a senha provisória, que só abre a tela de
+  troca), que todo item de menu leva a uma tela que existe,
   que HTML vindo da IA aparece como texto e não vira elemento, o cartão de
   progresso, o Markdown, a leitura de datas digitadas e os links das
   notificações.
@@ -488,6 +497,9 @@ só (`INICIO_DO_PERFIL`, em `web/src/lib/usuario.js`).
   dados pessoais seguem pela secretaria.
 - Relatórios para a coordenação ainda não existem (o menu leva a uma página
   que diz isso e o que o módulo vai fazer).
+- O front antigo (`frontend/`) não tem a tela de troca da senha provisória:
+  a conta recém-criada precisa entrar pelo `/app/` (ou usar "Esqueci minha
+  senha", que também tira a marca de provisória).
 
 ## Documentos relacionados
 

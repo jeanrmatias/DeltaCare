@@ -73,7 +73,7 @@ def buscar_usuario_da_sessao(token: str):
     # escapasse (criada no mesmo instante, banco restaurado) não abriria nada.
     cursor.execute(
         '''
-        SELECT u.id, u.email, u.tipo, s.expira_em
+        SELECT u.id, u.email, u.tipo, s.expira_em, u.senha_provisoria
         FROM sessoes s
         JOIN users u ON u.id = s.user_id
         WHERE s.token = ? AND u.desativado_em IS NULL
@@ -86,7 +86,7 @@ def buscar_usuario_da_sessao(token: str):
     if not linha:
         return None
 
-    user_id, email, tipo, expira_em = linha
+    user_id, email, tipo, expira_em, senha_provisoria = linha
 
     try:
         expira = datetime.fromisoformat(expira_em)
@@ -99,7 +99,7 @@ def buscar_usuario_da_sessao(token: str):
         encerrar_sessao(token)
         return None
 
-    return {"id": user_id, "email": email, "tipo": tipo}
+    return {"id": user_id, "email": email, "tipo": tipo, "token": token, "senha_provisoria": bool(senha_provisoria)}
 
 
 def encerrar_sessao(token: str) -> None:

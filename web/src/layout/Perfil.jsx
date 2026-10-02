@@ -1,6 +1,8 @@
+import { useState } from "react"
 import { Link } from "react-router"
 
 import { Botao } from "../componentes/Botao"
+import { FormularioSenha } from "../componentes/FormularioSenha"
 import { Modal } from "../componentes/Modal"
 import { useApi } from "../hooks/useApi"
 import { iniciaisDe, nomeExibicao } from "../lib/usuario"
@@ -13,6 +15,8 @@ const PERFIS = { adm: "Administração", professor: "Professor", aluno: "Aluno" 
  */
 export function Perfil({ aoFechar }) {
   const { dados, erro } = useApi("/eu")
+  const [trocandoSenha, setTrocandoSenha] = useState(false)
+  const [aviso, setAviso] = useState("")
   const nome = nomeExibicao(dados)
   const turmas = dados?.turmas || []
 
@@ -53,7 +57,23 @@ export function Perfil({ aoFechar }) {
           </p>
         </>
       )}
-      <div className="mt-5 flex justify-end"><Botao onClick={aoFechar}>Fechar</Botao></div>
+      {trocandoSenha ? (
+        <div className="mt-5 border-t border-borda pt-4">
+          <h3 className="mb-3 text-sm font-semibold text-navy-900">Alterar senha</h3>
+          <FormularioSenha
+            aoTrocar={(mensagem) => { setTrocandoSenha(false); setAviso(`${mensagem} As outras sessões abertas desta conta foram encerradas.`) }}
+            acoesExtras={<Botao variante="neutra" onClick={() => setTrocandoSenha(false)}>Cancelar</Botao>}
+          />
+        </div>
+      ) : (
+        <>
+          {aviso && <p role="status" className="mt-4 text-[13px] font-medium text-sucesso">{aviso}</p>}
+          <div className="mt-5 flex justify-end gap-2.5">
+            <Botao variante="neutra" onClick={() => { setAviso(""); setTrocandoSenha(true) }}>Alterar senha</Botao>
+            <Botao onClick={aoFechar}>Fechar</Botao>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }

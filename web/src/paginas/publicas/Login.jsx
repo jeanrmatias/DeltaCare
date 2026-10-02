@@ -94,6 +94,7 @@ function FormularioEntrar({ email, setEmail, aoEsquecer }) {
       }
 
       entrar(dados)
+      if (dados.trocar_senha) return navegar("/trocar-senha", { replace: true })
       // Volta para onde a pessoa tentava ir antes do login, se for do perfil
       // dela; senão, para o início do perfil.
       const inicio = INICIO_DO_PERFIL[dados.tipo] ?? "/"

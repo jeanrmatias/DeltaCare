@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import anyio
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ from infra.sessoes import (
     limpar_sessoes_expiradas,
 )
 from regras.autenticacao import (
+    alterar_senha,
     criar_conta_staff,
     realizar_login,
     redefinir_senha,
@@ -228,7 +229,12 @@ if not email_configurado():
 # nome de outra só trocando o e-mail. Agora vem do token da sessão.
 
 
-def usuario_logado(authorization: Optional[str] = Header(default=None)) -> dict:
+# Com a senha provisória, só isto funciona: ver a própria conta, trocar a
+# senha e sair. O resto espera a troca.
+LIBERADAS_COM_SENHA_PROVISORIA = {("GET", "/eu"), ("PUT", "/eu/senha"), ("POST", "/logout")}
+
+
+def usuario_logado(request: Request, authorization: Optional[str] = Header(default=None)) -> dict:
     """Valida o header `Authorization: Bearer <token>` e devolve o usuário."""
     token = ""
 
@@ -239,6 +245,16 @@ def usuario_logado(authorization: Optional[str] = Header(default=None)) -> dict:
 
     if not usuario:
         raise HTTPException(status_code=401, detail="Sessão inválida ou expirada. Faça login de novo.")
+
+    # Senha provisória (criada pela administração ou pela planilha, a mesma
+    # para a turma toda): a troca é exigida aqui, e não só pela tela — senão
+    # um colega que soubesse a senha da turma entraria na conta do outro por
+    # qualquer rota da API.
+    if usuario["senha_provisoria"] and (request.method, request.url.path) not in LIBERADAS_COM_SENHA_PROVISORIA:
+        raise HTTPException(
+            status_code=403,
+            detail={"codigo": "trocar_senha", "mensagem": "Troque a senha provisória antes de continuar."},
+        )
 
     return usuario
 
@@ -511,7 +527,17 @@ def marcar_todas_lidas_rota(usuario: dict = Depends(usuario_logado)):
 @app.get("/eu")
 def usuario_atual_rota(usuario: dict = Depends(usuario_logado)):
     """Dados da própria conta: usado para validar a sessão e pela tela de perfil."""
-    return perfil_do_usuario(usuario["email"])
+    return {**perfil_do_usuario(usuario["email"]), "trocar_senha": usuario["senha_provisoria"]}
+
+
+class TrocaDeSenhaRequest(BaseModel):
+    senha_atual: str
+    nova_senha: str
+
+
+@app.put("/eu/senha")
+def alterar_senha_rota(dados: TrocaDeSenhaRequest, usuario: dict = Depends(usuario_logado)):
+    return alterar_senha(usuario["email"], usuario["token"], dados.senha_atual, dados.nova_senha)
 
 
 # ---------------------------- administração ----------------------------

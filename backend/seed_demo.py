@@ -233,6 +233,7 @@ def criar_contas() -> None:
         resultado = criar_conta_staff(
             ADMIN, PROFESSOR, SENHA_PADRAO, "professor",
             nome=NOME_PROFESSOR, disciplinas=DISCIPLINAS_PROFESSOR,
+            provisoria=False,  # demonstração: entra com demo123 sem trocar
         )
         print(f"  professor: {resultado['mensagem']}")
 
@@ -242,6 +243,7 @@ def criar_contas() -> None:
         resultado = criar_conta_staff(
             ADMIN, ALUNO, SENHA_PADRAO, "aluno",
             nome=NOME_ALUNO, matricula=MATRICULA_ALUNO,
+            provisoria=False,
         )
         print(f"  aluno: {resultado['mensagem']}")
 

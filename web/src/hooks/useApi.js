@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { api, ERRO_DE_CONEXAO, SessaoExpirada } from "../lib/api"
+import { api, ERRO_DE_CONEXAO, SenhaProvisoria, SessaoExpirada } from "../lib/api"
 
 /**
  * Hook próprio: busca um dado da API quando a tela abre.
@@ -39,7 +39,7 @@ export function useApi(caminho) {
         setResposta({ pedido, dados, erro })
       })
       .catch((erro) => {
-        if (!vigente || erro instanceof SessaoExpirada) return
+        if (!vigente || erro instanceof SessaoExpirada || erro instanceof SenhaProvisoria) return
         console.error(`Erro ao buscar ${caminho}:`, erro)
         setResposta({ pedido, dados: null, erro: ERRO_DE_CONEXAO })
       })

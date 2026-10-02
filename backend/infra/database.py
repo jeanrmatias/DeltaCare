@@ -763,6 +763,11 @@ def configurar_banco(silencioso: bool = False):
         cursor.execute("ALTER TABLE users ADD COLUMN desativado_em TEXT")
     if "anonimizado_em" not in colunas_users:
         cursor.execute("ALTER TABLE users ADD COLUMN anonimizado_em TEXT")
+    # Senha que outra pessoa definiu (a administração, a planilha com a mesma
+    # senha para a turma inteira): o dono troca no primeiro acesso. Contas que
+    # já existiam antes da coluna ficam como estão (0).
+    if "senha_provisoria" not in colunas_users:
+        cursor.execute("ALTER TABLE users ADD COLUMN senha_provisoria INTEGER NOT NULL DEFAULT 0")
 
     # Os pedidos que o titular faz sobre os próprios dados. Ficam guardados
     # depois de atendidos, inclusive a exportação (que é automática): provar

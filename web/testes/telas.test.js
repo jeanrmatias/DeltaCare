@@ -79,6 +79,21 @@ test("quem já entrou não vê o login de novo, mas ainda lê a privacidade", ()
   assert.equal(tituloEm("/privacidade"), "Privacidade e uso de dados")
 })
 
+test("com a senha provisória, só a tela de trocar a senha abre", () => {
+  logado({ ...ALUNA, trocar_senha: true })
+  assert.equal(tituloEm("/trocar-senha"), "Defina a sua senha")
+  for (const rota of ["/aluno", "/aluno/chat", "/aluno/meus-dados"]) {
+    assert.equal(tituloEm(rota), null, `${rota} abriu antes da troca`)
+  }
+})
+
+test("a tela de trocar a senha não abre para quem não precisa dela", () => {
+  logado(null)
+  assert.equal(tituloEm("/trocar-senha"), null)
+  logado(ALUNA)
+  assert.equal(tituloEm("/trocar-senha"), null)
+})
+
 test("endereço que não existe diz que não existe", () => {
   logado(null)
   assert.equal(tituloEm("/qualquer-coisa"), "Página não encontrada")

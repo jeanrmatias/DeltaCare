@@ -84,6 +84,21 @@ export function quandoSessaoExpirar(funcao) {
   aoExpirar = funcao
 }
 
+// Quem avisa que o servidor está exigindo a troca da senha provisória.
+let aoExigirTrocaDeSenha = () => {}
+
+export function quandoExigirTrocaDeSenha(funcao) {
+  aoExigirTrocaDeSenha = funcao
+}
+
+/** Lançado quando o servidor recusa porque a senha ainda é a provisória. */
+export class SenhaProvisoria extends Error {
+  constructor() {
+    super("Troque a senha provisória antes de continuar.")
+    this.name = "SenhaProvisoria"
+  }
+}
+
 /** Chama a API com o token da sessão. */
 export async function api(caminho, opcoes = {}) {
   const cabecalhos = { ...(opcoes.headers || {}) }
@@ -98,6 +113,15 @@ export async function api(caminho, opcoes = {}) {
     limparSessao()
     aoExpirar()
     throw new SessaoExpirada()
+  }
+  if (resposta.status === 403) {
+    // A senha provisória é exigida pelo servidor em toda rota. Se ele recusar
+    // por isso (sessão de antes, outra aba), a tela leva à troca.
+    const corpo = await resposta.clone().json().catch(() => null)
+    if (corpo?.detail?.codigo === "trocar_senha") {
+      aoExigirTrocaDeSenha()
+      throw new SenhaProvisoria()
+    }
   }
   return resposta
 }

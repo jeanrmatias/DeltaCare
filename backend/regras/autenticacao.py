@@ -84,7 +84,7 @@ def realizar_login(email: str, senha: str) -> dict:
             ),
         }
 
-    cursor.execute("SELECT id, senha, tipo, nome, desativado_em FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT id, senha, tipo, nome, desativado_em, senha_provisoria FROM users WHERE email = ?", (email,))
     usuario = cursor.fetchone()
 
     # **Tempo igual para conta que existe e que não existe.** Sem o hash de
@@ -108,7 +108,7 @@ def realizar_login(email: str, senha: str) -> dict:
     conexao.commit()
     conexao.close()
 
-    user_id, _, tipo, nome, desativado_em = usuario
+    user_id, _, tipo, nome, desativado_em, senha_provisoria = usuario
 
     # Conta com exclusão aprovada (regras/privacidade.py). Só é dito **depois**
     # de a senha conferir: antes disso, "desativada" contaria a qualquer um que
@@ -140,6 +140,9 @@ def realizar_login(email: str, senha: str) -> dict:
         # cai no e-mail nesse caso.
         "nome": nome or "",
         "token": criar_sessao(user_id),
+        # A tela leva direto à troca; o servidor recusa o resto até lá
+        # (main.usuario_logado).
+        "trocar_senha": bool(senha_provisoria),
     }
 
 
@@ -152,6 +155,7 @@ def criar_conta_staff(
     disciplinas: str = "",
     matricula: str = "",
     turma_id: int | None = None,
+    provisoria: bool = True,
 ) -> dict:
     """Cria conta de qualquer perfil. Só um admin já existente pode chamar
     isso (mesmo padrão de permissão usado em regras/turmas.criar_turma).
@@ -196,7 +200,12 @@ def criar_conta_staff(
         return {"sucesso": False, "mensagem": "Já existe uma conta com esse e-mail."}
 
     cursor.execute(
-        "INSERT INTO users (email, senha, tipo, nome, disciplinas, matricula) VALUES (?, ?, ?, ?, ?, ?)",
+        # `provisoria` é o padrão de propósito: a senha foi escolhida por quem
+        # criou a conta, não pelo dono — e, na planilha, é a mesma para a turma
+        # inteira. O dono troca no primeiro acesso. Quem não deve ser forçado
+        # (contas de demonstração, fixtures de teste) diz isso explicitamente.
+        "INSERT INTO users (email, senha, tipo, nome, disciplinas, matricula, senha_provisoria)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             email,
             hash_senha(senha),
@@ -204,6 +213,7 @@ def criar_conta_staff(
             nome,
             (disciplinas or "").strip() if tipo == "professor" else None,
             (matricula or "").strip() if tipo == "aluno" else None,
+            1 if provisoria else 0,
         ),
     )
     conexao.commit()
@@ -346,7 +356,7 @@ def redefinir_senha(email: str, token: str, nova_senha: str) -> dict:
 
     cursor.execute(
         "UPDATE users SET senha = ?, reset_token = NULL, reset_expira = NULL,"
-        " reset_tentativas = 0 WHERE id = ?",
+        " reset_tentativas = 0, senha_provisoria = 0 WHERE id = ?",
         (hash_senha(nova_senha), id_usuario),
     )
 
@@ -363,3 +373,30 @@ def redefinir_senha(email: str, token: str, nova_senha: str) -> dict:
     conexao.close()
 
     return {"sucesso": True, "mensagem": "Senha redefinida com sucesso!"}
+
+
+def alterar_senha(email: str, token_atual: str, senha_atual: str, nova_senha: str) -> dict:
+    """O próprio usuário troca a senha — obrigatório no primeiro acesso com
+    senha provisória, e possível a qualquer momento pelo perfil.
+
+    Pede a senha atual: com a sessão aberta num computador do laboratório,
+    outra pessoa trocaria a senha do dono e tomaria a conta. Ao trocar, as
+    outras sessões dele caem (a senha antiga pode ter vazado); a de agora fica.
+    """
+    if len(nova_senha or "") < 6:
+        return {"sucesso": False, "mensagem": "A nova senha precisa ter pelo menos 6 caracteres."}
+    if nova_senha == senha_atual:
+        return {"sucesso": False, "mensagem": "A nova senha precisa ser diferente da atual."}
+
+    conexao = _conectar()
+    linha = conexao.execute("SELECT id, senha FROM users WHERE email = ?", (email.strip().lower(),)).fetchone()
+    if not linha or not verificar_senha(senha_atual or "", linha[1]):
+        conexao.close()
+        return {"sucesso": False, "mensagem": "A senha atual não confere."}
+
+    conexao.execute("UPDATE users SET senha = ?, senha_provisoria = 0 WHERE id = ?", (hash_senha(nova_senha), linha[0]))
+    conexao.execute("DELETE FROM sessoes WHERE user_id = ? AND token != ?", (linha[0], token_atual or ""))
+    conexao.commit()
+    conexao.close()
+    return {"sucesso": True, "mensagem": "Senha alterada."}
+

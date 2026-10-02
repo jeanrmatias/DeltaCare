@@ -105,7 +105,8 @@ def _um(sql: str, parametros=()):
 def _conta(email: str, nome: str, tipo: str, disciplinas: str = ""):
     if _um("SELECT 1 FROM users WHERE email = ?", (email,)):
         return
-    criar_conta_staff(ADMIN, email, SENHA_PADRAO, tipo, nome=nome, disciplinas=disciplinas)
+    # Não provisória: na demonstração, todas entram com demo123 sem trocar.
+    criar_conta_staff(ADMIN, email, SENHA_PADRAO, tipo, nome=nome, disciplinas=disciplinas, provisoria=False)
     print(f"  {tipo}: {nome}")
 
 

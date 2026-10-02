@@ -22,6 +22,11 @@ export function RotaPrivada({ perfil }) {
   if (!usuario) {
     return <Navigate to="/" replace state={{ de: local.pathname + local.search }} />
   }
+  // Senha provisória: nenhuma tela antes da troca. O servidor também recusa
+  // — isto só leva a pessoa direto para onde ela precisa ir.
+  if (usuario.trocar_senha) {
+    return <Navigate to="/trocar-senha" replace />
+  }
   if (usuario.tipo !== perfil) {
     return <Navigate to={INICIO_DO_PERFIL[usuario.tipo] ?? "/"} replace />
   }

@@ -33,6 +33,7 @@ import { InicioProfessor } from "./paginas/professor/Inicio"
 import { MateriaisProfessor } from "./paginas/professor/Materiais"
 import { Login } from "./paginas/publicas/Login"
 import { Privacidade } from "./paginas/publicas/Privacidade"
+import { TrocarSenha } from "./paginas/publicas/TrocarSenha"
 import { RotaPrivada, SoVisitante } from "./rotas/RotaPrivada"
 
 /**
@@ -49,6 +50,7 @@ export function App() {
         <Route path="/" element={<Login />} />
       </Route>
       <Route path="/privacidade" element={<Privacidade />} />
+      <Route path="/trocar-senha" element={<TrocarSenha />} />
 
       <Route element={<RotaPrivada perfil="aluno" />}>
         <Route element={<Painel />}>
