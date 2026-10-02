@@ -618,7 +618,7 @@ function criarLinhaEntrega(entrega, atividade, questoes) {
     // Com anexo obrigatorio o arquivo **e** o trabalho: sem o link o professor
     // veria "entregou" e nao teria o que corrigir.
     const anexo = entrega.arquivo_nome
-        ? `<a class="entrega-anexo" href="${API_URL}/entregas/${entrega.entrega_id}/arquivo">${esc(entrega.arquivo_nome)}</a>`
+        ? `<button type="button" class="entrega-anexo" data-baixar-anexo>${esc(entrega.arquivo_nome)}</button>`
         : "";
 
     linha.innerHTML = `
@@ -633,6 +633,13 @@ function criarLinhaEntrega(entrega, atividade, questoes) {
             ? `<button type="button" class="botao-corrigir" data-corrigir>${entrega.nota !== null && entrega.nota !== undefined ? "Rever nota" : "Corrigir"}</button>`
             : ""}
     `;
+
+    // Botão com download autenticado: o link direto ia sem o token e o
+    // professor recebia 401 ao abrir o trabalho que tinha para corrigir.
+    const anexoBotao = linha.querySelector("[data-baixar-anexo]");
+    if (anexoBotao) {
+        anexoBotao.addEventListener("click", () => baixarAnexo(entrega));
+    }
 
     const botao = linha.querySelector("[data-corrigir]");
     if (botao) {
@@ -688,6 +695,28 @@ async function corrigir(entrega, atividade) {
         }
     } catch (erro) {
         console.error("Erro ao corrigir:", erro);
+        await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
+    }
+}
+
+/** Baixa o anexo de uma entrega pela rota autenticada (o token vai no header). */
+async function baixarAnexo(entrega) {
+    try {
+        const resposta = await api(`/entregas/${entrega.entrega_id}/arquivo`);
+        if (!resposta.ok) {
+            await avisarErro("Não foi possível baixar o anexo.");
+            return;
+        }
+        const url = URL.createObjectURL(await resposta.blob());
+        const ancora = document.createElement("a");
+        ancora.href = url;
+        ancora.download = entrega.arquivo_nome || "anexo";
+        document.body.appendChild(ancora);
+        ancora.click();
+        ancora.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (erro) {
+        console.error("Erro ao baixar anexo:", erro);
         await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
     }
 }

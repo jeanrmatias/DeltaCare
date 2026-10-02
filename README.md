@@ -86,21 +86,29 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 
 | Camada | O que é usado |
 |---|---|
-| Interface | HTML5 semântico, CSS3 (Flexbox, Grid, variáveis, mobile first) e JavaScript ES6+ sem framework |
-| Design system | `frontend/tokens.css` (cores, espaçamento, tipografia) e a fonte Inter, do Google Fonts |
-| Componentes | Módulos JS próprios: diálogos, notificações, visualizador de material, Markdown, perfil, calendário |
+| Interface | **React 19** com **React Router** (rotas públicas e privadas por perfil), em JavaScript, compilado pelo **Vite** |
+| Estilo | **Tailwind CSS 4**, com o tema (cores, espaços, raios) montado a partir do design system do projeto, em português (`bg-primaria`, `rounded-cartao`) |
+| Componentes | Próprios: painel com menu e sino, cartões, modal, visualizador de material, Markdown, calendário, gráficos de desempenho |
+| Hooks próprios | `useSessao` (quem está logado), `useApi` (busca com carregando e erro tratados), `useDialogo` (confirmar e avisar) |
 | Sessão no navegador | `sessionStorage` (o token some ao fechar a aba) |
 | API | Python 3.10+ com FastAPI, servida pelo Uvicorn |
 | Banco | SQLite (modo WAL, chaves estrangeiras cobradas) |
 | IA do produto | Ollama local: `gpt-oss:20b` (chat) e `nomic-embed-text` (embeddings) |
 | E-mail | SMTP da instituição, pela biblioteca padrão do Python |
-| Testes | `unittest` no backend, `node:test` no front, validador de HTML e conferência front↔back próprios |
+| Testes | `unittest` no backend, `node:test` no front (as telas React renderizadas no Node), conferência front↔back própria |
 | Implantação | Servidor Linux com systemd, Caddy na frente (HTTPS automático) |
 
-O front não baixa biblioteca nenhuma (sem Bootstrap, jQuery ou build step). O
-backend tem cinco pacotes no `requirements.txt` — FastAPI, Uvicorn, Pydantic,
-pypdf e AnyIO —, com versão presa; o resto (hash de senha, e-mail, banco,
-leitura de XLSX) vem da biblioteca padrão.
+As dependências são poucas e com versão presa nos dois lados. O front usa
+React, React DOM, React Router e Tailwind (com o Vite para compilar), sem
+biblioteca de componentes nem de gráficos. O backend tem cinco pacotes no
+`requirements.txt` — FastAPI, Uvicorn, Pydantic, pypdf e AnyIO —; o resto
+(hash de senha, e-mail, banco, leitura de XLSX) vem da biblioteca padrão.
+
+> **O front antigo.** Até a Sprint 3 as telas eram HTML, CSS e JavaScript sem
+> framework, na pasta `frontend/`. Na Sprint 4 todas foram reescritas em
+> React, em `web/`, e é o React que o servidor entrega. O `frontend/` fica no
+> repositório como registro da entrega anterior e ainda roda pelo
+> `frontend/servir.py`.
 
 ### Onde e como usamos Inteligência Artificial no desenvolvimento
 
@@ -135,8 +143,8 @@ existe.
 
 ## Como rodar
 
-**Pré-requisitos:** Python 3.10+, [Ollama](https://ollama.com) e um navegador.
-Node 18+ só para os testes do front.
+**Pré-requisitos:** Python 3.10+, Node 18+, [Ollama](https://ollama.com) e um
+navegador.
 
 1. **Dependências:**
 
@@ -169,22 +177,19 @@ Node 18+ só para os testes do front.
    processo órfão segurando a porta 8000 e servindo código antigo. Para
    reiniciar, encerre e suba de novo.
 
-4. **Telas.** A própria API já as serve: abra <http://127.0.0.1:8000>. Para
-   desenvolver o front, use o servidor sem cache:
+4. **Telas** (React):
 
    ```
-   cd frontend
-   python servir.py
+   cd web
+   npm install      # só na primeira vez
+   npm run dev      # recarga instantânea, em http://localhost:5173/app/
    ```
 
-   e abra <http://127.0.0.1:5500>. O `servir.py` existe em vez do
-   `python -m http.server` porque envia `Cache-Control: no-store` — sem isso o
-   navegador guarda `.js` antigo e você depura um comportamento que já não
-   está no código. Não abra o HTML por `file://`.
-
-   O front descobre sozinho onde está a API
-   ([`frontend/config.js`](frontend/config.js)): na porta 5500, na 8000 do
-   mesmo computador; em qualquer outro caso, na mesma origem da página.
+   Para ver como fica em produção, compile (`npm run build`): a própria API
+   passa a entregar as telas em <http://127.0.0.1:8000/app/>. As telas
+   descobrem sozinhas onde está a API
+   ([`web/src/lib/api.js`](web/src/lib/api.js)): no Vite (5173), na 8000 do
+   mesmo computador; em produção, na mesma origem.
 
 5. **Dados de demonstração** (opcional, ver abaixo): `python seed_demo.py`,
    dentro de `backend/`.
@@ -199,7 +204,7 @@ modelo completo para o servidor está em
 |---|---|---|
 | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
 | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
-| `DELTACARE_ORIGENS` | `http://127.0.0.1:5500,http://localhost:5500` | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
+| `DELTACARE_ORIGENS` | portas 5500 e 5173 da máquina local | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
 | `OLLAMA_URL` | `http://localhost:11434` | Onde está o servidor do modelo |
 | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
 | `MODELO_EMBEDDING` | `nomic-embed-text` | Modelo que indexa o material |
@@ -313,7 +318,12 @@ a API **e** as telas (em `/app/`); na frente, o
    git clone <repositório> /opt/deltacare
    cd /opt/deltacare && python3 -m venv .venv
    .venv/bin/pip install -r requirements.txt
+   cd web && npm ci && npm run build
    ```
+   O `npm run build` gera `web/dist/`, que a API entrega em `/app/`. Sem ele,
+   `/app/` responde dizendo que as telas não estão compiladas. (Dá para
+   compilar em outra máquina e copiar só o `web/dist/`: o servidor não precisa
+   do Node para rodar, só para compilar.)
 2. **Configuração:** copie `deploy/deltacare.env.exemplo` para
    `/etc/deltacare.env`, preencha (domínio, SMTP, pastas de dados) e
    `chmod 600 /etc/deltacare.env`. Crie a pasta dos dados
@@ -347,8 +357,9 @@ a API **e** as telas (em `/app/`); na frente, o
    senha para uma conta sua: se o e-mail não chegar, o SMTP está errado (o
    log do serviço diz o motivo).
 
-**Atualizar:** backup, `git pull`, `pip install -r requirements.txt` e
-`systemctl restart deltacare`. O banco migra sozinho na subida.
+**Atualizar:** backup, `git pull`, `pip install -r requirements.txt`,
+`npm ci && npm run build` em `web/` e `systemctl restart deltacare`. O banco
+migra sozinho na subida.
 
 ## Testes
 
@@ -356,27 +367,33 @@ a API **e** as telas (em `/app/`); na frente, o
 cd backend
 python rodar_testes.py   # regras e rotas, em paralelo (~45s)
 python testes.py         # os mesmos, em série
-python contrato_front.py # toda chamada do front tem rota no back?
+python contrato_front.py # toda chamada das telas tem rota no back?
 
-cd ../frontend
-node testes.mjs          # JavaScript
-python testar_html.py    # estrutura das páginas
+cd ../web
+npm test                 # telas React: rotas por perfil e componentes
+npm run lint             # regras do React (hooks, componentes)
+
+cd ../frontend           # o front antigo, enquanto ficar no repositório
+node testes.mjs
+python testar_html.py
 ```
 
-- **Backend (451 testes):** permissões de cada perfil, visibilidade de
+- **Backend (454 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, turmas e exceções, atividades e
   correção, XP e ranking, avisos, privacidade e anonimização, integridade do
-  banco ao excluir, e o próprio seed. Rodam num banco temporário e **não
-  precisam do Ollama** — as funções que falam com o modelo entram como
-  parâmetro.
-- **Front (74 testes):** Markdown (inclusive que HTML vindo do modelo **não**
-  é interpretado), diálogos, calendário, endereço da API e os rótulos de
-  status da privacidade conferidos contra o backend. Usa um DOM mínimo escrito
-  no próprio arquivo, em vez do jsdom.
-- **Páginas (35):** HTML validado por parser.
-- **Contrato front↔back:** lê as chamadas `api()` do front e confere com as
-  rotas do backend, e os `querySelector` contra os ids das páginas. Pega a
-  tela que chama uma rota que não existe antes de alguém clicar.
+  banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
+  num banco temporário e **não precisam do Ollama** — as funções que falam
+  com o modelo entram como parâmetro.
+- **Telas React (31 testes):** as telas são renderizadas no Node, sem
+  navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
+  (visitante, aluno, professor e administração — a matriz das rotas
+  públicas e privadas), que todo item de menu leva a uma tela que existe,
+  que HTML vindo da IA aparece como texto e não vira elemento, o cartão de
+  progresso, o Markdown, a leitura de datas digitadas e os links das
+  notificações.
+- **Contrato front↔back:** lê as chamadas à API das telas React (e do front
+  antigo) e confere com as rotas do backend, verbo incluído. Pega a tela que
+  chama uma rota que não existe antes de alguém clicar.
 
 ## Estrutura
 
@@ -424,28 +441,27 @@ backend/
 
 deploy/                    - serviço systemd, Caddyfile e modelo de configuração
 
-frontend/
-  index.html, script.js    - login e recuperação de senha
-  privacidade.html         - política de privacidade
-  servir.py                - servidor de desenvolvimento sem cache
-  tokens.css               - design system (cores, espaços, tipografia)
-  config.js                - onde está a API
-  auth.js                  - sessão e o helper api()
-  *.js                     - módulos compartilhados: diálogos, notificações,
-                             perfil, Markdown, visualizador, calendário,
-                             mensagens, avisos, histórico, denúncias,
-                             privacidade, catálogo de módulos
-  testes.mjs, testar_html.py
+web/                       - as telas (React), entregues pela API em /app/
+  src/App.jsx                todas as rotas, públicas e privadas
+  src/rotas/                 RotaPrivada (perfil certo, ou volta ao login)
+  src/sessao/, src/dialogos/ Contexts da sessão e dos diálogos
+  src/hooks/                 useSessao, useApi, useDialogo, useApagarAnotacao
+  src/layout/                Painel (menu, sino, perfil) e o menu de cada perfil
+  src/componentes/           peças reutilizadas: Cartao, Botao, Modal, Visualizador...
+  src/paginas/               aluno/, professor/, admin/, comum/ (as telas que
+                             dois perfis dividem) e publicas/ (login, privacidade)
+  src/lib/                   o que não é tela: API, datas, Markdown, formatos
+  src/index.css              o tema do Tailwind (o design system)
+  testes/                    as telas renderizadas no Node, sem navegador
 
-  aluno/                   - 13 telas
-  professor/               - 11 telas
-  administracao/           - 9 telas
+frontend/                  - o front da Sprint 3 (HTML, CSS e JS sem framework),
+                             mantido como registro; roda pelo servir.py (5500)
 ```
 
-A pasta da administração chama-se `administracao`, mas o `tipo` no banco é
-`adm` — os dois já estiveram trocados e quebraram o redirecionamento do login.
-Os `<script>` e `<link>` levam `?v=N`: ao mexer em `.js` ou `.css`, suba esse
-número em todas as páginas, senão o navegador continua com o antigo.
+A pasta de páginas da administração chama-se `admin`, mas o `tipo` no banco é
+`adm` — os dois já estiveram trocados no front antigo e quebraram o
+redirecionamento do login. No React, a ligação entre os dois fica num lugar
+só (`INICIO_DO_PERFIL`, em `web/src/lib/usuario.js`).
 
 ## Limitações conhecidas
 
@@ -458,7 +474,8 @@ número em todas as páginas, senão o navegador continua com o antigo.
 - O chat indexa só PDF (vídeo e link ficam de fora).
 - Professor e administração não têm a tela Meus dados: os pedidos deles sobre
   dados pessoais seguem pela secretaria.
-- Relatórios para a coordenação ainda não existem.
+- Relatórios para a coordenação ainda não existem (o menu leva a uma página
+  que diz isso e o que o módulo vai fazer).
 
 ## Documentos relacionados
 

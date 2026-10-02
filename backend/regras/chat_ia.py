@@ -62,11 +62,23 @@ PROMPT_SISTEMA = """Você é o assistente de estudos da Delta Care, plataforma d
 
 Regras:
 - Não use nenhum conhecimento externo, mesmo que você saiba a resposta.
-- Se os trechos não tiverem informação suficiente para responder, diga claramente que o material disponibilizado não cobre esse ponto, e pare por aí. Não tente completar a lacuna com conhecimento próprio, e não sugira o que o aluno deve fazer em seguida — disso a plataforma cuida.
+- Não deduza. Cada afirmação da resposta precisa estar escrita no material sobre aquele assunto. Se o material diz que um medicamento é usado em certo estágio, e em outro ponto fala de um tipo de tratamento para o mesmo estágio, isso NÃO diz qual é a classe do medicamento — não afirme que ele é daquele tipo.
+- A pergunta pode estar coberta por inteiro, em parte ou nada:
+  - Por inteiro: responda.
+  - Em parte (o material fala do assunto, mas não responde exatamente o que foi perguntado — por exemplo, diz para que um medicamento é usado, mas não o que ele é): apresente o que o material traz sobre o assunto. Não responda só "o material não cobre": o que ele traz é útil para o aluno.
+  - Nada (o material não fala do assunto): diga claramente que o material disponibilizado não cobre esse ponto, e pare por aí.
+- No campo "lacuna", escreva em poucas palavras o que a pergunta pede e o material NÃO traz (ex.: para "por que se faz o exame X?", se o material só descreve como fazer: "o motivo do exame"). Deixe vazio se a cobertura for completa. A plataforma mostra a lacuna ao aluno; não a repita dentro da resposta.
+- Não complete lacunas com conhecimento próprio, e não sugira o que o aluno deve fazer em seguida — disso a plataforma cuida.
 - Quando ajudar o aluno a se localizar no material, mencione a seção ou o tópico de onde veio a informação (ex.: "na seção de critérios de interrupção").
 - Seja didático, claro e objetivo, no nível de um estudante de medicina.
-- Escreva a resposta no campo "resposta" e, em "fontes_usadas", liste apenas os materiais que você realmente usou. Se o material não responder à pergunta, deixe "fontes_usadas" vazio. Não escreva "Fonte:" dentro da resposta — o sistema já mostra as fontes para o aluno.
+- Escreva a resposta no campo "resposta" e, em "fontes_usadas", liste apenas os materiais que você realmente usou. Em "cobertura", diga se o material cobriu a pergunta "completa", em "parcial" ou "nenhuma". Com cobertura "nenhuma", deixe "fontes_usadas" vazio. Não escreva "Fonte:" dentro da resposta — o sistema já mostra as fontes para o aluno.
 """
+
+# O que o modelo diz sobre o quanto o material cobriu a pergunta. É campo do
+# schema, e não frase da resposta, porque a plataforma age sobre ele: com
+# "parcial" ou "nenhuma" a tela oferece levar a dúvida ao professor — o
+# material tem uma lacuna, e quem pode preenchê-la é ele.
+COBERTURAS = ("completa", "parcial", "nenhuma")
 
 
 def montar_schema_resposta(titulos_disponiveis: list) -> dict:
@@ -95,8 +107,10 @@ def montar_schema_resposta(titulos_disponiveis: list) -> dict:
         "properties": {
             "resposta": {"type": "string"},
             "fontes_usadas": {"type": "array", "items": schema_fonte},
+            "cobertura": {"type": "string", "enum": list(COBERTURAS)},
+            "lacuna": {"type": "string"},
         },
-        "required": ["resposta", "fontes_usadas"],
+        "required": ["resposta", "fontes_usadas", "cobertura", "lacuna"],
     }
 
 
@@ -143,18 +157,20 @@ def gerar_resposta_chat(mensagens: list, schema: dict | None = None) -> dict:
     conteudo = _chamar_ollama("/api/chat", corpo)["message"]["content"]
 
     if not schema:
-        return {"resposta": conteudo, "fontes_usadas": None}
+        return {"resposta": conteudo, "fontes_usadas": None, "cobertura": None, "lacuna": ""}
 
     try:
         dados = json.loads(conteudo)
     except json.JSONDecodeError:
         # Não deveria acontecer com decodificação restrita, mas se acontecer é
         # melhor mostrar o texto cru do que derrubar a resposta do aluno.
-        return {"resposta": conteudo.strip(), "fontes_usadas": None}
+        return {"resposta": conteudo.strip(), "fontes_usadas": None, "cobertura": None, "lacuna": ""}
 
     return {
         "resposta": (dados.get("resposta") or "").strip(),
         "fontes_usadas": dados.get("fontes_usadas"),
+        "cobertura": dados.get("cobertura"),
+        "lacuna": (dados.get("lacuna") or "").strip(),
     }
 
 
@@ -382,13 +398,13 @@ def montar_contexto(trechos: list) -> str:
     return "\n\n---\n\n".join(partes)
 
 
-def _salvar_mensagem(aluno_id: int, turma_id: int, papel: str, conteudo: str, fontes: list = None) -> None:
+def _salvar_mensagem(aluno_id: int, turma_id: int, papel: str, conteudo: str, fontes: list = None, lacuna: str = "") -> None:
     conexao = conectar()
     agora = datetime.now(timezone.utc).isoformat()
     cursor = conexao.cursor()
     cursor.execute(
-        "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, criado_em) VALUES (?, ?, ?, ?, ?, ?)",
-        (aluno_id, turma_id, papel, conteudo, json.dumps(fontes) if fontes else None, agora),
+        "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, lacuna, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (aluno_id, turma_id, papel, conteudo, json.dumps(fontes) if fontes else None, lacuna or None, agora),
     )
     conexao.commit()
     conexao.close()
@@ -419,6 +435,14 @@ def responder_pergunta(
     # dele não é perdida do histórico por causa disso.
     try:
         trechos = buscar_trechos_relevantes(turma_id, pergunta, gerar_embedding_fn=gerar_embedding_fn)
+
+        # Disciplina sem nenhum texto que o assistente leia (só links e vídeos,
+        # ou nada publicado): não há o que perguntar ao modelo. Chamá-lo
+        # custava 10 a 20 segundos para ouvir "não cobre" — e escondia o
+        # motivo real, que é outro.
+        if not trechos:
+            return _sem_material_legivel(aluno[0], turma_id, pergunta)
+
         contexto = montar_contexto(trechos)
         materiais_recuperados = sorted({t["material"] for t in trechos})
 
@@ -443,10 +467,107 @@ def responder_pergunta(
     # restrita): nesse caso cita tudo que a busca trouxe, como antes.
     fontes = materiais_recuperados if fontes_declaradas is None else sorted(set(fontes_declaradas))
 
-    _salvar_mensagem(aluno[0], turma_id, "user", pergunta)
-    _salvar_mensagem(aluno[0], turma_id, "assistant", resposta_texto, fontes=fontes)
+    # Cobertura fora do formato (resposta de um modelo sem schema) é deduzida
+    # das fontes, como era antes do campo existir.
+    cobertura = resultado_modelo.get("cobertura")
+    lacuna = resultado_modelo.get("lacuna") or ""
+    if cobertura not in COBERTURAS:
+        cobertura = "completa" if fontes else "nenhuma"
+    if cobertura == "nenhuma":
+        # "Não cobre" citando fonte seria contradição — e a fonte é o que faz a
+        # pergunta contar XP (regras/aluno.py).
+        fontes = []
 
-    return {"sucesso": True, "resposta": resposta_texto, "fontes": fontes}
+    _salvar_mensagem(aluno[0], turma_id, "user", pergunta)
+    # A lacuna é gravada: ela não está no texto da resposta, e sem ela uma
+    # resposta parcial, relida amanhã no histórico, pareceria completa.
+    lacuna = lacuna if cobertura == "parcial" else ""
+    _salvar_mensagem(aluno[0], turma_id, "assistant", resposta_texto, fontes=fontes, lacuna=lacuna)
+
+    resultado = {
+        "sucesso": True,
+        "resposta": resposta_texto,
+        "fontes": fontes,
+        "cobertura": cobertura,
+        "lacuna": lacuna,
+    }
+    if cobertura == "nenhuma":
+        resultado["em_outras_disciplinas"] = disciplinas_que_citam(aluno[0], turma_id, pergunta)
+    return resultado
+
+
+def _sem_material_legivel(aluno_id: int, turma_id: int, pergunta: str) -> dict:
+    conexao = conectar()
+    nome = conexao.execute("SELECT nome FROM turmas WHERE id = ?", (int(turma_id),)).fetchone()[0]
+    conexao.close()
+
+    resposta = (
+        f"O material de {nome} ainda não tem nenhum texto que eu consiga ler: "
+        "respondo a partir dos PDFs que o professor publica, e esta disciplina "
+        "ainda não tem nenhum (links e vídeos eu não leio)."
+    )
+    _salvar_mensagem(aluno_id, turma_id, "user", pergunta)
+    _salvar_mensagem(aluno_id, turma_id, "assistant", resposta, fontes=[])
+    return {
+        "sucesso": True,
+        "resposta": resposta,
+        "fontes": [],
+        "cobertura": "nenhuma",
+        "lacuna": "",
+        "em_outras_disciplinas": disciplinas_que_citam(aluno_id, turma_id, pergunta),
+    }
+
+
+def disciplinas_que_citam(aluno_id: int, turma_atual: int, pergunta: str) -> list:
+    """Outras disciplinas do aluno cujo material cita os termos da pergunta.
+
+    O chat busca só na disciplina escolhida, de propósito: cada uma tem o seu
+    professor e o seu material. Mas o aluno nem sempre repara em qual está —
+    pergunta do Cardiolex no chat de Anatomia — e "o material não cobre",
+    sozinho, deixa parecer que a plataforma não tem a resposta. Aqui a tela
+    ganha o caminho: "isso aparece no material de Cardiologia I".
+
+    Busca literal pelos termos distintivos, sem chamar o modelo: é barata e
+    só precisa dizer *onde*, não responder. Mesma regra de visibilidade da
+    busca do chat: só disciplina em que o aluno está matriculado e só material
+    publicado e já liberado.
+    """
+    termos = _termos_distintivos(pergunta)
+    if not termos:
+        return []
+
+    conexao = conectar()
+    linhas = conexao.execute(
+        """
+        SELECT t.id, t.nome, t.semestre, c.texto, m.rascunho, m.data_liberacao
+          FROM matriculas mt
+          JOIN turmas t ON t.id = mt.turma_id
+          JOIN materiais m ON m.turma_id = t.id AND m.rascunho = 0
+          JOIN material_chunks c ON c.material_id = m.id
+         WHERE mt.aluno_id = ? AND t.id != ?
+        """,
+        (aluno_id, int(turma_atual)),
+    ).fetchall()
+    conexao.close()
+
+    # Quantos termos da pergunta cada disciplina cita. Fica só quem cita mais:
+    # em "o que é o medicamento cardiolex", a disciplina que cita só
+    # "medicamento" não é para onde mandar o aluno — a que cita "cardiolex" é.
+    citados = {}
+    dados = {}
+    for turma_id, nome, semestre, texto, rascunho, data_liberacao in linhas:
+        if _status_material(rascunho, data_liberacao) != "publicado":
+            continue
+        alvo = _normalizar_para_busca(texto)
+        encontrados = {termo for termo in termos if termo in alvo}
+        if encontrados:
+            citados.setdefault(turma_id, set()).update(encontrados)
+            dados[turma_id] = {"id": turma_id, "nome": nome, "semestre": semestre}
+
+    if not citados:
+        return []
+    maximo = max(len(encontrados) for encontrados in citados.values())
+    return sorted((dados[t] for t, e in citados.items() if len(e) == maximo), key=lambda d: d["nome"])
 
 
 def buscar_historico(aluno_email: str, turma_id: int) -> dict:
@@ -460,15 +581,15 @@ def buscar_historico(aluno_email: str, turma_id: int) -> dict:
     cursor = conexao.cursor()
     cursor.execute(
         '''
-        SELECT papel, conteudo, fontes, criado_em FROM chat_mensagens
+        SELECT papel, conteudo, fontes, lacuna, criado_em FROM chat_mensagens
         WHERE aluno_id = ? AND turma_id = ?
         ORDER BY criado_em
         ''',
         (aluno[0], turma_id),
     )
     mensagens = [
-        {"papel": p, "conteudo": c, "fontes": json.loads(f) if f else [], "criado_em": e}
-        for p, c, f, e in cursor.fetchall()
+        {"papel": p, "conteudo": c, "fontes": json.loads(f) if f else [], "lacuna": l or "", "criado_em": e}
+        for p, c, f, l, e in cursor.fetchall()
     ]
     conexao.close()
 

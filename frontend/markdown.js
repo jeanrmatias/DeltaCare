@@ -209,9 +209,16 @@ function renderizarMarkdown(texto, destino) {
 
         // Parágrafo: junta as linhas seguintes até uma linha em branco ou o
         // início de outro bloco.
+        //
+        // A primeira linha entra sempre. Antes, uma linha que *parece* abrir
+        // outro bloco sem abrir — "| a | b" sem a linha separadora, a tabela
+        // pela metade que o modelo devolve quando corta a resposta — saía
+        // deste laço sem avançar `indice`, e o while de fora a lia de novo
+        // para sempre: a aba do aluno congelava.
         const paragrafo = document.createElement("p");
         paragrafo.className = "md-paragrafo";
-        const pedacos = [];
+        const pedacos = [linha.trim()];
+        indice += 1;
 
         while (indice < linhas.length) {
             const atual = linhas[indice];

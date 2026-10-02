@@ -214,18 +214,6 @@ function criarLinhaMaterial(material) {
         .filter(Boolean)
         .join(" · ");
 
-    let referencia = "";
-    if (material.tipo === "link" && material.link_url) {
-        referencia = `<a href="${material.link_url}" target="_blank" rel="noopener">Abrir link</a>`;
-    } else if (material.arquivo_nome) {
-        // Não dá para usar <a href> aqui: navegação do navegador não envia o
-        // header Authorization, e colocar o token na URL o deixaria gravado no
-        // histórico e nos logs do servidor. O clique busca o arquivo
-        // autenticado e abre a partir de um blob local.
-        referencia = `<a href="#" data-arquivo-id="${material.id}">${material.arquivo_nome}</a>` +
-            (podeVisualizar(material) ? ` · <a href="#" data-visualizar-id="${material.id}">visualizar</a>` : "");
-    }
-
     linha.innerHTML = `
         <div class="material-linha-info">
             <div class="material-linha-topo">
@@ -235,7 +223,6 @@ function criarLinhaMaterial(material) {
             <h3>${esc(material.titulo)}</h3>
             ${classificacao ? `<p class="material-classificacao">${esc(classificacao)}</p>` : ""}
             ${material.descricao ? `<p class="material-descricao">${esc(material.descricao)}</p>` : ""}
-            ${referencia ? `<p class="material-referencia">${esc(referencia)}</p>` : ""}
         </div>
         <div class="material-linha-acoes">
             <button type="button" class="acao acao--discreta" data-acao-reportar>Reportar</button>
@@ -248,23 +235,55 @@ function criarLinhaMaterial(material) {
     linha.querySelector("[data-acao-editar]").addEventListener("click", () => abrirFormulario(material));
     linha.querySelector("[data-acao-excluir]").addEventListener("click", () => excluirMaterial(material));
 
-    const linkVisualizar = linha.querySelector("[data-visualizar-id]");
-    if (linkVisualizar) {
-        linkVisualizar.addEventListener("click", (evento) => {
-            evento.preventDefault();
-            abrirVisualizador(material, `/materiais/${material.id}/arquivo`);
-        });
-    }
-
-    const linkArquivo = linha.querySelector("[data-arquivo-id]");
-    if (linkArquivo) {
-        linkArquivo.addEventListener("click", (evento) => {
-            evento.preventDefault();
-            baixarArquivo(linkArquivo.dataset.arquivoId, material.arquivo_nome);
-        });
-    }
+    // O link do arquivo é montado com elementos, e não como HTML: antes ele
+    // ia como texto por `esc()`, e o professor via o código "<a href=...>"
+    // na tela em vez de um link — sem conseguir baixar o próprio material.
+    const referencia = montarReferencia(material);
+    if (referencia) linha.querySelector(".material-linha-info").appendChild(referencia);
 
     return linha;
+}
+
+/**
+ * Link do arquivo (baixar e, se der, visualizar) ou do endereço externo.
+ *
+ * Não é <a href> para o arquivo: a navegação do navegador não envia o header
+ * Authorization, e o token na URL ficaria no histórico e nos logs. O clique
+ * busca o arquivo autenticado.
+ */
+function montarReferencia(material) {
+    const paragrafo = document.createElement("p");
+    paragrafo.className = "material-referencia";
+
+    const link = (texto, aoClicar) => {
+        const a = document.createElement("a");
+        a.href = "#";
+        a.textContent = texto;
+        a.addEventListener("click", (evento) => {
+            evento.preventDefault();
+            aoClicar();
+        });
+        return a;
+    };
+
+    if (material.tipo === "link" && material.link_url) {
+        const a = document.createElement("a");
+        a.href = material.link_url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = "Abrir link";
+        paragrafo.appendChild(a);
+        return paragrafo;
+    }
+
+    if (!material.arquivo_nome) return null;
+
+    paragrafo.appendChild(link(material.arquivo_nome, () => baixarArquivo(material.id, material.arquivo_nome)));
+    if (podeVisualizar(material)) {
+        paragrafo.appendChild(document.createTextNode(" · "));
+        paragrafo.appendChild(link("visualizar", () => abrirVisualizador(material, `/materiais/${material.id}/arquivo`)));
+    }
+    return paragrafo;
 }
 
 /**

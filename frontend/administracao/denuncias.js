@@ -175,7 +175,10 @@ async function tratar(denuncia, status) {
     try {
         const resposta = await api(`/admin/denuncias/${denuncia.id}`, {
             method: "POST",
-            body: JSON.stringify({ status: status, acao: resultado.acao || "" }),
+            // Com um campo só, perguntar() devolve o texto direto, e não um
+            // objeto: `resultado.acao` era sempre undefined, a ação ia vazia e
+            // o servidor recusava concluir ou arquivar — a fila nunca andava.
+            body: JSON.stringify({ status: status, acao: resultado || "" }),
         });
         const dados = await resposta.json();
 

@@ -726,6 +726,13 @@ def configurar_banco(silencioso: bool = False):
         "  ON mensagens (turma_id, aluno_id, criado_em)"
     )
 
+    # Chat: o que a pergunta pedia e o material não trazia (resposta com
+    # cobertura parcial — ver regras/chat_ia.py). Gravado com a mensagem para
+    # o histórico mostrar a lacuna também depois.
+    cursor.execute("PRAGMA table_info(chat_mensagens)")
+    if "lacuna" not in {linha[1] for linha in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN lacuna TEXT")
+
     # Privacidade (regras/privacidade.py). A conta excluída passa por dois
     # estados: **desativada** (não entra, mas os dados continuam, para a
     # administração poder voltar atrás) e, 45 dias depois, **anonimizada**

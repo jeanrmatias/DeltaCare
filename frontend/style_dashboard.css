@@ -3433,6 +3433,12 @@ dialog.visualizador:not([open]) {
 /* O anexo entregue, dos dois lados: o aluno revê o que mandou, o professor
    baixa para corrigir. Com clipe, porque um link solto no meio do texto da
    resposta não se distingue do resto. */
+/* Botão, e não link: o download leva o token (ver aluno/atividades.js). */
+button.entrega-anexo {
+    font-family: inherit;
+    cursor: pointer;
+}
+
 .entrega-anexo {
     display: inline-flex;
     align-items: center;

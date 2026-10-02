@@ -6,8 +6,7 @@ import anyio
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from infra.database import FecharConexoesDaRequisicao, configurar_banco
@@ -140,8 +139,9 @@ app = FastAPI()
 # cookie o estrago é menor do que parece, mas `*` é o tipo de configuração que
 # vai para produção por esquecimento.
 #
-# Padrão: o servidor de desenvolvimento (frontend/servir.py, porta 5500), pelos
-# dois nomes que o navegador usa para ele. No servidor de verdade:
+# Padrão: os servidores de desenvolvimento — o front antigo (frontend/servir.py,
+# porta 5500) e o React (web/, Vite, porta 5173) —, pelos dois nomes que o
+# navegador usa para cada um. No servidor de verdade:
 #
 #     DELTACARE_ORIGENS=https://deltacare.moinhos.org.br
 #
@@ -150,7 +150,8 @@ app = FastAPI()
 ORIGENS_PERMITIDAS = [
     origem.strip()
     for origem in os.environ.get(
-        "DELTACARE_ORIGENS", "http://127.0.0.1:5500,http://localhost:5500"
+        "DELTACARE_ORIGENS",
+        "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5173,http://localhost:5173",
     ).split(",")
     if origem.strip()
 ]
@@ -450,7 +451,7 @@ class RespostaRequest(BaseModel):
 @app.get("/")
 def inicio():
     """Quem digita o endereço do sistema cai nas telas, e não num JSON."""
-    return RedirectResponse(url="/app/index.html")
+    return RedirectResponse(url="/app/")
 
 
 @app.get("/saude")
@@ -1245,17 +1246,53 @@ def reverter_exclusao_rota(solicitacao_id: int, admin: dict = Depends(usuario_ad
 
 
 # ---------------------------- as telas ----------------------------
-# Em produção, este mesmo processo entrega o front em /app/: tela e API na
-# mesma origem, então o front não precisa saber o endereço da API (ver
-# frontend/config.js) e o CORS nem entra em jogo. Na frente fica um proxy com
-# HTTPS (deploy/Caddyfile).
+# Em produção, este mesmo processo entrega as telas (o React compilado, em
+# web/dist) em /app/: tela e API na mesma origem, então o front não precisa
+# saber o endereço da API e o CORS nem entra em jogo. Na frente fica um proxy
+# com HTTPS (deploy/Caddyfile).
 #
-# Só a pasta frontend/ é servida — código público de tela. Os arquivos
-# enviados (uploads/) continuam fora: só saem pelas rotas que conferem
-# permissão.
+# Qualquer endereço de tela (/app/aluno/materiais) devolve o index.html, e é
+# o React Router que decide o que mostrar — senão o F5 numa tela interna daria
+# 404. Arquivo que não existe (/app/x.js) dá 404 de verdade: devolver o
+# index.html no lugar de um script quebraria a tela em silêncio.
 #
-# Montado por último: as rotas da API, declaradas acima, têm prioridade.
-PASTA_FRONT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+# Só a pasta das telas é servida. Os arquivos enviados (uploads/) continuam
+# fora: só saem pelas rotas que conferem permissão.
+#
+# Declarado por último: as rotas da API, acima, têm prioridade.
+PASTA_TELAS = os.environ.get("DELTACARE_TELAS") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "dist"
+)
 
-if os.path.isdir(PASTA_FRONT):
-    app.mount("/app", StaticFiles(directory=PASTA_FRONT, html=True), name="telas")
+if not os.path.isfile(os.path.join(PASTA_TELAS, "index.html")):
+    print(
+        f"[Delta Care] AVISO: as telas não estão compiladas em {PASTA_TELAS}. "
+        "Rode `npm ci && npm run build` dentro de web/."
+    )
+
+
+@app.get("/app", include_in_schema=False)
+@app.get("/app/{caminho:path}", include_in_schema=False)
+def telas(caminho: str = ""):
+    base = os.path.realpath(PASTA_TELAS)
+    indice = os.path.join(base, "index.html")
+
+    if not os.path.isfile(indice):
+        return HTMLResponse(
+            "<h1>As telas do Delta Care não estão compiladas</h1>"
+            "<p>No servidor, rode <code>npm ci &amp;&amp; npm run build</code> dentro de <code>web/</code>.</p>",
+            status_code=503,
+        )
+
+    alvo = os.path.realpath(os.path.join(base, caminho))
+    # realpath resolve "..": o que cair fora da pasta das telas não existe aqui.
+    if alvo != base and not alvo.startswith(base + os.sep):
+        raise HTTPException(status_code=404)
+    if caminho and os.path.isfile(alvo):
+        # Os arquivos do build têm o conteúdo no nome (index-DKKVApli.js):
+        # podem ficar no cache do navegador à vontade.
+        return FileResponse(alvo, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    if "." in os.path.basename(caminho):
+        raise HTTPException(status_code=404)
+    # O index.html nunca fica em cache: é ele que aponta para os arquivos novos.
+    return FileResponse(indice, headers={"Cache-Control": "no-cache"})

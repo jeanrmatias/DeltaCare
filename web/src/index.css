@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/*
+ * O design system do Delta Care, agora como tema do Tailwind.
+ *
+ * Os valores são os mesmos do frontend/tokens.css: a migração para React não
+ * pode mudar a cara do produto. Cada variável daqui vira classe utilitária —
+ * `--color-primaria` vira `bg-primaria`, `text-primaria`, `border-primaria`;
+ * `--radius-cartao` vira `rounded-cartao`. Os nomes ficam em português, como
+ * o resto do projeto.
+ */
+@theme {
+  --font-sans: "Inter", sans-serif;
+
+  --color-navy-900: #0D1D3A;
+  --color-navy-800: #102542;
+  --color-navy-700: #14294A;
+  --color-navy-600: #1B3A66;
+
+  --color-primaria: #2F70F2;
+  --color-primaria-escura: #245FCC;
+
+  --color-fundo: #F4F7FE;
+  --color-superficie: #FFFFFF;
+  --color-texto: #1E293B;
+  --color-texto-secundario: #64748B;
+  --color-texto-inverso: #E7ECFB;
+  --color-borda: #D8DEE9;
+
+  --color-perigo: #EF4444;
+  --color-perigo-fundo: #FEE2E2;
+  --color-sucesso: #16A34A;
+  --color-sucesso-fundo: #DCFCE7;
+  --color-alerta: #F59E0B;
+  --color-alerta-fundo: #FEF3C7;
+
+  --radius-campo: 8px;
+  --radius-bloco: 12px;
+  --radius-cartao: 16px;
+
+  --shadow-cartao: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+@layer base {
+  body {
+    @apply bg-fundo text-texto font-sans antialiased;
+  }
+}

@@ -313,11 +313,15 @@ function desenharAtividade(dados) {
 
         // O aluno consegue rever o que entregou. Sem isto ele mandaria o
         // arquivo e nunca teria como confirmar que foi o certo.
+        //
+        // Botão com download autenticado, e não um link: a navegação do
+        // navegador não envia o token, e o link direto respondia 401.
         if (dados.entrega.arquivo_nome && dados.entrega.entrega_id) {
-            const link = document.createElement("a");
+            const link = document.createElement("button");
+            link.type = "button";
             link.className = "entrega-anexo";
-            link.href = `${API_URL}/entregas/${dados.entrega.entrega_id}/arquivo`;
             link.textContent = `Anexo enviado: ${dados.entrega.arquivo_nome}`;
+            link.addEventListener("click", () => baixarAnexoDaEntrega(dados.entrega));
             resultado.appendChild(link);
         }
 
@@ -492,5 +496,27 @@ async function enviar(definitivo) {
     } catch (erro) {
         console.error("Erro ao enviar:", erro);
         mostrarMensagem("Não foi possível conectar ao servidor. Tente novamente.");
+    }
+}
+
+/** Baixa o anexo da própria entrega pela rota autenticada (o token vai no header). */
+async function baixarAnexoDaEntrega(entrega) {
+    try {
+        const resposta = await api(`/entregas/${entrega.entrega_id}/arquivo`);
+        if (!resposta.ok) {
+            await avisarErro("Não foi possível baixar o anexo.");
+            return;
+        }
+        const url = URL.createObjectURL(await resposta.blob());
+        const ancora = document.createElement("a");
+        ancora.href = url;
+        ancora.download = entrega.arquivo_nome || "anexo";
+        document.body.appendChild(ancora);
+        ancora.click();
+        ancora.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (erro) {
+        console.error("Erro ao baixar anexo:", erro);
+        await avisarErro("Não foi possível conectar ao servidor. Tente novamente.");
     }
 }

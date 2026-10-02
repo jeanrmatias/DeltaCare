@@ -3249,8 +3249,10 @@ class TestesCors(unittest.TestCase):
         return resposta.headers.get("access-control-allow-origin") == origem
 
     def test_o_front_de_desenvolvimento_passa(self):
-        self.assertTrue(self._liberado_para("http://127.0.0.1:5500"))
-        self.assertTrue(self._liberado_para("http://localhost:5500"))
+        # 5500: o front antigo; 5173: o React (Vite), durante a migração.
+        for origem in ("http://127.0.0.1:5500", "http://localhost:5500",
+                       "http://127.0.0.1:5173", "http://localhost:5173"):
+            self.assertTrue(self._liberado_para(origem), origem)
 
     def test_site_de_fora_e_barrado(self):
         self.assertFalse(self._liberado_para("https://site-malicioso.com"))
@@ -4031,6 +4033,7 @@ class TestesContratoFrontBack(unittest.TestCase):
         """Se a leitura do JS quebrar e achar zero chamadas, os outros testes
         passariam por não ter o que conferir."""
         self.assertGreater(len(self.contrato.chamadas_do_front()), 80)
+        self.assertGreater(len(self.contrato.chamadas_do_web()), 100)
 
     def test_toda_chamada_do_front_tem_rota_com_o_mesmo_verbo(self):
         self.assertEqual(self.contrato.chamadas_sem_rota(self.app), [])
@@ -4076,6 +4079,8 @@ class TestesContratoFrontBack(unittest.TestCase):
             # Do próprio FastAPI; a raiz, que só redireciona para as telas; e a
             # de saúde, que é para o monitoramento e não para a tela.
             "GET /", "GET /saude",
+            # As que entregam as telas: o front não chama, é carregado por elas.
+            "GET /app", "GET /app/{caminho:path}",
             "GET /docs", "GET /docs/oauth2-redirect", "GET /openapi.json", "GET /redoc",
             # A atividade com gabarito, só para o professor dono. A tela de
             # edição usa os dados da lista, e as questões não são editáveis.
@@ -5229,37 +5234,82 @@ class TestesBackup(BaseDelta):
 
 
 class TestesTelasServidasPelaApi(unittest.TestCase):
-    """Em produção a API entrega as telas em /app/: mesma origem, sem CORS."""
+    """Em produção a API entrega as telas (o React compilado) em /app/:
+    mesma origem, sem CORS.
 
-    @classmethod
-    def setUpClass(cls):
+    Usa uma pasta de build montada aqui, e não o web/dist de verdade: o teste
+    não pode depender de alguém ter rodado `npm run build` antes.
+    """
+
+    def setUp(self):
         from fastapi.testclient import TestClient
 
         import main
 
-        cls.cliente = TestClient(main.app)
+        self.main = main
+        self.original = main.PASTA_TELAS
+        self.raiz = tempfile.mkdtemp()
+        self.dist = os.path.join(self.raiz, "dist")
+        os.makedirs(os.path.join(self.dist, "assets"))
+        with open(os.path.join(self.dist, "index.html"), "w", encoding="utf-8") as arquivo:
+            arquivo.write("<div id=root>telas</div>")
+        with open(os.path.join(self.dist, "assets", "index-abc123.js"), "w", encoding="utf-8") as arquivo:
+            arquivo.write("console.log(1)")
+        # Ao lado da pasta das telas, e não dentro: não pode sair por /app.
+        with open(os.path.join(self.raiz, "segredo.db"), "w", encoding="utf-8") as arquivo:
+            arquivo.write("dado de aluno")
+        main.PASTA_TELAS = self.dist
+        self.cliente = TestClient(main.app)
+
+    def tearDown(self):
+        import shutil
+
+        self.main.PASTA_TELAS = self.original
+        shutil.rmtree(self.raiz, ignore_errors=True)
 
     def test_a_raiz_leva_as_telas(self):
         resposta = self.cliente.get("/", follow_redirects=False)
 
         self.assertIn(resposta.status_code, (302, 307))
-        self.assertEqual(resposta.headers["location"], "/app/index.html")
+        self.assertEqual(resposta.headers["location"], "/app/")
 
-    def test_as_telas_abrem(self):
-        for caminho in ("/app/index.html", "/app/aluno/inicio.html", "/app/config.js", "/app/style_dashboard.css"):
+    def test_endereco_de_tela_devolve_o_app(self):
+        """F5 em /app/aluno/materiais não pode dar 404: quem decide a tela é o React Router."""
+        for caminho in ("/app", "/app/", "/app/aluno/materiais", "/app/admin/privacidade"):
             with self.subTest(caminho=caminho):
-                self.assertEqual(self.cliente.get(caminho).status_code, 200)
+                resposta = self.cliente.get(caminho)
+                self.assertEqual(resposta.status_code, 200)
+                self.assertIn("telas", resposta.text)
+                self.assertEqual(resposta.headers["cache-control"], "no-cache")
+
+    def test_arquivo_do_build_sai_com_cache_longo(self):
+        resposta = self.cliente.get("/app/assets/index-abc123.js")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("immutable", resposta.headers["cache-control"])
+
+    def test_arquivo_que_nao_existe_e_404_e_nao_a_tela(self):
+        """Devolver o index.html no lugar de um script quebraria a tela em silêncio."""
+        self.assertEqual(self.cliente.get("/app/assets/nao-existe.js").status_code, 404)
 
     def test_nao_sai_da_pasta_das_telas(self):
-        """Só frontend/ é servido. Banco, código do servidor e uploads não."""
-        for caminho in ("/app/../backend/main.py", "/app/%2e%2e/backend/main.py",
-                        "/app/..%2fbackend%2fdeltacare.db", "/app/../uploads/"):
+        for caminho in ("/app/../segredo.db", "/app/%2e%2e/segredo.db", "/app/..%2fsegredo.db",
+                        "/app/assets/..%2f..%2fsegredo.db"):
             with self.subTest(caminho=caminho):
-                self.assertEqual(self.cliente.get(caminho).status_code, 404)
+                resposta = self.cliente.get(caminho)
+                self.assertNotIn("dado de aluno", resposta.text)
+                self.assertEqual(resposta.status_code, 404)
+
+    def test_sem_build_diz_o_que_fazer(self):
+        self.main.PASTA_TELAS = os.path.join(self.raiz, "nao-compilado")
+
+        resposta = self.cliente.get("/app/")
+
+        self.assertEqual(resposta.status_code, 503)
+        self.assertIn("npm run build", resposta.text)
 
     def test_monitoramento(self):
         self.assertEqual(self.cliente.get("/saude").json(), {"status": "ok"})
-
 
 
 class TestesPrimeiroAdmin(unittest.TestCase):
@@ -5828,6 +5878,144 @@ class TestesRotasPrivacidade(BaseDelta):
         self.assertEqual(self.cliente.get("/admin/privacidade/solicitacoes", headers=aluno).status_code, 403)
         self.assertEqual(self.cliente.get("/aluno/privacidade/exportar", headers=professor).status_code, 403)
         self.assertEqual(self.cliente.get("/aluno/privacidade/exportar").status_code, 401)
+
+
+# =========================================================================
+# Chat: o quanto o material cobriu a pergunta (regras/chat_ia.py)
+#
+# Achado num teste do usuário: "o que é o Cardiolex?" — o material diz para
+# que ele serve, mas não o que ele é. Sem o caso "parcial", o modelo ou
+# recusava, ou completava a lacuna por dedução ("é um inotrópico").
+# =========================================================================
+
+class TestesCoberturaDoChat(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        self.material = self._material_com_texto(self.turma_id, PROFESSOR, "Aula 3",
+            "O Cardiolex e o agente de primeira linha do Protocolo Delta-7 para os estagios DCM-2 e DCM-3.")
+
+    def _material_com_texto(self, turma_id, professor, titulo, texto, rascunho=False):
+        material_id = criar_material(professor_email=professor, turma_id=turma_id, titulo=titulo, tipo="link",
+                                     link_url="https://exemplo.com", rascunho=rascunho)["material_id"]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
+                        (material_id, 0, texto, json.dumps(embedding_falso(texto))))
+        conexao.commit()
+        conexao.close()
+        return material_id
+
+    def _perguntar(self, resposta_do_modelo, turma_id=None, pergunta="o que e o cardiolex?"):
+        def modelo(mensagens, schema=None):
+            return dict(resposta_do_modelo)
+        return chat_ia.responder_pergunta(ALUNO, turma_id or self.turma_id, pergunta,
+                                          gerar_embedding_fn=embedding_falso, gerar_resposta_fn=modelo)
+
+    def test_parcial_responde_cita_a_fonte_e_diz_o_que_falta(self):
+        resultado = self._perguntar({"resposta": "E o agente de primeira linha para DCM-2 e DCM-3.",
+                                     "fontes_usadas": ["Aula 3"], "cobertura": "parcial", "lacuna": "o tipo de medicamento"})
+
+        self.assertEqual(resultado["cobertura"], "parcial")
+        self.assertEqual(resultado["fontes"], ["Aula 3"])
+        self.assertEqual(resultado["lacuna"], "o tipo de medicamento")
+
+    def test_nao_cobre_nao_cita_fonte_mesmo_que_o_modelo_cite(self):
+        """'Não cobre' com fonte seria contradição — e a fonte faz a pergunta contar XP."""
+        resultado = self._perguntar({"resposta": "O material nao cobre isso.", "fontes_usadas": ["Aula 3"],
+                                     "cobertura": "nenhuma", "lacuna": "tudo"})
+
+        self.assertEqual(resultado["fontes"], [])
+        self.assertEqual(resultado["lacuna"], "")
+
+    def test_a_lacuna_fica_no_historico(self):
+        """Ela não está no texto da resposta: sem gravar, a parcial relida amanhã pareceria completa."""
+        self._perguntar({"resposta": "E o agente de primeira linha.", "fontes_usadas": ["Aula 3"],
+                         "cobertura": "parcial", "lacuna": "o tipo de medicamento"})
+
+        mensagens = chat_ia.buscar_historico(ALUNO, self.turma_id)["mensagens"]
+
+        self.assertEqual(mensagens[-1]["lacuna"], "o tipo de medicamento")
+        self.assertEqual(mensagens[-2]["lacuna"], "")
+
+    def test_lacuna_so_aparece_quando_a_cobertura_e_parcial(self):
+        resultado = self._perguntar({"resposta": "12,5 mg.", "fontes_usadas": ["Aula 3"], "cobertura": "completa", "lacuna": "nada"})
+
+        self.assertEqual(resultado["lacuna"], "")
+
+    def test_sem_o_campo_a_cobertura_sai_das_fontes(self):
+        """O modelo às vezes omite o campo (visto ao avaliar): sem fonte, 'nenhuma'; com fonte, 'completa'."""
+        sem = self._perguntar({"resposta": "Nao cobre.", "fontes_usadas": [], "cobertura": None, "lacuna": ""})
+        com = self._perguntar({"resposta": "12,5 mg.", "fontes_usadas": ["Aula 3"], "cobertura": None, "lacuna": ""})
+
+        self.assertEqual(sem["cobertura"], "nenhuma")
+        self.assertEqual(com["cobertura"], "completa")
+
+    def test_disciplina_sem_texto_legivel_nao_chama_o_modelo(self):
+        """Só links: não há o que o modelo ler. Chamá-lo custava 10 a 20 s para ouvir 'não cobre'."""
+        anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, anatomia)
+
+        def modelo_que_nao_pode_ser_chamado(mensagens, schema=None):
+            raise AssertionError("o modelo foi chamado sem nenhum trecho para ler")
+
+        resultado = chat_ia.responder_pergunta(ALUNO, anatomia, "o que e o cardiolex?",
+                                               gerar_embedding_fn=embedding_falso, gerar_resposta_fn=modelo_que_nao_pode_ser_chamado)
+
+        self.assertEqual(resultado["cobertura"], "nenhuma")
+        self.assertIn("Anatomia", resultado["resposta"])
+        self.assertEqual([d["nome"] for d in resultado["em_outras_disciplinas"]], ["Cardiologia"])
+
+    def test_aponta_a_disciplina_que_cita_o_assunto(self):
+        anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, anatomia)
+        self._material_com_texto(anatomia, PROFESSOR, "Cranio", "O forame magno fica na base do cranio.")
+
+        resultado = self._perguntar({"resposta": "Nao cobre.", "fontes_usadas": [], "cobertura": "nenhuma", "lacuna": ""},
+                                    turma_id=anatomia)
+
+        self.assertEqual([d["nome"] for d in resultado["em_outras_disciplinas"]], ["Cardiologia"])
+
+    def test_nao_aponta_disciplina_que_o_aluno_nao_cursa_nem_material_nao_liberado(self):
+        """Mesma regra de visibilidade da busca: nem disciplina alheia, nem rascunho, nem agendado."""
+        anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, anatomia)
+        alheia = criar_turma(ADMIN, PROFESSOR2, "Farmacologia", "2026.2")["turma"]["id"]
+        # Com outro aluno matriculado: sem ninguém, ela sumiria da busca por
+        # não ter matrícula nenhuma, e o teste não provaria nada.
+        matricular_aluno(ADMIN, ALUNO_FORA, alheia)
+        self._material_com_texto(alheia, PROFESSOR2, "Farmaco", "Cardiolex: classe e mecanismo.")
+        neuro = criar_turma(ADMIN, PROFESSOR2, "Neurologia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, neuro)
+        self._material_com_texto(neuro, PROFESSOR2, "Rascunho", "Cardiolex em rascunho.", rascunho=True)
+        agendado = self._material_com_texto(neuro, PROFESSOR2, "Agendado", "Cardiolex na aula que ainda vai sair.")
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE materiais SET data_liberacao = ? WHERE id = ?",
+                        ((datetime.now(timezone.utc) + timedelta(days=7)).isoformat(), agendado))
+        conexao.commit()
+        conexao.close()
+
+        sugeridas = chat_ia.disciplinas_que_citam(self._id(ALUNO), anatomia, "o que e o cardiolex?")
+
+        self.assertEqual([d["nome"] for d in sugeridas], ["Cardiologia"])
+
+    def test_aponta_quem_cita_mais_termos_da_pergunta(self):
+        """'medicamento' sozinho está em todo lugar; quem cita 'cardiolex' é para onde ir."""
+        anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, anatomia)
+        neuro = criar_turma(ADMIN, PROFESSOR2, "Neurologia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, neuro)
+        self._material_com_texto(neuro, PROFESSOR2, "Neuro", "Todo medicamento exige cuidado.")
+        self._material_com_texto(self.turma_id, PROFESSOR, "Aula 4", "O medicamento Cardiolex tem dose maxima.")
+
+        sugeridas = chat_ia.disciplinas_que_citam(self._id(ALUNO), anatomia, "o que e o medicamento cardiolex?")
+
+        self.assertEqual([d["nome"] for d in sugeridas], ["Cardiologia"])
+
+    def _id(self, email):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        valor = conexao.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()[0]
+        conexao.close()
+        return valor
 
 
 if __name__ == "__main__":

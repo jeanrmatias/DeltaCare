@@ -21,6 +21,9 @@ import re
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONT = os.path.join(RAIZ, "frontend")
+# As telas em React (web/). Conferidas junto: enquanto os dois fronts convivem,
+# uma rota renomeada no back pode quebrar qualquer um deles.
+WEB = os.path.join(RAIZ, "web", "src")
 
 # Scripts carregados em quase toda página, que procuram elementos opcionais e
 # conferem se eles existem antes de usar (notificações, perfil, diálogo...).
@@ -60,6 +63,73 @@ def _arquivos_js():
     for caminho in sorted(glob.glob(os.path.join(FRONT, "**", "*.js"), recursive=True)):
         if not caminho.endswith("testes.mjs"):
             yield caminho
+
+
+def _arquivos_web():
+    for padrao in ("*.js", "*.jsx"):
+        for caminho in sorted(glob.glob(os.path.join(WEB, "**", padrao), recursive=True)):
+            if not caminho.endswith(".test.js"):
+                yield caminho
+
+
+# No React, o caminho da API aparece também fora de api(): no hook useApi, no
+# download (baixarArquivo) e na prop `caminho` do visualizador — todos GET.
+_USO_GET = re.compile(r"\b(?:useApi|baixarArquivo)\(|\bcaminho=\{")
+
+
+def _argumento(texto: str, inicio: int) -> str:
+    """O que vai do parêntese (ou chave) aberto em `inicio - 1` até o que o fecha."""
+    abre = texto[inicio - 1]
+    fecha = {"(": ")", "{": "}"}[abre]
+    profundidade = 1
+    for posicao in range(inicio, len(texto)):
+        if texto[posicao] == abre:
+            profundidade += 1
+        elif texto[posicao] == fecha:
+            profundidade -= 1
+            if profundidade == 0:
+                return texto[inicio:posicao]
+    return ""
+
+
+def _caminhos_literais(trecho: str) -> list:
+    """Os caminhos (`/...`) escritos num trecho. Num template com condição
+    (`/aluno/ranking${x ? ... : ""}`), o `${` sem fechar é a consulta: sai."""
+    caminhos = []
+    for achado in re.finditer(r"([`\"'])(/[^`\"']*)", trecho):
+        caminho = re.sub(r"\$\{[^}]*$", "", achado.group(2))
+        if len(caminho) > 1:
+            caminhos.append(caminho)
+    return caminhos
+
+
+def chamadas_do_web() -> list:
+    """(arquivo, linha, verbo, caminho no fonte, caminho concreto) das telas em React."""
+    resultado = []
+    for arquivo in _arquivos_web():
+        texto = _sem_comentarios(open(arquivo, encoding="utf-8").read())
+        relativo = os.path.relpath(arquivo, RAIZ)
+
+        def linha(posicao):
+            return texto.count("\n", 0, posicao) + 1
+
+        for achado in re.finditer(r"\b(api|apiPublica)\(", texto):
+            argumentos = _argumento(texto, achado.end())
+            primeiro = re.match(r"\s*([`\"'])(.*?)\1", argumentos, re.S)
+            if not primeiro:
+                continue
+            # apiPublica é sempre POST (login, recuperação); api lê o `method`.
+            metodos = ["POST"] if achado.group(1) == "apiPublica" else _metodos(argumentos)
+            for concreto in _normalizar(primeiro.group(2), texto):
+                for metodo in metodos:
+                    resultado.append((relativo, linha(achado.start()), metodo, primeiro.group(2), concreto))
+
+        for achado in _USO_GET.finditer(texto):
+            for fonte in _caminhos_literais(_argumento(texto, achado.end())):
+                for concreto in _normalizar(fonte, texto):
+                    resultado.append((relativo, linha(achado.start()), "GET", fonte, concreto))
+
+    return resultado
 
 
 def _definicao(texto: str, nome: str, antes_de: int | None = None) -> str:
@@ -158,14 +228,14 @@ def chamadas_sem_rota(app) -> list:
     rotas = rotas_do_back(app)
     return [
         f"{arquivo}:{linha}  {metodo} {fonte}"
-        for arquivo, linha, metodo, fonte, concreto in chamadas_do_front()
+        for arquivo, linha, metodo, fonte, concreto in chamadas_do_front() + chamadas_do_web()
         if not any(m == metodo and rx.match(concreto) for m, _, rx in rotas)
     ]
 
 
 def rotas_nunca_chamadas(app) -> list:
     rotas = rotas_do_back(app)
-    usados = [(m, c) for *_, m, _, c in chamadas_do_front()] + [
+    usados = [(m, c) for *_, m, _, c in chamadas_do_front() + chamadas_do_web()] + [
         (m, c) for _, m, c in links_de_api_no_front()
     ]
     return sorted(
@@ -214,8 +284,7 @@ if __name__ == "__main__":
     )
     import main
 
-    total = len(chamadas_do_front())
-    print(f"{total} chamadas do front conferidas")
+    print(f"{len(chamadas_do_front())} chamadas do front antigo e {len(chamadas_do_web())} do React conferidas")
     for titulo, itens in (
         ("chamadas sem rota", chamadas_sem_rota(main.app)),
         ("ids ausentes", ids_ausentes()),

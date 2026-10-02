@@ -229,6 +229,19 @@ test("visualizador recusa arquivo sem extensão", () => {
 });
 
 // ---------------------------------------------------------------- markdown
+test("markdown com tabela pela metade não congela a tela", () => {
+    // "| a | b" sem a linha separadora fazia o laço do parágrafo não avançar,
+    // e a aba do aluno travava. Rodado com limite de tempo: uma regressão tem
+    // que falhar aqui, e não pendurar a suíte inteira.
+    const alvo = novoNo();
+    ctx.__alvo = alvo;
+    const texto = "A dose é 12,5 mg.\n| Estágio | Conduta";
+    vm.runInContext(`renderizarMarkdown(${JSON.stringify(texto)}, __alvo)`, ctx, { timeout: 1000 });
+
+    assert.match(alvo.textContent, /12,5 mg/);
+    assert.match(alvo.textContent, /Estágio/);
+});
+
 test("markdown monta tabela com cabeçalho e linhas", () => {
     const alvo = novoNo();
     ctx.renderizarMarkdown("| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |", alvo);
