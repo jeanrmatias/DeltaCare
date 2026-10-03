@@ -42,7 +42,7 @@ export function BotaoFavorito({ material, aoMudar }) {
       aria-pressed={favorito}
       aria-label={rotulo}
       title={rotulo}
-      className={`text-xl leading-none transition hover:scale-110 disabled:opacity-50 ${favorito ? "text-alerta" : "text-texto-secundario"}`}
+      className={`text-xl leading-none transition hover:scale-110 disabled:opacity-50 ${favorito ? "text-alerta-forte" : "text-texto-secundario"}`}
     >
       {favorito ? "★" : "☆"}
     </button>

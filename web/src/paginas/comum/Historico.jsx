@@ -46,7 +46,7 @@ export function Historico() {
         <div className="flex flex-col gap-2.5 sm:flex-row">
           <input id="busca-historico" type="search" value={digitado} autoComplete="off" placeholder="ex.: forame magno"
             onChange={(evento) => { setDigitado(evento.target.value); if (!evento.target.value.trim()) setBusca("") }}
-            className="min-w-0 flex-1 rounded-campo border border-borda px-3 py-2.5 text-sm outline-none focus:border-primaria" />
+            className="min-w-0 flex-1 rounded-campo border border-borda-campo px-3 py-2.5 text-sm outline-none focus:border-primaria" />
           <Botao tipo="submit">Buscar</Botao>
         </div>
         {resumo && <p className="mt-2 text-[13px] text-texto-secundario">{resumo}</p>}

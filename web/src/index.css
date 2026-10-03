@@ -8,6 +8,13 @@
  * `--color-primaria` vira `bg-primaria`, `text-primaria`, `border-primaria`;
  * `--radius-cartao` vira `rounded-cartao`. Os nomes ficam em português, como
  * o resto do projeto.
+ *
+ * Contraste (WCAG AA, Sprint 4): os tons vieram do frontend/tokens.css e
+ * alguns não passavam em texto pequeno — o azul dos links e botões (4,45:1),
+ * o cinza das descrições sobre o fundo da página (4,44), o vermelho das
+ * mensagens de erro (3,76), o verde (3,30) — nem no contorno dos campos
+ * (1,35, para um mínimo de 3). Cada um foi escurecido só até passar, no mesmo
+ * matiz. O mínimo é 4,5:1 para texto e 3:1 para contorno e ícone.
  */
 @theme {
   --font-sans: "Inter", sans-serif;
@@ -17,21 +24,26 @@
   --color-navy-700: #14294A;
   --color-navy-600: #1B3A66;
 
-  --color-primaria: #2F70F2;
-  --color-primaria-escura: #245FCC;
+  --color-primaria: #2263E5;
+  --color-primaria-escura: #1C54C4;
 
   --color-fundo: #F4F7FE;
   --color-superficie: #FFFFFF;
   --color-texto: #1E293B;
-  --color-texto-secundario: #64748B;
+  --color-texto-secundario: #5B6B82;
   --color-texto-inverso: #E7ECFB;
+  /* Borda de cartão e divisória: decorativa, pode ser clara. */
   --color-borda: #D8DEE9;
+  /* Contorno de campo: é ele que mostra onde se digita, e precisa de 3:1. */
+  --color-borda-campo: #7F8DA5;
 
-  --color-perigo: #EF4444;
+  --color-perigo: #C81B1B;
   --color-perigo-fundo: #FEE2E2;
-  --color-sucesso: #16A34A;
+  --color-sucesso: #15803D;
   --color-sucesso-fundo: #DCFCE7;
   --color-alerta: #F59E0B;
+  /* O amarelo como ícone (a estrela do favorito) precisa de 3:1 no branco. */
+  --color-alerta-forte: #D97706;
   --color-alerta-fundo: #FEF3C7;
 
   --radius-campo: 8px;
@@ -45,4 +57,15 @@
   body {
     @apply bg-fundo text-texto font-sans antialiased;
   }
+}
+
+/*
+ * Foco visível em tudo que se alcança pelo teclado. Fora de @layer de
+ * propósito: estilo sem camada vence as utilitárias, então nenhum
+ * `outline-none` esquecido num campo apaga o foco de quem navega com Tab.
+ * `:focus-visible` só aparece no teclado — o clique do mouse não ganha anel.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-primaria);
+  outline-offset: 2px;
 }

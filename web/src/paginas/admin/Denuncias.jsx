@@ -35,7 +35,7 @@ export function DenunciasAdmin() {
     <>
       <Cabecalho titulo="Denúncias" descricao="Conteúdo reportado por alunos e professores.">
         <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)}
-          className="rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
+          className="rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
           {FILTROS.map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
         </select>
       </Cabecalho>

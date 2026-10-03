@@ -31,7 +31,7 @@ export function Lacunas() {
         descricao="O que os alunos perguntam ao assistente e o seu material não responde — sem o nome nem o texto da pergunta.">
         {disciplinas.length > 1 && (
           <select aria-label="Disciplina" value={disciplina?.id ?? ""} onChange={(e) => setEscolhida(Number(e.target.value))}
-            className="rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
+            className="rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
             {disciplinas.map((d) => <option key={d.id} value={d.id}>{d.nome} · {d.semestre}</option>)}
           </select>
         )}

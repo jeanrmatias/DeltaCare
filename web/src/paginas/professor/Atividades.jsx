@@ -51,7 +51,7 @@ export function AtividadesProfessor() {
       <Cabecalho titulo="Atividades" descricao="Quizzes e trabalhos: crie, acompanhe as entregas e corrija.">
         {lista.length > 0 && (
           <select aria-label="Disciplina" value={turma ?? ""} onChange={(e) => setEscolhida(Number(e.target.value))}
-            className="rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
+            className="rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
             {lista.map((t) => <option key={t.id} value={t.id}>{t.nome} · {t.semestre}</option>)}
           </select>
         )}
@@ -221,7 +221,7 @@ function EditorDeQuestoes({ questoes, aoMudar }) {
             )}
           </div>
           <input value={questao.enunciado} onChange={(e) => mudarQuestao(indice, { enunciado: e.target.value })} placeholder="Enunciado da questão"
-            aria-label={`Enunciado da questão ${indice + 1}`} className="mb-2.5 w-full rounded-campo border border-borda px-3 py-2 text-sm outline-none focus:border-primaria" />
+            aria-label={`Enunciado da questão ${indice + 1}`} className="mb-2.5 w-full rounded-campo border border-borda-campo px-3 py-2 text-sm outline-none focus:border-primaria" />
           <div className="flex flex-col gap-2">
             {questao.alternativas.map((alternativa, posicao) => (
               <div key={posicao} className="flex items-center gap-2">
@@ -229,7 +229,7 @@ function EditorDeQuestoes({ questoes, aoMudar }) {
                   aria-label={`Alternativa ${posicao + 1} é a correta`} className="size-4 accent-primaria" />
                 <input value={alternativa} placeholder={`Alternativa ${posicao + 1}`} aria-label={`Alternativa ${posicao + 1}`}
                   onChange={(e) => mudarQuestao(indice, { alternativas: questao.alternativas.map((a, p) => (p === posicao ? e.target.value : a)) })}
-                  className="min-w-0 flex-1 rounded-campo border border-borda px-3 py-2 text-sm outline-none focus:border-primaria" />
+                  className="min-w-0 flex-1 rounded-campo border border-borda-campo px-3 py-2 text-sm outline-none focus:border-primaria" />
                 {questao.alternativas.length > 2 && (
                   <button type="button" aria-label={`Remover alternativa ${posicao + 1}`}
                     onClick={() => {

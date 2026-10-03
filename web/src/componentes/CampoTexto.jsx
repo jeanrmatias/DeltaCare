@@ -35,7 +35,7 @@ export function CampoTexto({
         required={obrigatorio}
         minLength={minimo}
         maxLength={maximo}
-        className="w-full rounded-campo border border-borda bg-white px-3.5 py-3 text-sm text-texto outline-none transition placeholder:text-texto-secundario focus:border-primaria focus:ring-3 focus:ring-primaria/12"
+        className="w-full rounded-campo border border-borda-campo bg-white px-3.5 py-3 text-sm text-texto outline-none transition placeholder:text-texto-secundario focus:border-primaria focus:ring-3 focus:ring-primaria/12"
       />
     </div>
   )

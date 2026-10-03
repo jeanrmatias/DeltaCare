@@ -5,6 +5,7 @@ import { Botao } from "../../componentes/Botao"
 import { CampoTexto } from "../../componentes/CampoTexto"
 import { Icone } from "../../componentes/Icone"
 import { useSessao } from "../../hooks/useSessao"
+import { useTituloDaPagina } from "../../hooks/useTituloDaPagina"
 import { apiPublica, ERRO_DE_CONEXAO } from "../../lib/api"
 import { INICIO_DO_PERFIL } from "../../lib/usuario"
 
@@ -17,9 +18,10 @@ import { INICIO_DO_PERFIL } from "../../lib/usuario"
 export function Login() {
   const [etapa, setEtapa] = useState("entrar")
   const [email, setEmail] = useState("")
+  useTituloDaPagina("Entrar")
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
       <div className="w-full max-w-[420px] rounded-cartao bg-superficie px-6 py-7 shadow-cartao">
         <div className="mb-2 flex items-center justify-center gap-2.5">
           <span className="flex size-8 items-center justify-center rounded-campo bg-primaria text-white">
@@ -47,7 +49,7 @@ export function Login() {
       <Link to="/privacidade" className="text-[13px] font-medium text-texto-secundario hover:text-primaria">
         Privacidade e uso de dados
       </Link>
-    </div>
+    </main>
   )
 }
 

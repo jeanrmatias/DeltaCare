@@ -94,6 +94,16 @@ test("a tela de trocar a senha não abre para quem não precisa dela", () => {
   assert.equal(tituloEm("/trocar-senha"), null)
 })
 
+test("toda tela logada começa com o atalho para pular o menu", () => {
+  for (const [usuario, rota] of [[ALUNA, "/aluno"], [PROFESSOR, "/professor/materiais"], [ADM, "/admin/turmas"]]) {
+    logado(usuario)
+    const saida = html(h(MemoryRouter, { initialEntries: [rota] }, h(SessaoProvider, null, h(DialogosProvider, null, h(App)))))
+    const atalho = saida.indexOf('href="#conteudo"')
+    assert.ok(atalho >= 0 && atalho < saida.indexOf("Menu principal"), `${rota}: sem o atalho antes do menu`)
+    assert.match(saida, /<main[^>]*id="conteudo"/, `${rota}: o conteúdo não tem o alvo do atalho`)
+  }
+})
+
 test("endereço que não existe diz que não existe", () => {
   logado(null)
   assert.equal(tituloEm("/qualquer-coisa"), "Página não encontrada")

@@ -34,7 +34,7 @@ export function Usuarios() {
     <>
       <Cabecalho titulo="Usuários" descricao="Contas com acesso à plataforma. Toda conta nasce aqui ou pela planilha.">
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome ou e-mail" aria-label="Buscar usuários"
-          className="w-56 max-w-full rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria" />
+          className="w-56 max-w-full rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria" />
         <Botao variante="neutra" onClick={() => setAberto(aberto === "planilha" ? null : "planilha")}>Importar planilha</Botao>
         <Botao onClick={() => setAberto(aberto === "conta" ? null : "conta")}>Nova conta</Botao>
       </Cabecalho>

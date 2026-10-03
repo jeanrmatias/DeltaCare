@@ -6165,6 +6165,86 @@ class TestesLacunasDoMaterial(BaseDelta):
 
 
 # =========================================================================
+# Indexação dos PDFs para o chat (regras/chat_ia.indexar_material)
+# =========================================================================
+
+class TestesIndexacao(BaseDelta):
+
+    def _pdf_em_duas_disciplinas(self):
+        import tempfile
+
+        from seed_demo import gerar_pdf
+
+        cardio2 = criar_turma(ADMIN, PROFESSOR, "Cardiologia II", "2026.2")["turma"]["id"]
+        with tempfile.TemporaryDirectory() as pasta:
+            caminho = os.path.join(pasta, "aula.pdf")
+            texto = "\n".join(f"Linha {i}: o Cardiolex e suspenso abaixo de 92 mmHg de sistolica." for i in range(120))
+            gerar_pdf(texto, caminho)
+            with open(caminho, "rb") as arquivo:
+                conteudo = base64.b64encode(arquivo.read()).decode()
+        return criar_material_em_turmas(PROFESSOR, [self.turma_id, cardio2], titulo="Aula 6", tipo="pdf",
+                                         rascunho=False, arquivo_base64=conteudo, arquivo_nome="aula6.pdf")["material_ids"]
+
+    def _trechos(self, material_id):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linhas = conexao.execute("SELECT indice, texto, embedding FROM material_chunks WHERE material_id = ? ORDER BY indice",
+                                 (material_id,)).fetchall()
+        conexao.close()
+        return linhas
+
+    def test_embeddings_saem_em_lotes_e_na_ordem(self):
+        """Um por chamada custava a ida e volta inteira por trecho."""
+        lotes = []
+
+        def ollama_falso(caminho, corpo):
+            lotes.append(len(corpo["input"]))
+            return {"embeddings": [[float(texto)] for texto in corpo["input"]]}
+
+        original = chat_ia._chamar_ollama
+        chat_ia._chamar_ollama = ollama_falso
+        try:
+            vetores = chat_ia.gerar_embeddings([str(i) for i in range(70)])
+        finally:
+            chat_ia._chamar_ollama = original
+
+        self.assertEqual(lotes, [32, 32, 6])
+        self.assertEqual(vetores, [[float(i)] for i in range(70)])
+
+    def test_mesmo_pdf_em_duas_disciplinas_chama_o_modelo_uma_vez(self):
+        chamadas = []
+
+        def embeddings_falsos(textos):
+            chamadas.append(len(textos))
+            return [embedding_falso(t) for t in textos]
+
+        primeira, segunda = self._pdf_em_duas_disciplinas()
+        chat_ia.indexar_material(primeira, gerar_embeddings_fn=embeddings_falsos)
+        resultado = chat_ia.indexar_material(segunda, gerar_embeddings_fn=embeddings_falsos)
+
+        self.assertTrue(resultado["sucesso"])
+        self.assertEqual(len(chamadas), 1)
+        self.assertTrue(self._trechos(primeira))
+        self.assertEqual(self._trechos(primeira), self._trechos(segunda))
+
+    def test_modelo_fora_do_ar_mantem_o_indice_anterior(self):
+        """Reindexar e cair no meio não pode deixar o material sem trecho nenhum."""
+        material, _ = self._pdf_em_duas_disciplinas()
+        chat_ia.indexar_material(material, gerar_embeddings_fn=lambda textos: [embedding_falso(t) for t in textos])
+        antes = self._trechos(material)
+
+        def ollama_fora(textos):
+            raise RuntimeError("Não foi possível falar com o Ollama")
+
+        with self.assertRaises(RuntimeError):
+            chat_ia.indexar_material(material, gerar_embeddings_fn=ollama_fora)
+        self.assertEqual(self._trechos(material), antes)
+
+    def test_endereco_padrao_do_ollama_nao_e_localhost(self):
+        """No Windows, "localhost" custava ~2 s por chamada (tenta IPv6 antes)."""
+        self.assertNotIn("localhost", chat_ia.OLLAMA_URL_PADRAO)
+
+
+# =========================================================================
 # Senha provisória (regras/autenticacao.py + main.usuario_logado)
 #
 # A importação por planilha dá a mesma senha para a turma inteira. Sem troca

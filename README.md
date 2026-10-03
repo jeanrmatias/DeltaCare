@@ -211,7 +211,7 @@ modelo completo para o servidor está em
 | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
 | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
 | `DELTACARE_ORIGENS` | portas 5500 e 5173 da máquina local | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
-| `OLLAMA_URL` | `http://localhost:11434` | Onde está o servidor do modelo |
+| `OLLAMA_URL` | `http://127.0.0.1:11434` | Onde está o servidor do modelo. Use o IP, não `localhost`: no Windows, `localhost` tenta o IPv6 antes e soma ~2 s a cada chamada (5 s por pergunta no chat) |
 | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
 | `MODELO_EMBEDDING` | `nomic-embed-text` | Modelo que indexa o material |
 | `ESFORCO_RACIOCINIO` | `low` | Esforço de raciocínio do modelo (modelos que não raciocinam ignoram). `low` corta o tempo de resposta pela metade sem perder qualidade, medido |
@@ -297,6 +297,28 @@ tratamento de apendicite — ele deve recusar a segunda.
   ([`backend/infra/database.py`](backend/infra/database.py)).
 - **Privado pela ausência de rota:** anotações e entregas não têm rota para a
   administração. Não é a tela que esconde; é o servidor que não entrega.
+
+## Acessibilidade
+
+Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
+
+- **Contraste.** Os tons herdados do front antigo não passavam em texto
+  pequeno: o azul de links e botões (4,45:1), o cinza das descrições sobre o
+  fundo (4,44), o vermelho das mensagens de erro (3,76), o verde (3,30) e o
+  contorno dos campos (1,35, para um mínimo de 3). Cada um foi escurecido só
+  até passar, no mesmo matiz. Um teste lê os tokens do
+  [`web/src/index.css`](web/src/index.css) e confere os pares usados nas telas.
+- **Teclado.** Anel de foco visível em tudo que recebe Tab, fora das camadas
+  do Tailwind para nenhum `outline-none` apagá-lo, e o atalho **Pular para o
+  conteúdo** antes do menu lateral.
+- **Leitor de tela.** Todo campo tem rótulo ligado a ele; o idioma da página é
+  `pt-BR`; os diálogos usam o `<dialog>` nativo (prende o foco, fecha com Esc)
+  e têm nome; a resposta do assistente e as mensagens novas são anunciadas
+  (`role="log"`), e o cronômetro do "consultando o material" não é lido a cada
+  segundo; o título da aba muda com a página.
+- **O que não foi feito:** teste com leitor de tela real (NVDA) e com
+  usuários com deficiência. A validação de usabilidade da Sprint 4 não teve
+  esse recorte.
 
 ## Privacidade (LGPD)
 
@@ -398,20 +420,21 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (482 testes):** permissões de cada perfil, visibilidade de
+- **Backend (486 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização, integridade do
   banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (33 testes):** as telas são renderizadas no Node, sem
+- **Telas React (50 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de
   troca), que todo item de menu leva a uma tela que existe,
   que HTML vindo da IA aparece como texto e não vira elemento, o cartão de
-  progresso, o Markdown, a leitura de datas digitadas e os links das
-  notificações.
+  progresso, o Markdown, a leitura de datas digitadas, os links das
+  notificações, o atalho "Pular para o conteúdo" e o **contraste das cores
+  do tema** (lido do `index.css`).
 - **Contrato front↔back:** lê as chamadas à API das telas React (e do front
   antigo) e confere com as rotas do backend, verbo incluído. Pega a tela que
   chama uma rota que não existe antes de alguém clicar.

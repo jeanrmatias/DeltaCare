@@ -241,7 +241,7 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
           rows={8}
           aria-label="Sua resposta"
           placeholder="Escreva sua resposta"
-          className="w-full resize-y rounded-campo border border-borda px-3 py-2.5 text-sm outline-none focus:border-primaria disabled:bg-fundo"
+          className="w-full resize-y rounded-campo border border-borda-campo px-3 py-2.5 text-sm outline-none focus:border-primaria disabled:bg-fundo"
         />
       )}
 

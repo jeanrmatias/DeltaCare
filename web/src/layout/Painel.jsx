@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router"
 
 import { Icone } from "../componentes/Icone"
 import { useSessao } from "../hooks/useSessao"
+import { useTituloDaPagina } from "../hooks/useTituloDaPagina"
 import { iniciaisDe, nomeExibicao } from "../lib/usuario"
 import { MENUS } from "./menus"
 import { Perfil } from "./Perfil"
@@ -23,6 +24,13 @@ export function Painel() {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Para quem navega pelo teclado: sem isto, são onze itens de menu a
+          atravessar com Tab em toda página antes de chegar ao conteúdo.
+          Invisível até receber o foco. */}
+      <a href="#conteudo"
+        className="sr-only z-50 rounded-campo bg-superficie px-4 py-2 text-sm font-semibold text-primaria shadow-cartao focus:not-sr-only focus:fixed focus:top-3 focus:left-3">
+        Pular para o conteúdo
+      </a>
       <aside className="flex w-full shrink-0 flex-col bg-navy-900 px-4 py-5 text-texto-inverso md:sticky md:top-0 md:h-screen md:w-60">
         <div className="mb-6 flex items-center gap-2.5 px-2 text-[17px] font-bold text-white">
           <span className="flex size-[30px] items-center justify-center rounded-campo bg-primaria">
@@ -68,7 +76,7 @@ export function Painel() {
         </footer>
       </aside>
 
-      <main className="relative min-w-0 flex-1 p-5">
+      <main id="conteudo" tabIndex={-1} className="relative min-w-0 flex-1 p-5">
         {/* O sino fica no canto de toda tela logada, por cima do cabeçalho
             da página — que reserva o espaço dele (ver Cabecalho). */}
         <div className="absolute top-5 right-5 z-10">
@@ -84,6 +92,7 @@ export function Painel() {
 
 /** O cabeçalho de cada página: título e uma linha do que ela é. */
 export function Cabecalho({ titulo, descricao, children }) {
+  useTituloDaPagina(titulo)
   return (
     <header className="mb-6 flex flex-wrap items-start justify-between gap-5 pr-14">
       <div>

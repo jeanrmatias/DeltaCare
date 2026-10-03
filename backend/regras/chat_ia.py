@@ -7,12 +7,12 @@ local com os modelos `gpt-oss:20b` (chat) e `nomic-embed-text` (embeddings):
     ollama pull gpt-oss:20b
     ollama pull nomic-embed-text
 
-As duas únicas funções que falam com o modelo (gerar_embedding e
+As funções que falam com o modelo (gerar_embeddings, gerar_embedding e
 gerar_resposta_chat) ficam isoladas: toda a lógica de negócio (chunking,
 busca por similaridade, montagem do prompt, matrícula) recebe essas funções
-como parâmetro (gerar_embedding_fn / gerar_resposta_fn), então dá pra testar
-com versões falsas delas. O endereço do Ollama pode ser trocado pela variável
-de ambiente OLLAMA_URL (padrão http://localhost:11434).
+como parâmetro (gerar_embeddings_fn / gerar_embedding_fn / gerar_resposta_fn),
+então dá pra testar com versões falsas delas. O endereço do Ollama pode ser
+trocado pela variável de ambiente OLLAMA_URL (padrão http://127.0.0.1:11434).
 """
 
 import json
@@ -25,7 +25,12 @@ from datetime import datetime, timezone
 
 from regras.turmas import buscar_usuario, conectar
 
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+# 127.0.0.1, e não "localhost". No Windows, "localhost" tenta o IPv6 (::1)
+# primeiro; o Ollama só escuta no IPv4, e cada chamada esperava ~2 s antes de
+# cair para ele. Medido: 2.178 ms por chamada contra 11 ms. Cada pergunta ao
+# chat faz duas chamadas — eram 4 s de espera por pergunta, sem fazer nada.
+OLLAMA_URL_PADRAO = "http://127.0.0.1:11434"
+OLLAMA_URL = os.environ.get("OLLAMA_URL", OLLAMA_URL_PADRAO)
 MODELO_EMBEDDING = os.environ.get("MODELO_EMBEDDING", "nomic-embed-text")
 # Padrão é o gpt-oss:20b. Dá pra trocar com a variável MODELO_CHAT sem
 # mexer no código (ex.: pra testar com um modelo menor numa GPU com menos
@@ -142,9 +147,24 @@ def _chamar_ollama(caminho: str, corpo: dict) -> dict:
         raise RuntimeError(f"Não foi possível falar com o Ollama em {OLLAMA_URL}: {erro}") from erro
 
 
+# Quantos trechos vão numa chamada de embedding. Um PDF de aula tem dezenas a
+# centenas de trechos; em lote, cada um sai ~30% mais barato que um por
+# chamada (medido: 30 ms contra 42 ms por trecho), e o resultado é o mesmo
+# vetor. Lote grande demais seguraria a vaga de IA por mais tempo de uma vez.
+TAMANHO_LOTE_EMBEDDING = 32
+
+
+def gerar_embeddings(textos: list) -> list:
+    """Um embedding por texto, na mesma ordem, em lotes."""
+    vetores = []
+    for inicio in range(0, len(textos), TAMANHO_LOTE_EMBEDDING):
+        lote = textos[inicio:inicio + TAMANHO_LOTE_EMBEDDING]
+        vetores.extend(_chamar_ollama("/api/embed", {"model": MODELO_EMBEDDING, "input": lote})["embeddings"])
+    return vetores
+
+
 def gerar_embedding(texto: str) -> list:
-    resposta = _chamar_ollama("/api/embed", {"model": MODELO_EMBEDDING, "input": texto})
-    return resposta["embeddings"][0]
+    return gerar_embeddings([texto])[0]
 
 
 def gerar_resposta_chat(mensagens: list, schema: dict | None = None) -> dict:
@@ -251,45 +271,69 @@ def dividir_em_chunks(texto: str, tamanho: int = TAMANHO_CHUNK, sobreposicao: in
     return chunks
 
 
-def indexar_material(material_id: int, gerar_embedding_fn=gerar_embedding) -> dict:
+def indexar_material(material_id: int, gerar_embeddings_fn=gerar_embeddings) -> dict:
     """Extrai o texto do PDF do material, divide em chunks e salva os
     embeddings. Só funciona para materiais do tipo 'pdf' com arquivo salvo.
     Chamar depois que um material PDF é criado ou publicado.
+
+    O mesmo PDF publicado em várias disciplinas é **um arquivo só** (ver
+    criar_material_em_turmas). Se ele já foi indexado para outra disciplina,
+    os trechos são copiados de lá: o texto e os vetores seriam idênticos, e
+    refazer custaria o tempo do modelo outra vez por disciplina.
     """
     conexao = conectar()
-    cursor = conexao.cursor()
-    cursor.execute("SELECT tipo, arquivo_caminho FROM materiais WHERE id = ?", (material_id,))
-    material = cursor.fetchone()
+    try:
+        material = conexao.execute("SELECT tipo, arquivo_caminho FROM materiais WHERE id = ?", (material_id,)).fetchone()
+        if not material or material[0] != "pdf" or not material[1]:
+            return {"sucesso": False, "mensagem": "Material não é um PDF com arquivo salvo."}
+        caminho = material[1]
 
-    if not material or material[0] != "pdf" or not material[1]:
+        irmao = conexao.execute(
+            """
+            SELECT MIN(m.id) FROM materiais m
+             WHERE m.arquivo_caminho = ? AND m.id != ?
+               AND EXISTS (SELECT 1 FROM material_chunks c WHERE c.material_id = m.id)
+            """,
+            (caminho, material_id),
+        ).fetchone()[0]
+        if irmao:
+            conexao.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
+            total = conexao.execute(
+                "INSERT INTO material_chunks (material_id, indice, texto, embedding)"
+                " SELECT ?, indice, texto, embedding FROM material_chunks WHERE material_id = ? ORDER BY indice",
+                (material_id, irmao),
+            ).rowcount
+            conexao.commit()
+            return {"sucesso": True, "mensagem": f"{total} trecho(s) reaproveitado(s).", "total_chunks": total}
+    finally:
         conexao.close()
-        return {"sucesso": False, "mensagem": "Material não é um PDF com arquivo salvo."}
 
-    _, caminho = material
-
+    # O trabalho lento — ler o PDF e esperar o modelo — sem conexão aberta. E
+    # os vetores antes de apagar os trechos antigos: se o Ollama cair no meio,
+    # o material continua com o índice que tinha.
     try:
         texto = extrair_texto_pdf(caminho)
     except Exception as erro:
-        conexao.close()
         return {"sucesso": False, "mensagem": f"Não foi possível ler o PDF: {erro}"}
 
     chunks = dividir_em_chunks(texto)
-
     if not chunks:
-        conexao.close()
         return {"sucesso": False, "mensagem": "O PDF não tem texto extraível (pode ser um PDF escaneado sem OCR)."}
 
-    cursor.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
+    embeddings = gerar_embeddings_fn(chunks)
+    if len(embeddings) != len(chunks):
+        return {"sucesso": False, "mensagem": "O modelo devolveu um número de vetores diferente do de trechos."}
 
-    for indice, chunk in enumerate(chunks):
-        embedding = gerar_embedding_fn(chunk)
-        cursor.execute(
+    conexao = conectar()
+    try:
+        conexao.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
+        conexao.executemany(
             "INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
-            (material_id, indice, chunk, json.dumps(embedding)),
+            [(material_id, indice, chunk, json.dumps(vetor)) for indice, (chunk, vetor) in enumerate(zip(chunks, embeddings))],
         )
-
-    conexao.commit()
-    conexao.close()
+        conexao.commit()
+    finally:
+        conexao.close()
 
     return {"sucesso": True, "mensagem": f"{len(chunks)} trecho(s) indexado(s).", "total_chunks": len(chunks)}
 

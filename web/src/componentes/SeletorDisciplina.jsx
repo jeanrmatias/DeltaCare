@@ -18,7 +18,7 @@ export function SeletorDisciplina({ turmas, valor, aoMudar, comTodas = false }) 
       aria-label="Disciplina"
       value={valor ?? ""}
       onChange={(evento) => aoMudar(evento.target.value ? Number(evento.target.value) : null)}
-      className="max-w-full rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm text-texto outline-none focus:border-primaria"
+      className="max-w-full rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm text-texto outline-none focus:border-primaria"
     >
       {comTodas && <option value="">Todas as disciplinas</option>}
       {atuais.map((turma) => <Opcao key={turma.id} turma={turma} />)}

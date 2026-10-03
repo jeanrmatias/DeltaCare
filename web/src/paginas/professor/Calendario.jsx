@@ -43,7 +43,7 @@ export function Calendario() {
       <Cabecalho titulo="Calendário" descricao="O semestre por data: o que foi publicado, o que está agendado e quando vence.">
         {lista.length > 0 && (
           <select aria-label="Disciplina" value={turma ?? ""} onChange={(e) => { setTurma(e.target.value ? Number(e.target.value) : null); setEscolhido(null) }}
-            className="rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
+            className="rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
             <option value="">Todas as disciplinas</option>
             {lista.map((t) => <option key={t.id} value={t.id}>{t.nome} · {t.semestre}</option>)}
           </select>

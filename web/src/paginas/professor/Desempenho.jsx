@@ -32,7 +32,7 @@ export function DesempenhoProfessor() {
       <Cabecalho titulo="Desempenho" descricao="Como a turma está indo e qual tópico precisa voltar na aula.">
         {lista.length > 0 && (
           <select aria-label="Disciplina" value={turma ?? ""} onChange={(e) => setEscolhida(Number(e.target.value))}
-            className="rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
+            className="rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
             {lista.map((t) => <option key={t.id} value={t.id}>{t.nome} · {t.semestre}</option>)}
           </select>
         )}

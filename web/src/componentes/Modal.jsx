@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useId, useRef } from "react"
 
 /**
  * Janela sobreposta, com o <dialog> nativo do navegador: ele já prende o
@@ -10,6 +10,9 @@ import { useEffect, useRef } from "react"
  */
 export function Modal({ aberto, aoFechar, titulo, children, largura = "max-w-[480px]" }) {
   const dialogo = useRef(null)
+  // O título dá nome à janela: o leitor de tela anuncia "Alterar senha,
+  // diálogo" em vez de só "diálogo".
+  const idDoTitulo = useId()
 
   // O React não abre <dialog> sozinho: showModal() é uma chamada ao
   // navegador, por isso fica num efeito, sincronizando com `aberto`.
@@ -23,6 +26,7 @@ export function Modal({ aberto, aoFechar, titulo, children, largura = "max-w-[48
   return (
     <dialog
       ref={dialogo}
+      aria-labelledby={titulo ? idDoTitulo : undefined}
       onCancel={(evento) => {
         // Esc: quem fecha é o estado de quem usa, não o navegador sozinho.
         evento.preventDefault()
@@ -33,7 +37,7 @@ export function Modal({ aberto, aoFechar, titulo, children, largura = "max-w-[48
     >
       {aberto && (
         <div className="p-6">
-          {titulo && <h2 className="mb-3 text-lg font-bold text-navy-900">{titulo}</h2>}
+          {titulo && <h2 id={idDoTitulo} className="mb-3 text-lg font-bold text-navy-900">{titulo}</h2>}
           {children}
         </div>
       )}

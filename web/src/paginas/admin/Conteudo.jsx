@@ -43,14 +43,14 @@ export function Conteudo() {
         <label className="flex flex-col gap-1.5 text-[13px] text-texto-secundario">
           Semestre
           <select value={dados?.semestre ?? semestre} onChange={(e) => setSemestre(e.target.value)}
-            className="rounded-campo border border-borda px-3 py-2 text-sm text-texto outline-none focus:border-primaria">
+            className="rounded-campo border border-borda-campo px-3 py-2 text-sm text-texto outline-none focus:border-primaria">
             {(dados?.semestres || []).map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <label className="flex flex-1 flex-col gap-1.5 text-[13px] text-texto-secundario">
           Buscar disciplina, professor ou título
           <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off"
-            className="rounded-campo border border-borda px-3 py-2 text-sm text-texto outline-none focus:border-primaria" />
+            className="rounded-campo border border-borda-campo px-3 py-2 text-sm text-texto outline-none focus:border-primaria" />
         </label>
       </section>
 

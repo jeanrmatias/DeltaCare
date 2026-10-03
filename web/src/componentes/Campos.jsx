@@ -6,7 +6,7 @@ import { useId } from "react"
  * `valor` + `aoMudar`.
  */
 const classeCampo =
-  "w-full rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm text-texto outline-none focus:border-primaria"
+  "w-full rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm text-texto outline-none focus:border-primaria"
 
 export function Rotulado({ rotulo, children, className = "" }) {
   const id = useId()

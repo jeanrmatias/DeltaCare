@@ -172,7 +172,7 @@ function Conversa({ conversa, professor, textoInicial, aoMudar, aoEnviar }) {
         <p className="text-xs text-texto-secundario">{conversa.subtitulo}</p>
       </header>
 
-      <div ref={caixa} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-5">
+      <div ref={caixa} role="log" aria-label="Mensagens da conversa" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-5">
         {carregando && <Carregando />}
         {erro && <p className="text-sm text-texto-secundario">{erro}</p>}
         {dados?.sucesso && mensagens.length === 0 && <p className="m-auto text-sm text-texto-secundario">Nenhuma mensagem ainda. Escreva a primeira.</p>}
@@ -201,7 +201,7 @@ function Conversa({ conversa, professor, textoInicial, aoMudar, aoEnviar }) {
             autoFocus={Boolean(textoInicial)}
             aria-label="Mensagem"
             placeholder="Escreva sua mensagem"
-            className="min-w-0 flex-1 resize-none rounded-campo border border-borda px-3 py-2.5 text-sm outline-none focus:border-primaria"
+            className="min-w-0 flex-1 resize-none rounded-campo border border-borda-campo px-3 py-2.5 text-sm outline-none focus:border-primaria"
           />
           <Botao tipo="submit" desativado={enviando}>Enviar</Botao>
         </div>

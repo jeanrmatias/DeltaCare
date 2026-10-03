@@ -1,6 +1,7 @@
 import { Link } from "react-router"
 
 import { useSessao } from "../../hooks/useSessao"
+import { useTituloDaPagina } from "../../hooks/useTituloDaPagina"
 import { INICIO_DO_PERFIL } from "../../lib/usuario"
 
 /**
@@ -10,6 +11,7 @@ import { INICIO_DO_PERFIL } from "../../lib/usuario"
 export function Privacidade() {
   const { usuario } = useSessao()
   const voltar = usuario ? INICIO_DO_PERFIL[usuario.tipo] : "/"
+  useTituloDaPagina("Privacidade e uso de dados")
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">

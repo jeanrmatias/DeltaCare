@@ -26,7 +26,7 @@ export function Ranking() {
         {/* Só para quem está em mais de uma turma no semestre. */}
         {pronto && dados.coortes.length > 1 && (
           <select aria-label="Turma" value={dados.coorte.id} onChange={(evento) => setCoorte(evento.target.value)}
-            className="rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
+            className="rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria">
             {dados.coortes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         )}

@@ -117,7 +117,10 @@ function Conversa({ turma }) {
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-cartao bg-superficie shadow-cartao">
-      <div ref={rolagem} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
+      {/* role="log": o leitor de tela anuncia a resposta nova quando ela chega,
+          sem o aluno ter que ir procurá-la na lista. */}
+      <div ref={rolagem} role="log" aria-label={`Conversa sobre ${turma.nome}`}
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
         {historico.carregando && <Carregando />}
         {historico.dados && mensagens.length === 0 && <Bolha papel="assistant" conteudo={BOAS_VINDAS} />}
         {mensagens.map((mensagem, indice) => <Bolha key={indice} {...mensagem} />)}
@@ -143,7 +146,7 @@ function Conversa({ turma }) {
           autoComplete="off"
           disabled={gerando}
           required
-          className="min-w-0 flex-1 rounded-campo border border-borda px-3.5 py-3 text-sm outline-none focus:border-primaria disabled:bg-fundo"
+          className="min-w-0 flex-1 rounded-campo border border-borda-campo px-3.5 py-3 text-sm outline-none focus:border-primaria disabled:bg-fundo"
         />
         {gerando ? (
           <Botao variante="neutra" onClick={() => cancelamento.current?.abort()}>Parar</Botao>
@@ -202,7 +205,9 @@ function Pensando() {
         ))}
       </span>
       Consultando o material da disciplina
-      {segundos >= 3 && <span className="tabular-nums opacity-60">{segundos}s</span>}
+      {/* aria-hidden: dentro de um role="status", o cronômetro seria lido em
+          voz alta a cada segundo. */}
+      {segundos >= 3 && <span aria-hidden="true" className="tabular-nums opacity-60">{segundos}s</span>}
     </div>
   )
 }

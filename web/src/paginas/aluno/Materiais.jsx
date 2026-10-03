@@ -48,7 +48,7 @@ export function Materiais() {
           onChange={(evento) => setBusca(evento.target.value)}
           placeholder="Buscar por título, assunto ou tópico..."
           aria-label="Buscar materiais"
-          className="w-64 max-w-full rounded-campo border border-borda bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria"
+          className="w-64 max-w-full rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm outline-none focus:border-primaria"
         />
       </Cabecalho>
 
@@ -104,7 +104,7 @@ function Filtros({ materiais, filtros, aoMudar }) {
     <label className="flex min-w-[150px] flex-1 flex-col gap-1.5 text-[13px] font-medium text-texto">
       {rotulo}
       <select value={filtros[campo]} onChange={mudar(campo)}
-        className="rounded-campo border border-borda bg-superficie px-3 py-2 text-sm font-normal outline-none focus:border-primaria">
+        className="rounded-campo border border-borda-campo bg-superficie px-3 py-2 text-sm font-normal outline-none focus:border-primaria">
         {opcoes.map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
       </select>
     </label>

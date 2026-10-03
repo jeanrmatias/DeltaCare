@@ -118,7 +118,7 @@ export function SeletorDataHora({ rotulo, valor, aoMudar, dica }) {
                 const base = selecionada || new Date()
                 escolher(new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m || 0))
               }}
-              className="rounded-campo border border-borda px-2 py-1 text-sm" />
+              className="rounded-campo border border-borda-campo px-2 py-1 text-sm" />
           </label>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {[["Hoje", 0], ["Amanhã", 1], ["Em 7 dias", 7]].map(([nome, dias]) => (
