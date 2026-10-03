@@ -21,6 +21,7 @@ export function DisciplinasAdmin() {
   const coortes = useApi("/admin/coortes")
   const [formulario, setFormulario] = useState(false)
   const [abertas, setAbertas] = useState(() => new Set())
+  const [trocando, setTrocando] = useState(null)
   const { confirmar, avisar } = useDialogo()
   const lista = disciplinas.dados?.turmas || []
   const semProfessor = professores.dados && !(professores.dados.professores || []).length
@@ -80,10 +81,15 @@ export function DisciplinasAdmin() {
                 <p className="text-[13px] text-texto-secundario">{turma.total_materiais} material(is) cadastrado(s)</p>
               </div>
               <div className="flex shrink-0 gap-2">
+                <Botao variante="neutra" pequeno onClick={() => setTrocando(trocando === turma.id ? null : turma.id)}>Trocar professor</Botao>
                 <Botao variante="neutra" pequeno onClick={() => alternar(turma.id)}>{abertas.has(turma.id) ? "Fechar alunos" : "Alunos"}</Botao>
                 <Botao variante="perigo" pequeno onClick={() => excluir(turma)}>Excluir</Botao>
               </div>
             </article>
+            {trocando === turma.id && (
+              <TrocarProfessor turma={turma} professores={(professores.dados?.professores || []).filter((e) => e !== turma.professor_email)}
+                aoFechar={() => setTrocando(null)} aoTrocar={() => { setTrocando(null); disciplinas.recarregar() }} />
+            )}
             {abertas.has(turma.id) && <AlunosDaDisciplina turma={turma} />}
           </div>
         ))}
@@ -132,6 +138,43 @@ function NovaDisciplina({ professores, coortes, aoFechar, aoCriar }) {
       </form>
       <MensagemDeFormulario texto={mensagem} />
     </Cartao>
+  )
+}
+
+/**
+ * Outro professor assume a disciplina (licença, saída, redistribuição). O
+ * material e as atividades vão junto: quem assume precisa poder corrigir o
+ * que já está publicado e lançar as notas que faltam.
+ */
+function TrocarProfessor({ turma, professores, aoFechar, aoTrocar }) {
+  const [novo, setNovo] = useState(professores[0] || "")
+  const [mensagem, setMensagem] = useState("")
+
+  async function trocar(evento) {
+    evento.preventDefault()
+    try {
+      const resultado = await (await api(`/admin/turmas/${turma.id}/professor`, { method: "PUT", body: JSON.stringify({ professor_email: novo }) })).json()
+      if (!resultado.sucesso) return setMensagem(resultado.mensagem)
+      aoTrocar()
+    } catch (erro) {
+      console.error("Erro ao trocar professor:", erro)
+      setMensagem(ERRO_DE_CONEXAO)
+    }
+  }
+
+  return (
+    <form onSubmit={trocar} className="border-t border-borda px-5 py-4">
+      <p className="mb-3 text-[13px] text-texto-secundario">
+        Quem assume fica com o material e as atividades de {turma.nome}, inclusive as entregas por corrigir. {turma.professor_email} perde o acesso a ela.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <Escolha rotulo="Novo professor" valor={novo} aoMudar={setNovo} className="flex-1"
+          opcoes={professores.length ? professores.map((e) => ({ valor: e, rotulo: e })) : [{ valor: "", rotulo: "Nenhum outro professor ativo" }]} />
+        <Botao tipo="submit" desativado={!novo}>Trocar</Botao>
+        <Botao variante="neutra" onClick={aoFechar}>Cancelar</Botao>
+      </div>
+      <MensagemDeFormulario texto={mensagem} />
+    </form>
   )
 }
 

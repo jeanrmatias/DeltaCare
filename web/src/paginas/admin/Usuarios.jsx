@@ -2,13 +2,15 @@ import { useState } from "react"
 
 import { Botao } from "../../componentes/Botao"
 import { Carregando, Cartao, EstadoVazio, Numero, Numeros } from "../../componentes/Cartao"
-import { Escolha, MensagemDeFormulario, Texto } from "../../componentes/Campos"
+import { AreaDeTexto, Escolha, MensagemDeFormulario, Texto } from "../../componentes/Campos"
+import { AcoesDoModal, Modal } from "../../componentes/Modal"
 import { Selo } from "../../componentes/Selo"
 import { useApi } from "../../hooks/useApi"
 import { useDialogo } from "../../hooks/useDialogo"
 import { useSessao } from "../../hooks/useSessao"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
+import { dataComAno } from "../../lib/formatos"
 import { normalizar } from "../../lib/texto"
 
 /**
@@ -24,7 +26,13 @@ export function Usuarios() {
   const turmas = useApi("/admin/turmas")
   const [aberto, setAberto] = useState(null) // "conta" | "planilha" | null
   const [busca, setBusca] = useState("")
-  const todos = dados?.usuarios || []
+  const [excluindo, setExcluindo] = useState(null)
+  const [aviso, setAviso] = useState("")
+  const { confirmar } = useDialogo()
+  // Conta anonimizada não é mais de ninguém: só segura notas e entregas do
+  // registro acadêmico. Não aparece na lista nem nos números.
+  const todos = (dados?.usuarios || []).filter((u) => !u.anonimizado)
+  const professoresAtivos = todos.filter((u) => u.tipo === "professor" && !u.desativado)
   const termo = normalizar(busca.trim())
   const filtrados = todos.filter((u) => !termo || normalizar(`${u.email} ${u.nome || ""}`).includes(termo))
   const contar = (tipo) => todos.filter((u) => u.tipo === tipo).length
@@ -50,6 +58,13 @@ export function Usuarios() {
       {aberto === "conta" && <NovaConta turmas={opcoesTurma} aoFechar={() => setAberto(null)} aoCriar={recarregar} />}
       {aberto === "planilha" && <Importacao turmas={opcoesTurma} aoFechar={() => setAberto(null)} aoImportar={recarregar} />}
 
+      {aviso && <p role="status" className="mb-4 text-sm font-medium text-sucesso">{aviso}</p>}
+      {excluindo && (
+        <ExcluirConta conta={excluindo} professores={professoresAtivos.filter((p) => p.email !== excluindo.email)}
+          aoFechar={() => setExcluindo(null)}
+          aoExcluir={(mensagem) => { setExcluindo(null); setAviso(mensagem); recarregar() }} />
+      )}
+
       {carregando && <Carregando />}
       {erro && <EstadoVazio>{erro}</EstadoVazio>}
       {dados?.sucesso && !filtrados.length && <EstadoVazio>{todos.length ? "Nenhuma conta corresponde à sua busca." : "Nenhuma conta cadastrada."}</EstadoVazio>}
@@ -57,17 +72,96 @@ export function Usuarios() {
       <section className="flex flex-col gap-2.5">
         {filtrados.map((conta) => (
           <article key={conta.email} className="rounded-cartao bg-superficie px-5 py-4 shadow-cartao">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <Selo tom={conta.tipo === "adm" ? "perigo" : conta.tipo === "professor" ? "alerta" : "neutro"}>{PERFIS[conta.tipo] || conta.tipo}</Selo>
-              {conta.email === usuario.email && <span className="text-xs font-semibold text-texto-secundario">você</span>}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <Selo tom={conta.tipo === "adm" ? "perigo" : conta.tipo === "professor" ? "alerta" : "neutro"}>{PERFIS[conta.tipo] || conta.tipo}</Selo>
+                  {conta.desativado && <Selo tom="perigo">Desativada · anonimiza em {dataComAno(conta.anonimizar_em)}</Selo>}
+                  {conta.email === usuario.email && <span className="text-xs font-semibold text-texto-secundario">você</span>}
+                </div>
+                <h3 className="font-bold text-navy-900">{conta.nome || conta.email}</h3>
+                <p className="text-[13px] text-texto-secundario">{conta.email}</p>
+                <p className="mt-0.5 text-xs font-medium text-primaria">{vinculo(conta)}</p>
+              </div>
+              {conta.tipo !== "adm" && !conta.desativado && (
+                <Botao variante="neutra" pequeno onClick={() => { setAviso(""); setExcluindo(conta) }}>Excluir</Botao>
+              )}
+              {conta.desativado && conta.exclusao_id && (
+                <Botao variante="neutra" pequeno onClick={() => desfazer(conta)}>Desfazer exclusão</Botao>
+              )}
             </div>
-            <h3 className="font-bold text-navy-900">{conta.nome || conta.email}</h3>
-            <p className="text-[13px] text-texto-secundario">{conta.email}</p>
-            <p className="mt-0.5 text-xs font-medium text-primaria">{vinculo(conta)}</p>
           </article>
         ))}
       </section>
     </>
+  )
+
+  async function desfazer(conta) {
+    const sim = await confirmar(`Desfazer a exclusão de ${conta.nome || conta.email}?\n\nA conta volta a entrar com a senha de antes. ` +
+      (conta.tipo === "professor" ? "As disciplinas que passaram para outro professor continuam com ele: atribua de volta em Disciplinas, se for o caso." : ""),
+    { titulo: "Desfazer exclusão", rotulo: "Desfazer" })
+    if (!sim) return
+    try {
+      const resultado = await (await api(`/admin/privacidade/solicitacoes/${conta.exclusao_id}/reverter`, { method: "POST" })).json()
+      setAviso(resultado.mensagem || "")
+      recarregar()
+    } catch (erro) {
+      console.error("Erro ao desfazer exclusão:", erro)
+      setAviso(ERRO_DE_CONEXAO)
+    }
+  }
+}
+
+/**
+ * Excluir é desativar agora e anonimizar em 45 dias (regras/privacidade.py):
+ * até lá, "Desfazer exclusão" devolve a conta. Professor com disciplina só
+ * sai com alguém para assumi-las — o material e as notas são do curso.
+ */
+function ExcluirConta({ conta, professores, aoFechar, aoExcluir }) {
+  const [motivo, setMotivo] = useState("")
+  const [novo, setNovo] = useState("")
+  const [mensagem, setMensagem] = useState("")
+  const [enviando, setEnviando] = useState(false)
+  const temDisciplinas = conta.tipo === "professor" && conta.total_turmas > 0
+
+  async function excluir(evento) {
+    evento.preventDefault()
+    setEnviando(true)
+    try {
+      const corpo = { email: conta.email, motivo: motivo.trim(), novo_professor_email: novo }
+      const resultado = await (await api("/admin/usuarios/exclusao", { method: "POST", body: JSON.stringify(corpo) })).json()
+      if (!resultado.sucesso) return setMensagem(resultado.mensagem)
+      aoExcluir(resultado.mensagem)
+    } catch (erro) {
+      console.error("Erro ao excluir conta:", erro)
+      setMensagem(ERRO_DE_CONEXAO)
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Modal aberto aoFechar={aoFechar} titulo={`Excluir ${conta.nome || conta.email}`}>
+      <p className="mb-4 text-sm leading-relaxed text-texto-secundario">
+        A conta para de entrar agora. Em 45 dias, nome, e-mail e o que é pessoal são anonimizados;
+        {conta.tipo === "aluno" ? " notas e entregas ficam no registro acadêmico, sem identificação." : " o material e as atividades continuam nas disciplinas."}
+        {" "}Até lá dá para desfazer.
+      </p>
+      <form onSubmit={excluir} className="flex flex-col gap-4">
+        {temDisciplinas && (
+          <Escolha rotulo={conta.total_turmas === 1 ? "Quem assume a disciplina dele" : `Quem assume as ${conta.total_turmas} disciplinas dele`} valor={novo} aoMudar={setNovo}
+            opcoes={[{ valor: "", rotulo: professores.length ? "Escolha um professor" : "Nenhum outro professor ativo" },
+              ...professores.map((p) => ({ valor: p.email, rotulo: p.nome ? `${p.nome} · ${p.email}` : p.email }))]} />
+        )}
+        <AreaDeTexto rotulo="Motivo (fica registrado)" valor={motivo} aoMudar={setMotivo} linhas={3} maximo={500}
+          placeholder="Ex.: transferido para outra instituição" obrigatorio />
+        <MensagemDeFormulario texto={mensagem} />
+        <AcoesDoModal>
+          <Botao variante="neutra" onClick={aoFechar}>Cancelar</Botao>
+          <Botao variante="perigo" tipo="submit" desativado={enviando || (temDisciplinas && !novo)}>{enviando ? "Excluindo..." : "Excluir conta"}</Botao>
+        </AcoesDoModal>
+      </form>
+    </Modal>
   )
 }
 

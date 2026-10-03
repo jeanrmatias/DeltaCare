@@ -3,8 +3,8 @@
  * antigo o menu estava copiado dentro de cada uma das 33 páginas, e pôr um
  * item novo era editar todas.
  *
- * Item de menu nunca leva a tela vazia: o único módulo ainda não construído
- * (Relatórios) leva a uma página que diz isso e o que ele vai fazer.
+ * Item de menu nunca leva a tela vazia nem a dado de exemplo: todo módulo do
+ * menu está construído e mostra o que está no banco.
  */
 export const MENUS = {
   aluno: [
@@ -29,6 +29,7 @@ export const MENUS = {
     { rotulo: "Chat", caminho: "/professor/mensagens", icone: "chat" },
     { rotulo: "Desempenho", caminho: "/professor/desempenho", icone: "desempenho" },
     { rotulo: "Lacunas do material", caminho: "/professor/lacunas", icone: "lacunas" },
+    { rotulo: "Relatórios", caminho: "/professor/relatorios", icone: "relatorios" },
     { rotulo: "Denúncias", caminho: "/professor/denuncias", icone: "denuncias" },
     { rotulo: "Avisos", caminho: "/professor/avisos", icone: "avisos" },
     { rotulo: "Semestres anteriores", caminho: "/professor/historico", icone: "historico" },
@@ -42,7 +43,6 @@ export const MENUS = {
     { rotulo: "Avisos", caminho: "/admin/avisos", icone: "avisos" },
     { rotulo: "Conteúdo", caminho: "/admin/conteudo", icone: "materiais" },
     { rotulo: "Privacidade", caminho: "/admin/privacidade", icone: "privacidade" },
-    // O módulo ainda não existe: a página diz isso e o que ele vai fazer.
-    { rotulo: "Relatórios", caminho: "/admin/relatorios", icone: "desempenho" },
+    { rotulo: "Relatórios", caminho: "/admin/relatorios", icone: "relatorios" },
   ],
 }

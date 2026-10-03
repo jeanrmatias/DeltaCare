@@ -16,6 +16,7 @@ Usa `unittest`, da biblioteca padrão, para o projeto não ganhar dependência.
 
 import base64
 import json
+import operator
 import os
 import tempfile
 import unittest
@@ -41,6 +42,7 @@ os.environ["DELTACARE_UPLOADS"] = os.path.join(
 import sqlite3  # noqa: E402
 
 from infra.database import CAMINHO_DB, configurar_banco  # noqa: E402
+from infra.vetores import desempacotar, empacotar, normalizar  # noqa: E402
 from regras.autenticacao import (  # noqa: E402
     JANELA_LOGIN_MINUTOS,
     MAX_FALHAS_LOGIN,
@@ -6187,7 +6189,7 @@ class TestesIndexacao(BaseDelta):
 
     def _trechos(self, material_id):
         conexao = sqlite3.connect(CAMINHO_DB)
-        linhas = conexao.execute("SELECT indice, texto, embedding FROM material_chunks WHERE material_id = ? ORDER BY indice",
+        linhas = conexao.execute("SELECT indice, texto, embedding, vetor FROM material_chunks WHERE material_id = ? ORDER BY indice",
                                  (material_id,)).fetchall()
         conexao.close()
         return linhas
@@ -6239,10 +6241,492 @@ class TestesIndexacao(BaseDelta):
             chat_ia.indexar_material(material, gerar_embeddings_fn=ollama_fora)
         self.assertEqual(self._trechos(material), antes)
 
+    def test_indexacao_grava_o_vetor_em_binario(self):
+        material, _ = self._pdf_em_duas_disciplinas()
+        chat_ia.indexar_material(material, gerar_embeddings_fn=lambda textos: [embedding_falso(t) for t in textos])
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linhas = conexao.execute("SELECT texto, embedding, vetor FROM material_chunks WHERE material_id = ?", (material,)).fetchall()
+        conexao.close()
+        self.assertTrue(linhas)
+        for texto, embedding, vetor in linhas:
+            self.assertEqual(embedding, "")
+            self.assertEqual(list(desempacotar(vetor)), list(desempacotar(empacotar(embedding_falso(texto)))))
+
     def test_endereco_padrao_do_ollama_nao_e_localhost(self):
         """No Windows, "localhost" custava ~2 s por chamada (tenta IPv6 antes)."""
         self.assertNotIn("localhost", chat_ia.OLLAMA_URL_PADRAO)
 
+
+class TestesBuscaDoChat(BaseDelta):
+    """A busca em binário e com corte devolve o mesmo que pontuar tudo."""
+
+    TERMOS = ("cardiolex", "dcm-3", "92 mmhg")
+
+    def _povoar(self, semente, quantidade=160):
+        import random
+
+        sorteio = random.Random(semente)
+        pergunta = [sorteio.uniform(-1, 1) for _ in range(32)]
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo=f"Aula {semente}",
+                                  tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        for indice in range(quantidade):
+            # Perto da pergunta em graus variados, para as similaridades ficarem
+            # próximas o bastante de o bônus literal decidir a ordem.
+            peso = sorteio.uniform(0.2, 1.0)
+            vetor = [peso * x + sorteio.uniform(-0.6, 0.6) for x in pergunta]
+            termos = [t for t in self.TERMOS if sorteio.random() < 0.3]
+            texto = f"Trecho {indice}. " + " ".join(termos)
+            # Metade ainda em JSON, como as linhas de antes da coluna binária.
+            if indice % 2:
+                conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor) VALUES (?, ?, ?, '', ?)",
+                                (material, indice, texto, empacotar(vetor)))
+            else:
+                conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
+                                (material, indice, texto, json.dumps(vetor)))
+        conexao.commit()
+        conexao.close()
+        return pergunta
+
+    def _pontuando_todos(self, pergunta, texto_pergunta):
+        """A busca como era: pontua todos os trechos e ordena."""
+        q = normalizar(pergunta)
+        termos = chat_ia._termos_distintivos(texto_pergunta)
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linhas = conexao.execute("SELECT texto, vetor, embedding FROM material_chunks").fetchall()
+        conexao.close()
+        pontuados = []
+        for texto, vetor, embedding in linhas:
+            trecho = desempacotar(vetor) if vetor else normalizar(json.loads(embedding))
+            pontuados.append((chat_ia._pontuar_trecho(texto, sum(map(operator.mul, q, trecho)), termos), texto))
+        pontuados.sort(key=lambda p: p[0], reverse=True)
+        return [texto for _, texto in pontuados[:chat_ia.TOP_K]]
+
+    def test_corte_devolve_o_mesmo_que_pontuar_todos(self):
+        texto_pergunta = "Quando suspender o Cardiolex no DCM-3 abaixo de 92 mmHg?"
+        for semente in range(12):
+            with self.subTest(semente=semente):
+                conexao = sqlite3.connect(CAMINHO_DB)
+                conexao.execute("DELETE FROM material_chunks")
+                conexao.commit()
+                conexao.close()
+                pergunta = self._povoar(semente)
+
+                achados = chat_ia.buscar_trechos_relevantes(self.turma_id, texto_pergunta, gerar_embedding_fn=lambda _: pergunta)
+
+                self.assertEqual([a["texto"] for a in achados], self._pontuando_todos(pergunta, texto_pergunta))
+
+    def test_corte_com_similaridades_espacadas(self):
+        """Similaridade caindo de 0,03 em 0,03: entre o 5º e o 10º melhor há
+        mais que o bônus inteiro. Um corte mais apertado que o necessário
+        perderia trechos que estão no top 10."""
+        import math
+
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Espacados",
+                                  tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        for indice in range(30):
+            angulo = math.acos(0.95 - 0.03 * indice)
+            texto = f"Trecho {indice}." + (" cardiolex" if indice % 3 == 0 else "")
+            conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor) VALUES (?, ?, ?, '', ?)",
+                            (material, indice, texto, empacotar([math.cos(angulo), math.sin(angulo)])))
+        conexao.commit()
+        conexao.close()
+        pergunta = [1.0, 0.0]
+
+        achados = chat_ia.buscar_trechos_relevantes(self.turma_id, "dose do cardiolex", gerar_embedding_fn=lambda _: pergunta)
+
+        self.assertEqual([a["texto"] for a in achados], self._pontuando_todos(pergunta, "dose do cardiolex"))
+
+    def test_banco_antigo_converte_o_vetor_ao_subir(self):
+        """Quem atualiza o sistema não precisa reindexar os PDFs."""
+        pergunta = self._povoar(99, quantidade=20)
+        antes = chat_ia.buscar_trechos_relevantes(self.turma_id, "cardiolex", gerar_embedding_fn=lambda _: pergunta)
+
+        configurar_banco(silencioso=True)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        restantes = conexao.execute("SELECT COUNT(*) FROM material_chunks WHERE vetor IS NULL OR embedding != ''").fetchone()[0]
+        conexao.close()
+        self.assertEqual(restantes, 0)
+        depois = chat_ia.buscar_trechos_relevantes(self.turma_id, "cardiolex", gerar_embedding_fn=lambda _: pergunta)
+        self.assertEqual([a["texto"] for a in depois], [a["texto"] for a in antes])
+
+
+# =========================================================================
+# Exclusão de conta pela administração e troca de professor da disciplina
+# (regras/privacidade.excluir_pela_administracao, regras/turmas.trocar_professor)
+# =========================================================================
+
+class TestesExclusaoPelaAdministracao(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        self.material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 3 - Insuficiencia",
+                                       tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
+
+    def _excluir(self, email, motivo="Saiu da instituição.", novo=""):
+        from regras.privacidade import excluir_pela_administracao
+
+        return excluir_pela_administracao(ADMIN, email, motivo, novo)
+
+    def _um(self, sql, parametros=()):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linha = conexao.execute(sql, parametros).fetchone()
+        conexao.close()
+        return linha
+
+    def test_aluno_excluido_nao_entra_e_cai_das_sessoes(self):
+        sessao = criar_sessao(self._um("SELECT id FROM users WHERE email = ?", (ALUNO,))[0])
+
+        resultado = self._excluir(ALUNO)
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertFalse(realizar_login(ALUNO, SENHA)["sucesso"])
+        self.assertIsNone(buscar_usuario_da_sessao(sessao))
+
+    def test_exclusao_fica_registrada_como_da_administracao_e_pode_ser_desfeita(self):
+        from regras.privacidade import listar_solicitacoes, reverter_exclusao
+
+        self._excluir(ALUNO, motivo="Transferido para outra faculdade.")
+        pedido = [s for s in listar_solicitacoes(ADMIN)["solicitacoes"] if s["aluno"]["email"] == ALUNO][0]
+
+        self.assertEqual((pedido["tipo"], pedido["status"], pedido["origem"]), ("exclusao", "agendada", "administracao"))
+        self.assertEqual(pedido["motivo"], "Transferido para outra faculdade.")
+        self.assertTrue(reverter_exclusao(ADMIN, pedido["id"])["sucesso"])
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_desfazer_nao_ressuscita_a_sessao_de_antes(self):
+        """Quem estava logado num computador do laboratório não volta a entrar
+        sozinho quando a exclusão é desfeita."""
+        from regras.privacidade import reverter_exclusao
+
+        sessao = criar_sessao(self._um("SELECT id FROM users WHERE email = ?", (ALUNO,))[0])
+        self._excluir(ALUNO)
+        reverter_exclusao(ADMIN, self._um("SELECT id FROM solicitacoes_privacidade WHERE origem = 'administracao'")[0])
+
+        self.assertIsNone(buscar_usuario_da_sessao(sessao))
+
+    def test_sem_motivo_nao_exclui(self):
+        """O motivo é o registro de por que a instituição tratou o dado sem o titular pedir."""
+        self.assertFalse(self._excluir(ALUNO, motivo="  ")["sucesso"])
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_professor_com_disciplina_exige_quem_assuma(self):
+        resultado = self._excluir(PROFESSOR)
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertTrue(realizar_login(PROFESSOR, SENHA)["sucesso"])
+        self.assertEqual(self._um("SELECT professor_id FROM turmas WHERE id = ?", (self.turma_id,)),
+                         self._um("SELECT id FROM users WHERE email = ?", (PROFESSOR,)))
+
+    def test_disciplina_material_e_atividade_passam_para_quem_assume(self):
+        atividade = criar_atividade_em_turmas(PROFESSOR, [self.turma_id], titulo="Quiz IC", tipo="objetiva", pontos=10,
+                                              rascunho=False, questoes=[{"enunciado": "Dose?", "alternativas": ["5", "12,5"], "correta": 1}]
+                                              )["atividade_ids"][0]
+
+        resultado = self._excluir(PROFESSOR, novo=PROFESSOR2)
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        novo_id = self._um("SELECT id FROM users WHERE email = ?", (PROFESSOR2,))[0]
+        self.assertEqual(self._um("SELECT professor_id FROM turmas WHERE id = ?", (self.turma_id,))[0], novo_id)
+        # Quem assume edita o que já estava publicado...
+        self.assertTrue(atualizar_material(self.material, PROFESSOR2, titulo="Aula 3 - revisada")["sucesso"])
+        self.assertEqual(self._um("SELECT professor_id FROM atividades WHERE id = ?", (atividade,))[0], novo_id)
+        # ...e o aluno continua com o material.
+        titulos = [m["titulo"] for m in listar_materiais_do_aluno(ALUNO, self.turma_id)["materiais"]]
+        self.assertIn("Aula 3 - revisada", titulos)
+
+    def test_quem_assume_precisa_ser_professor_ativo_e_outro(self):
+        self._excluir(PROFESSOR2)  # sem disciplina: sai direto
+        for novo in (PROFESSOR2, PROFESSOR, ALUNO, "ninguem@teste.com"):
+            with self.subTest(novo=novo):
+                self.assertFalse(self._excluir(PROFESSOR, novo=novo)["sucesso"])
+        self.assertTrue(realizar_login(PROFESSOR, SENHA)["sucesso"])
+
+    def test_nao_exclui_administracao_nem_conta_ja_desativada(self):
+        self.assertFalse(self._excluir(ADMIN)["sucesso"])
+        self._excluir(ALUNO)
+        self.assertFalse(self._excluir(ALUNO)["sucesso"])
+
+    def test_professor_anonimizado_vira_professor_removido(self):
+        from regras.privacidade import anonimizar_vencidas
+
+        self._excluir(PROFESSOR, novo=PROFESSOR2)
+        anonimizar_vencidas(datetime.now(timezone.utc) + timedelta(days=46))
+
+        self.assertEqual(self._um("SELECT nome FROM users WHERE id = (SELECT professor_id FROM materiais WHERE id = ?)",
+                                  (self.material,))[0], self._um("SELECT nome FROM users WHERE email = ?", (PROFESSOR2,))[0])
+        self.assertEqual(self._um("SELECT GROUP_CONCAT(nome) FROM users WHERE anonimizado_em IS NOT NULL")[0], "Professor removido")
+
+    def test_lista_de_usuarios_mostra_a_exclusao_em_andamento(self):
+        self._excluir(ALUNO)
+
+        conta = [u for u in listar_usuarios(ADMIN)["usuarios"] if u["email"] == ALUNO][0]
+
+        self.assertTrue(conta["desativado"])
+        self.assertTrue(conta["exclusao_id"])
+        self.assertTrue(conta["anonimizar_em"])
+
+    def test_professor_desativado_nao_aparece_para_receber_disciplina(self):
+        from regras.turmas import listar_professores
+
+        self._excluir(PROFESSOR2)
+
+        self.assertNotIn(PROFESSOR2, listar_professores(ADMIN)["professores"])
+
+    def test_so_a_administracao_exclui(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+        token = cliente.post("/login", json={"email": PROFESSOR, "senha": SENHA}).json()["token"]
+        resposta = cliente.post("/admin/usuarios/exclusao", headers={"Authorization": f"Bearer {token}"},
+                                json={"email": ALUNO, "motivo": "teste"})
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+
+class TestesTrocaDeProfessor(BaseDelta):
+
+    def test_outro_professor_assume_com_o_material(self):
+        from regras.turmas import trocar_professor
+
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 1",
+                                  tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
+
+        self.assertTrue(trocar_professor(ADMIN, self.turma_id, PROFESSOR2)["sucesso"])
+
+        self.assertTrue(excluir_material(material, PROFESSOR2)["sucesso"])
+
+    def test_professor_antigo_perde_o_acesso(self):
+        from regras.turmas import trocar_professor
+
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 1",
+                                  tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
+        trocar_professor(ADMIN, self.turma_id, PROFESSOR2)
+
+        self.assertFalse(excluir_material(material, PROFESSOR)["sucesso"])
+
+    def test_so_a_administracao_troca(self):
+        from regras.turmas import trocar_professor
+
+        self.assertFalse(trocar_professor(PROFESSOR2, self.turma_id, PROFESSOR2)["sucesso"])
+        self.assertFalse(trocar_professor(ADMIN, self.turma_id, ALUNO)["sucesso"])
+
+# =========================================================================
+# Relatórios (regras/relatorios.py): a turma por mês, agora, e a dificuldade
+# =========================================================================
+
+class TestesRelatorios(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        from regras.coortes import criar_coorte
+
+        self.coorte = criar_coorte(ADMIN, "MED 3A", "2026/2")["coorte"]["id"]
+        self.cardio = criar_turma(ADMIN, PROFESSOR, "Cardiologia I", "2026/2", self.coorte)["turma"]["id"]
+        self.anato = criar_turma(ADMIN, PROFESSOR2, "Anatomia", "2026/2", self.coorte)["turma"]["id"]
+        matricular_na_coorte(ADMIN, ALUNO, self.coorte)
+        matricular_na_coorte(ADMIN, ALUNO_FORA, self.coorte)
+
+    def _sql(self, sql, parametros=()):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute(sql, parametros)
+        conexao.commit()
+        conexao.close()
+
+    def _id(self, email):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        valor = conexao.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()[0]
+        conexao.close()
+        return valor
+
+    def _quiz(self, turma, professor, prazo, titulo="Quiz IC", topico="Insuficiencia"):
+        return criar_atividade_em_turmas(professor, [turma], titulo=titulo, tipo="objetiva", pontos=10, rascunho=False,
+                                         prazo=prazo, topico=topico,
+                                         questoes=[{"enunciado": "Dose do Cardiolex?", "alternativas": ["5", "12,5"], "correta": 1},
+                                                   {"enunciado": "Estagio frio e seco?", "alternativas": ["DCM-1", "DCM-4"], "correta": 1}]
+                                         )["atividade_ids"][0]
+
+    def _entregar(self, aluno, atividade, respostas, quando):
+        enviar_entrega(aluno, atividade, respostas)
+        self._sql("UPDATE entregas SET enviado_em = ? WHERE atividade_id = ? AND aluno_id = ?", (quando, atividade, self._id(aluno)))
+
+    def _pergunta(self, aluno, turma, quando, cobertura, texto="o que e o cardiolex?"):
+        self._sql("INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, criado_em) VALUES (?, ?, 'user', ?, ?)",
+                  (self._id(aluno), turma, texto, quando))
+        self._sql("INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, criado_em, cobertura) VALUES (?, ?, 'assistant', 'resposta', ?, ?)",
+                  (self._id(aluno), turma, quando, cobertura))
+
+    def _mes(self, relatorio, chave):
+        return [m for m in relatorio["meses"] if m["mes"] == chave][0]
+
+    # ---- quem vê ----
+
+    def test_professor_ve_so_as_disciplinas_dele_na_turma(self):
+        from regras.relatorios import relatorio_mensal, turmas_para_relatorio
+
+        self.assertEqual([d["nome"] for d in relatorio_mensal(PROFESSOR, self.coorte)["disciplinas"]], ["Cardiologia I"])
+        self.assertEqual([d["nome"] for d in relatorio_mensal(ADMIN, self.coorte)["disciplinas"]], ["Anatomia", "Cardiologia I"])
+        self.assertEqual([t["id"] for t in turmas_para_relatorio(PROFESSOR)["turmas"]], [self.coorte])
+
+    def test_turma_sem_disciplina_do_professor_e_aluno_nao_abrem(self):
+        from regras.coortes import criar_coorte
+        from regras.relatorios import painel_ao_vivo, relatorio_mensal
+
+        outra = criar_coorte(ADMIN, "MED 5B", "2026/2")["coorte"]["id"]
+        criar_turma(ADMIN, PROFESSOR2, "Neurologia", "2026/2", outra)
+
+        self.assertFalse(relatorio_mensal(PROFESSOR, outra)["sucesso"])
+        self.assertFalse(painel_ao_vivo(PROFESSOR, outra)["sucesso"])
+        self.assertFalse(relatorio_mensal(ALUNO, self.coorte)["sucesso"])
+
+    def test_dificuldade_e_so_da_administracao(self):
+        from regras.relatorios import dificuldade_por_disciplina
+
+        self.assertFalse(dificuldade_por_disciplina(PROFESSOR, "2026/2")["sucesso"])
+        self.assertTrue(dificuldade_por_disciplina(ADMIN, "2026/2")["sucesso"])
+
+    # ---- por mês ----
+
+    def test_nota_conta_no_mes_da_entrega(self):
+        from regras.relatorios import relatorio_mensal
+
+        quiz = self._quiz(self.cardio, PROFESSOR, "2026-09-30T23:00:00+00:00")
+        self._entregar(ALUNO, quiz, [1, 1], "2026-09-10T12:00:00+00:00")       # 100%
+        self._entregar(ALUNO_FORA, quiz, [0, 1], "2026-10-02T12:00:00+00:00")  # 50%, atrasada
+
+        relatorio = relatorio_mensal(ADMIN, self.coorte)
+
+        setembro, outubro = self._mes(relatorio, "2026-09"), self._mes(relatorio, "2026-10")
+        self.assertEqual(setembro["total"]["notas"], {"aproveitamento": 100.0, "corrigidas": 1})
+        self.assertEqual(outubro["total"]["notas"], {"aproveitamento": 50.0, "corrigidas": 1})
+        # A situação da entrega é do mês do prazo (setembro), não da entrega.
+        self.assertEqual(setembro["total"]["entregas"], {"no_prazo": 1, "atrasadas": 1, "nao_entregues": 0})
+
+    def test_nao_entregue_so_depois_do_prazo_e_sem_quem_saiu(self):
+        from regras.privacidade import excluir_pela_administracao
+        from regras.relatorios import relatorio_mensal
+
+        vencido = self._quiz(self.cardio, PROFESSOR, "2026-09-15T12:00:00+00:00", titulo="Vencido")
+        self._quiz(self.cardio, PROFESSOR, (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(), titulo="Por vir")
+        self._entregar(ALUNO, vencido, [1, 1], "2026-09-14T12:00:00+00:00")
+        self.assertTrue(criar_conta_staff(ADMIN, "saiu@teste.com", SENHA, "aluno", nome="Aluno que saiu", provisoria=False)["sucesso"])
+        self.assertTrue(matricular_na_coorte(ADMIN, "saiu@teste.com", self.coorte)["sucesso"])
+        self.assertTrue(excluir_pela_administracao(ADMIN, "saiu@teste.com", "Transferido.")["sucesso"])
+
+        entregas = [m["total"]["entregas"] for m in relatorio_mensal(ADMIN, self.coorte)["meses"]]
+
+        # ALUNO_FORA não entregou o vencido; "Por vir" ainda não conta; quem saiu, nunca.
+        self.assertEqual(sum(e["nao_entregues"] for e in entregas), 1)
+        self.assertEqual(sum(e["no_prazo"] for e in entregas), 1)
+
+    def test_chat_conta_perguntas_e_cobertura_sem_o_texto(self):
+        from regras.relatorios import relatorio_mensal
+
+        self._pergunta(ALUNO, self.cardio, "2026-10-01T10:00:00+00:00", "completa", texto="pergunta-secreta-1")
+        self._pergunta(ALUNO_FORA, self.cardio, "2026-10-01T11:00:00+00:00", "parcial", texto="pergunta-secreta-2")
+
+        relatorio = relatorio_mensal(PROFESSOR, self.coorte)
+
+        chat = self._mes(relatorio, "2026-10")["total"]["chat"]
+        self.assertEqual((chat["perguntas"], chat["completa"], chat["parcial"]), (2, 1, 1))
+        texto = json.dumps(relatorio, ensure_ascii=False)
+        for privado in ("pergunta-secreta", ALUNO, ALUNO_FORA):
+            self.assertNotIn(privado, texto)
+
+    def test_engajamento_conta_alunos_e_dias_distintos(self):
+        from regras.relatorios import relatorio_mensal
+
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.cardio, titulo="Aula 3", tipo="link",
+                                  link_url="https://exemplo.com", rascunho=False)["material_id"]
+        for quando in ("2026-10-01T10:00:00+00:00", "2026-10-01T15:00:00+00:00", "2026-10-03T10:00:00+00:00"):
+            self._sql("INSERT INTO acessos_material (aluno_id, material_id, criado_em) VALUES (?, ?, ?)", (self._id(ALUNO), material, quando))
+
+        engajamento = self._mes(relatorio_mensal(ADMIN, self.coorte), "2026-10")["total"]["engajamento"]
+
+        self.assertEqual(engajamento["alunos_ativos"], 1)
+        self.assertEqual(engajamento["alunos"], 2)
+        self.assertEqual(engajamento["dias_de_estudo_por_aluno"], 2.0)  # dois dias, não três acessos
+        self.assertEqual(engajamento["materiais_abertos"], 1)            # o mesmo material
+        self.assertGreater(engajamento["xp_medio"], 0)
+
+    def test_turma_sem_registro_nenhum_nao_inventa_mes(self):
+        from regras.relatorios import relatorio_mensal
+
+        self.assertEqual(relatorio_mensal(ADMIN, self.coorte)["meses"], [])
+
+    # ---- ao vivo ----
+
+    def test_ao_vivo_conta_a_ultima_hora_e_o_dia(self):
+        from regras.relatorios import painel_ao_vivo
+
+        agora = datetime.now(timezone.utc)
+        self._pergunta(ALUNO, self.cardio, (agora - timedelta(minutes=10)).isoformat(), "completa")
+        self._pergunta(ALUNO_FORA, self.cardio, (agora - timedelta(hours=5)).isoformat(), "nenhuma")
+        self._pergunta(ALUNO_FORA, self.cardio, (agora - timedelta(days=3)).isoformat(), "nenhuma")
+
+        painel = painel_ao_vivo(ADMIN, self.coorte)
+
+        self.assertEqual(painel["agora"]["alunos_ativos"], 1)
+        self.assertEqual(painel["ultimas_24h"]["alunos_ativos"], 2)
+        self.assertEqual(painel["ultimas_24h"]["perguntas"], 2)
+
+    def test_ao_vivo_mostra_atividade_em_aberto_e_eventos_sem_nome(self):
+        from regras.relatorios import painel_ao_vivo
+
+        quiz = self._quiz(self.cardio, PROFESSOR, (datetime.now(timezone.utc) + timedelta(days=2)).isoformat())
+        enviar_entrega(ALUNO, quiz, [1, 0])
+
+        painel = painel_ao_vivo(PROFESSOR, self.coorte)
+
+        aberta = painel["atividades_abertas"][0]
+        self.assertEqual((aberta["entregues"], aberta["alunos"], aberta["aproveitamento"]), (1, 2, 50.0))
+        self.assertEqual(painel["recentes"][0]["tipo"], "entrega")
+        self.assertNotIn(ALUNO, json.dumps(painel))
+
+    # ---- dificuldade ----
+
+    def test_mais_dificil_primeiro_e_sem_nota_no_fim(self):
+        from regras.relatorios import dificuldade_por_disciplina
+
+        neuro = criar_turma(ADMIN, PROFESSOR, "Neurologia", "2026/2", self.coorte)["turma"]["id"]
+        facil = self._quiz(self.cardio, PROFESSOR, "2026-09-30T23:00:00+00:00")
+        dificil = self._quiz(self.anato, PROFESSOR2, "2026-09-30T23:00:00+00:00", titulo="Quiz cranio", topico="Cranio")
+        self._entregar(ALUNO, facil, [1, 1], "2026-09-10T12:00:00+00:00")
+        self._entregar(ALUNO, dificil, [0, 0], "2026-09-10T12:00:00+00:00")
+        self._entregar(ALUNO_FORA, dificil, [1, 0], "2026-09-10T12:00:00+00:00")
+
+        linhas = dificuldade_por_disciplina(ADMIN, "2026/2")["disciplinas"]
+
+        self.assertEqual([d["id"] for d in linhas][:2], [self.anato, self.cardio])
+        # Sem nota nenhuma (Neurologia, e a disciplina da base dos testes) vai para o fim.
+        self.assertIn(neuro, [d["id"] for d in linhas][2:])
+        self.assertTrue(all(d["aproveitamento"] is None for d in linhas[2:]))
+        anatomia = linhas[0]
+        self.assertEqual(anatomia["aproveitamento"], 25.0)
+        self.assertEqual((anatomia["alunos_com_dificuldade"], anatomia["alunos_com_nota"]), (2, 2))
+        self.assertTrue(anatomia["poucos_dados"])
+        self.assertEqual(anatomia["topico_mais_errado"]["topico"], "Cranio")
+        self.assertEqual(anatomia["nao_entregues"], 0.0)
+
+    def test_rotas_conferem_o_perfil(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+
+        def cabecalho(email):
+            return {"Authorization": "Bearer " + cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]}
+
+        self.assertFalse(cliente.get(f"/relatorios/mensal?coorte_id={self.coorte}", headers=cabecalho(ALUNO)).json()["sucesso"])
+        self.assertEqual(cliente.get("/admin/relatorios/dificuldade", headers=cabecalho(PROFESSOR)).status_code, 403)
+        self.assertTrue(cliente.get(f"/relatorios/ao-vivo?coorte_id={self.coorte}", headers=cabecalho(PROFESSOR)).json()["sucesso"])
 
 # =========================================================================
 # Senha provisória (regras/autenticacao.py + main.usuario_logado)

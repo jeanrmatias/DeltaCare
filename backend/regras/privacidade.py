@@ -14,6 +14,13 @@ Decisões da instituição, todas aqui para mudar num lugar só:
   o registro acadêmico. Nos 45 dias a administração pode voltar atrás — é o
   caso do aluno que trancou e vai ser realocado.
 
+A **administração é a encarregada pelo tratamento de dados (DPO)**, por
+decisão da instituição: é ela que decide os pedidos e que pode, por conta
+própria, excluir a conta de um aluno ou professor que deixou a faculdade
+(`excluir_pela_administracao`) — com o mesmo prazo de 45 dias para voltar
+atrás. O professor apaga o próprio conteúdo (material, atividade, aviso) nas
+telas dele; a administração não despublica material de professor.
+
 O que a anonimização apaga e o que guarda está em `_anonimizar`, com o
 motivo de cada linha.
 """
@@ -25,7 +32,7 @@ from datetime import datetime, timedelta, timezone
 from infra.security import hash_senha
 from regras.importacao import _parece_email
 from regras.notificacoes import criar_notificacao, criar_notificacoes
-from regras.turmas import buscar_usuario, conectar
+from regras.turmas import buscar_usuario, conectar, passar_disciplina
 
 PRAZO_ANONIMIZACAO_DIAS = 45
 
@@ -150,9 +157,10 @@ def cancelar(aluno_email: str, solicitacao_id: int) -> dict:
 
 def _linha_para_dict(linha) -> dict:
     (sid, tipo, status, campo, valor_novo, motivo, resposta,
-     criado_em, decidido_em, anonimizar_em, concluido_em) = linha
+     criado_em, decidido_em, anonimizar_em, concluido_em, origem) = linha
     return {
         "id": sid,
+        "origem": origem,
         "tipo": tipo,
         "tipo_rotulo": TIPOS.get(tipo, tipo),
         "status": status,
@@ -170,7 +178,7 @@ def _linha_para_dict(linha) -> dict:
 
 _COLUNAS = (
     "s.id, s.tipo, s.status, s.campo, s.valor_novo, s.motivo, s.resposta,"
-    " s.criado_em, s.decidido_em, s.anonimizar_em, s.concluido_em"
+    " s.criado_em, s.decidido_em, s.anonimizar_em, s.concluido_em, s.origem"
 )
 
 
@@ -320,7 +328,7 @@ def listar_solicitacoes(admin_email: str, status: str = "") -> dict:
         filtro, parametros = " WHERE s.status = ?", [status]
 
     linhas = conexao.execute(
-        f"SELECT {_COLUNAS}, s.aluno_id, u.nome, u.email, u.matricula, u.anonimizado_em"
+        f"SELECT {_COLUNAS}, s.aluno_id, u.nome, u.email, u.matricula, u.anonimizado_em, u.tipo"
         "  FROM solicitacoes_privacidade s JOIN users u ON u.id = s.aluno_id"
         f"{filtro}"
         # A exportação é automática: na fila só polui. Fica no histórico do aluno.
@@ -337,10 +345,11 @@ def listar_solicitacoes(admin_email: str, status: str = "") -> dict:
 
     solicitacoes = []
     for linha in linhas:
-        item = _linha_para_dict(linha[:11])
-        aluno_id, nome, email, matricula, anonimizado_em = linha[11:]
+        item = _linha_para_dict(linha[:12])
+        aluno_id, nome, email, matricula, anonimizado_em, tipo_conta = linha[12:]
         item["aluno"] = {
             "id": aluno_id,
+            "tipo": tipo_conta,
             "nome": nome,
             "email": email,
             "matricula": matricula,
@@ -464,6 +473,99 @@ def decidir(admin_email: str, solicitacao_id: int, aprovar: bool, resposta: str 
     }
 
 
+def excluir_pela_administracao(admin_email: str, email: str, motivo: str, novo_professor_email: str = "") -> dict:
+    """A administração exclui a conta de um aluno ou professor que saiu.
+
+    Mesmo caminho do pedido do aluno, já aprovado: desativa agora, anonimiza
+    em PRAZO_ANONIMIZACAO_DIAS, e até lá dá para voltar atrás na tela
+    Privacidade. O motivo é obrigatório — é o registro de por que a
+    instituição tratou o dado de alguém sem ele pedir.
+
+    Professor com disciplina precisa de quem as assuma (`novo_professor_email`):
+    o material, as atividades e as notas são do curso e continuam com os
+    alunos. A passagem não volta se a exclusão for desfeita — a essa altura o
+    outro professor já pode ter publicado e corrigido.
+    """
+    motivo = (motivo or "").strip()
+    if not motivo:
+        return {"sucesso": False, "mensagem": "Diga o motivo da exclusão. Ele fica registrado."}
+    if len(motivo) > LIMITE_TEXTO:
+        return {"sucesso": False, "mensagem": f"O motivo passa de {LIMITE_TEXTO} caracteres."}
+
+    conexao = conectar()
+    try:
+        admin_id = _eh_admin(conexao, admin_email)
+        if not admin_id:
+            return {"sucesso": False, "mensagem": "Acesso restrito à administração."}
+        alvo = conexao.execute(
+            "SELECT id, tipo, nome, email, desativado_em FROM users WHERE email = ?", ((email or "").strip().lower(),)
+        ).fetchone()
+        if not alvo:
+            return {"sucesso": False, "mensagem": "Conta não encontrada."}
+        alvo_id, tipo_conta, nome, email_alvo, desativado_em = alvo
+        if tipo_conta not in ("aluno", "professor"):
+            return {"sucesso": False, "mensagem": "Por aqui só se exclui conta de aluno ou de professor."}
+        if desativado_em:
+            return {"sucesso": False, "mensagem": "Essa conta já está desativada."}
+
+        disciplinas = [linha[0] for linha in conexao.execute("SELECT id FROM turmas WHERE professor_id = ?", (alvo_id,))]
+        novo_id = None
+        if disciplinas:
+            novo = conexao.execute(
+                "SELECT id FROM users WHERE email = ? AND tipo = 'professor' AND desativado_em IS NULL AND id != ?",
+                ((novo_professor_email or "").strip().lower(), alvo_id),
+            ).fetchone()
+            if not novo:
+                quais = "a disciplina" if len(disciplinas) == 1 else f"as {len(disciplinas)} disciplinas"
+                return {"sucesso": False, "mensagem": f"Escolha quem assume {quais} deste professor."}
+            novo_id = novo[0]
+
+        agora = _agora()
+        anonimizar_em = agora + timedelta(days=PRAZO_ANONIMIZACAO_DIAS)
+        for turma_id in disciplinas:
+            passar_disciplina(conexao, turma_id, novo_id)
+        conexao.execute("UPDATE users SET desativado_em = ? WHERE id = ?", (agora.isoformat(), alvo_id))
+        conexao.execute("DELETE FROM sessoes WHERE user_id = ?", (alvo_id,))
+        conexao.execute(
+            "UPDATE solicitacoes_privacidade SET status = 'cancelada', concluido_em = ?,"
+            " resposta = 'Cancelado com a exclusão da conta.'"
+            " WHERE aluno_id = ? AND status = 'pendente'",
+            (agora.isoformat(), alvo_id),
+        )
+        conexao.execute(
+            "INSERT INTO solicitacoes_privacidade (aluno_id, tipo, status, motivo, criado_em, decidido_em,"
+            " decidido_por, anonimizar_em, origem) VALUES (?, 'exclusao', 'agendada', ?, ?, ?, ?, ?, 'administracao')",
+            (alvo_id, motivo, agora.isoformat(), agora.isoformat(), admin_id, anonimizar_em.isoformat()),
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    if novo_id:
+        criar_notificacao(novo_id, "disciplina", "Novas disciplinas",
+                          f"Você assumiu {len(disciplinas)} disciplina(s) de outro professor, com o material e as atividades.",
+                          "turmas.html")
+
+    from infra.email import enviar_em_segundo_plano
+
+    data = anonimizar_em.strftime("%d/%m/%Y")
+    enviar_em_segundo_plano(
+        email_alvo,
+        "Delta Care — sua conta foi desativada",
+        "A administração da instituição desativou a sua conta no Delta Care.\n\n"
+        "Em " + data + " os seus dados pessoais serão anonimizados. "
+        "O registro acadêmico (notas, entregas e o material publicado) continua com a instituição, sem identificação.\n\n"
+        "Se isso foi um engano, fale com a secretaria acadêmica até essa data.\n",
+    )
+    rotulo = nome or email_alvo
+    return {
+        "sucesso": True,
+        "mensagem": f"Conta de {rotulo} desativada. Os dados pessoais serão anonimizados em {data}."
+                    + (f" {len(disciplinas)} disciplina(s) passaram para o novo professor." if disciplinas else ""),
+        "anonimizar_em": anonimizar_em.isoformat(),
+    }
+
+
 def reverter_exclusao(admin_email: str, solicitacao_id: int) -> dict:
     """Dentro do prazo, a conta volta como estava. Depois, não há o que voltar."""
     conexao = conectar()
@@ -502,7 +604,7 @@ def reverter_exclusao(admin_email: str, solicitacao_id: int) -> dict:
 # =========================================================================
 
 def _anonimizar(conexao, aluno_id: int, agora: str) -> None:
-    email_antigo = conexao.execute("SELECT email FROM users WHERE id = ?", (aluno_id,)).fetchone()[0]
+    email_antigo, tipo_conta = conexao.execute("SELECT email, tipo FROM users WHERE id = ?", (aluno_id,)).fetchone()
 
     # Some: é pessoal e não é registro acadêmico.
     for sql in (
@@ -530,10 +632,11 @@ def _anonimizar(conexao, aluno_id: int, agora: str) -> None:
     # acessos, que a faculdade precisa guardar. Sem nada que identifique.
     # A senha vira o hash de um segredo descartado: ninguém entra mais.
     conexao.execute(
-        "UPDATE users SET nome = 'Aluno removido', email = ?, matricula = NULL,"
+        "UPDATE users SET nome = ?, email = ?, matricula = NULL,"
         " senha = ?, reset_token = NULL, reset_expira = NULL, disciplinas = NULL,"
         " ranking_oculto = 1, anonimizado_em = ? WHERE id = ?",
-        (f"removido-{aluno_id}@anonimo.invalid", hash_senha(secrets.token_hex(32)), agora, aluno_id),
+        ("Professor removido" if tipo_conta == "professor" else "Aluno removido",
+         f"removido-{aluno_id}@anonimo.invalid", hash_senha(secrets.token_hex(32)), agora, aluno_id),
     )
 
 

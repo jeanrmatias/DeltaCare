@@ -76,6 +76,7 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
   **Atividades** e correção das entregas, **Calendário**, **Disciplinas**,
   **Chat** com os alunos, **Desempenho** da turma, **Avisos** e **Semestres
   anteriores**.
+- **Relatórios** da turma nas disciplinas dele: ao vivo e mês a mês.
 
 **Administração**
 - **Turmas** (com as exceções por disciplina), **Disciplinas**, **Usuários**
@@ -83,8 +84,18 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 - **Denúncias**, **Avisos** para a instituição inteira, **Conteúdo**
   (supervisão do que os professores publicaram) e **Privacidade** (pedidos dos
   alunos sobre os próprios dados).
-- **Relatórios** ainda não existe: o menu leva a uma página que diz o que o
-  módulo vai fazer, em vez de simular com dados de exemplo.
+- **Usuários** inclui **excluir a conta** de quem saiu (desativa na hora,
+  anonimiza em 45 dias, dá para desfazer) e **Disciplinas**, **trocar o
+  professor** de uma disciplina.
+- **Relatórios:** a turma **ao vivo** (quem estudou na última hora e em 24
+  horas, atividades em aberto, o que acabou de acontecer — atualiza sozinho a
+  cada 30 segundos), **por mês** (aproveitamento, entregas no prazo,
+  atrasadas e não entregues, alunos ativos, dias de estudo, XP, perguntas ao
+  assistente e quanto o material respondeu; baixa em planilha) e a
+  **dificuldade por disciplina**: as disciplinas do semestre da de menor
+  aproveitamento para a de maior, com os alunos abaixo de 60%, as entregas
+  que faltam, as perguntas que o material não respondeu e o tópico com mais
+  erro. Sem nome de aluno.
 
 ---
 
@@ -316,22 +327,25 @@ Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
   e têm nome; a resposta do assistente e as mensagens novas são anunciadas
   (`role="log"`), e o cronômetro do "consultando o material" não é lido a cada
   segundo; o título da aba muda com a página.
-- **O que não foi feito:** teste com leitor de tela real (NVDA) e com
-  usuários com deficiência. A validação de usabilidade da Sprint 4 não teve
-  esse recorte.
+- **O que ainda não foi feito:** o teste com leitor de tela real (NVDA) e
+  com usuários com deficiência. O roteiro está pronto em
+  [`validacao/TESTE_LEITOR_DE_TELA.md`](validacao/TESTE_LEITOR_DE_TELA.md).
 
 ## Privacidade (LGPD)
 
-O aluno exerce os direitos de titular pela tela **Meus dados** (link no
-perfil); as regras estão em
+**A administração acadêmica é a encarregada pelo tratamento de dados (DPO)**,
+por decisão da instituição. O aluno exerce os direitos de titular pela tela
+**Meus dados** (link no perfil); as regras estão em
 [`backend/regras/privacidade.py`](backend/regras/privacidade.py), e a política
-em [`frontend/privacidade.html`](frontend/privacidade.html).
+na tela pública **Privacidade e uso de dados**
+([`web/src/paginas/publicas/Privacidade.jsx`](web/src/paginas/publicas/Privacidade.jsx)).
 
 | Pedido | Quem decide | O que acontece |
 |---|---|---|
 | Cópia dos dados | ninguém — sai na hora | Arquivo JSON com cadastro, disciplinas, entregas e notas, acessos, favoritos, anotações, conversas e notificações. Fica registrado que foi entregue. |
 | Correção (nome, e-mail, matrícula) | administração | A tela **Privacidade** mostra o valor de hoje ao lado do pedido; aprovado, troca na hora. |
 | Exclusão da conta | administração | Aprovada, a conta é **desativada** (não entra, sessões encerradas, sai do ranking) e o aluno recebe e-mail. **45 dias depois** é anonimizada. Até lá, a administração pode reverter. |
+| Exclusão pela administração (aluno ou professor que saiu) | administração, por conta própria | O mesmo caminho, já aprovado, com o **motivo registrado** (Usuários → Excluir). Professor com disciplina só sai com alguém para assumi-las: material, atividades e notas passam para o novo professor e continuam com os alunos. |
 
 **Lacunas do material.** A conversa com o assistente é individual, mas quando
 ele não encontra a resposta no material o professor vê o **assunto** da dúvida
@@ -345,8 +359,14 @@ notificações e conversas (com o assistente e com os professores). Notas,
 entregas, matrículas e acessos ficam, ligados a um "Aluno removido": é o
 registro acadêmico que a instituição precisa guardar.
 
-Antes de uso com dados reais, a instituição precisa indicar o encarregado de
-dados (DPO) e aprovar a política.
+O professor apaga o próprio conteúdo (material, atividade, aviso); a
+administração **não** despublica material de professor.
+
+**Relatórios** mostram números da turma, nunca aluno identificado
+([`backend/regras/relatorios.py`](backend/regras/relatorios.py)).
+
+Antes de uso com dados reais, a instituição precisa aprovar formalmente a
+política e publicar o contato da administração para assuntos de dados.
 
 ## Implantação
 
@@ -420,13 +440,15 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (486 testes):** permissões de cada perfil, visibilidade de
+- **Backend (517 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
-  atividades e correção, XP e ranking, avisos, privacidade e anonimização, integridade do
-  banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
+  atividades e correção, XP e ranking, avisos, privacidade e anonimização,
+  exclusão de conta pela administração e troca de professor, relatórios
+  (quem vê cada turma, mês da nota e do prazo, nenhum aluno identificado),
+  integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (50 testes):** as telas são renderizadas no Node, sem
+- **Telas React (53 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de
@@ -503,6 +525,7 @@ backend/
     denuncias.py             conteúdo reportado
     conteudo.py              supervisão do conteúdo pela administração
     privacidade.py           LGPD: cópia, correção, exclusão, anonimização
+    relatorios.py            a turma ao vivo e por mês; dificuldade por disciplina
     importacao.py            planilha CSV/XLSX
     chat_ia.py               RAG: indexação, busca híbrida e resposta
 
@@ -542,10 +565,12 @@ só (`INICIO_DO_PERFIL`, em `web/src/lib/usuario.js`).
 - **A implantação (systemd e Caddy) ainda não rodou num servidor real.**
 - Arquivos enviados ficam no disco do servidor, não num serviço de storage.
 - O chat indexa só PDF (vídeo e link ficam de fora).
+- **A busca do chat percorre todos os trechos da disciplina** a cada
+  pergunta, em Python: 190 ms com 30 PDFs, 570 ms com 100 (medido, vetores de
+  768 dimensões). Serve a uma disciplina; um acervo muito maior pediria um
+  índice vetorial (`sqlite-vec` ou `pgvector`).
 - Professor e administração não têm a tela Meus dados: os pedidos deles sobre
   dados pessoais seguem pela secretaria.
-- Relatórios para a coordenação ainda não existem (o menu leva a uma página
-  que diz isso e o que o módulo vai fazer).
 - O front antigo (`frontend/`) não tem a tela de troca da senha provisória:
   a conta recém-criada precisa entrar pelo `/app/` (ou usar "Esqueci minha
   senha", que também tira a marca de provisória).

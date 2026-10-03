@@ -103,7 +103,8 @@ export function PrivacidadeAdmin() {
               <div className="min-w-0">
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
                   <span className="text-xs font-semibold text-texto-secundario">
-                    {aluno.anonimizado ? "Aluno removido" : `${aluno.nome || aluno.email} · ${aluno.email}`} · {dataComAno(pedido.criado_em)}
+                    {aluno.anonimizado ? (aluno.tipo === "professor" ? "Professor removido" : "Aluno removido") : `${aluno.nome || aluno.email} · ${aluno.email}`}
+                    {aluno.tipo === "professor" && !aluno.anonimizado && " · professor"} · {dataComAno(pedido.criado_em)}
                   </span>
                   <Selo tom={situacao.tom}>{situacao.rotulo}</Selo>
                 </div>
@@ -112,7 +113,10 @@ export function PrivacidadeAdmin() {
                 {pedido.tipo === "correcao" && pedido.valor_novo && (
                   <p className="mt-1 text-[13px] text-texto">Hoje: <strong>{pedido.valor_atual || "(vazio)"}</strong> → Pedido: <strong>{pedido.valor_novo}</strong></p>
                 )}
-                {pedido.motivo && <p className="mt-1 text-[13px] text-texto-secundario">Motivo do aluno: {pedido.motivo}</p>}
+                {pedido.origem === "administracao" && <p className="mt-1 text-[13px] text-texto-secundario">Excluída pela administração.</p>}
+                {pedido.motivo && (
+                  <p className="mt-1 text-[13px] text-texto-secundario">{pedido.origem === "administracao" ? "Motivo registrado" : "Motivo do aluno"}: {pedido.motivo}</p>
+                )}
                 {pedido.resposta && <p className="mt-1 text-[13px] text-texto-secundario">Resposta: {pedido.resposta}</p>}
                 {pedido.status === "agendada" && pedido.anonimizar_em && (
                   <p className="mt-1 text-[13px] font-semibold text-perigo">Anonimização em {dataComAno(pedido.anonimizar_em)}.</p>

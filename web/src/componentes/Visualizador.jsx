@@ -40,7 +40,7 @@ export function Visualizador({ material, caminho, aoFechar }) {
   }, [caminho, mime])
 
   return (
-    <Modal aberto aoFechar={aoFechar} largura="max-w-[1040px]">
+    <Modal aberto aoFechar={aoFechar} largura="max-w-[1040px]" rotulo={material.titulo}>
       <div className="mb-3 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <strong className="block truncate text-navy-900">{material.titulo}</strong>

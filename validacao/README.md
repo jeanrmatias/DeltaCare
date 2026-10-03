@@ -11,6 +11,7 @@ fato vai em [RESULTADOS.md](RESULTADOS.md).
 | [TERMO_DE_CONSENTIMENTO.md](TERMO_DE_CONSENTIMENTO.md) | O participante concorda antes de começar | Participante |
 | [QUESTIONARIO_SUS.md](QUESTIONARIO_SUS.md) | Dez afirmações ao final, e como calcular a nota | Participante, depois o facilitador |
 | [RESULTADOS.md](RESULTADOS.md) | Os números, os problemas achados e o que mudou por causa deles | Equipe |
+| [TESTE_LEITOR_DE_TELA.md](TESTE_LEITOR_DE_TELA.md) | A plataforma usada só pelo teclado e pelo leitor de tela NVDA | Equipe, ou um usuário de leitor de tela |
 
 ## O que queremos descobrir
 

@@ -38,6 +38,7 @@ from regras.turmas import (
     listar_turmas_admin,
     listar_usuarios,
     perfil_do_usuario,
+    trocar_professor,
 )
 from regras.conteudo import (
     arquivo_para_supervisao,
@@ -56,11 +57,18 @@ from regras.privacidade import (
     anonimizar_vencidas,
     cancelar as cancelar_solicitacao_privacidade,
     decidir as decidir_solicitacao_privacidade,
+    excluir_pela_administracao,
     exportar_dados,
     listar_minhas as listar_minhas_solicitacoes_privacidade,
     listar_solicitacoes as listar_solicitacoes_privacidade,
     reverter_exclusao,
     solicitar as solicitar_privacidade,
+)
+from regras.relatorios import (
+    dificuldade_por_disciplina,
+    painel_ao_vivo,
+    relatorio_mensal,
+    turmas_para_relatorio,
 )
 from regras.avisos import (
     excluir_aviso,
@@ -574,6 +582,16 @@ def excluir_turma_rota(turma_id: int, admin: dict = Depends(usuario_admin)):
     return excluir_turma(admin["email"], turma_id)
 
 
+class TrocaDeProfessorRequest(BaseModel):
+    professor_email: str
+
+
+@app.put("/admin/turmas/{turma_id}/professor")
+def trocar_professor_rota(turma_id: int, dados: TrocaDeProfessorRequest, admin: dict = Depends(usuario_admin)):
+    """Outro professor assume a disciplina, com o material e as atividades dela."""
+    return trocar_professor(admin["email"], turma_id, dados.professor_email)
+
+
 @app.get("/admin/professores")
 def listar_professores_rota(admin: dict = Depends(usuario_admin)):
     return listar_professores(admin["email"])
@@ -736,8 +754,9 @@ async def criar_material_rota(dados: MaterialRequest, professor: dict = Depends(
     # indexação falhar (ex.: Ollama fora do ar), o material continua salvo —
     # só não vai aparecer nas buscas do chat.
     #
-    # É uma chamada de embedding por trecho: um PDF grande são centenas. Por
-    # isso passa por _com_ia, e disputa o servidor de IA com as perguntas dos
+    # Um PDF grande são centenas de trechos (em lotes de 32 por chamada; o
+    # mesmo PDF nas outras disciplinas reaproveita o índice). Por isso passa
+    # por _com_ia, e disputa o servidor de IA com as perguntas dos
     # alunos pelas mesmas vagas, em vez de prender uma thread comum.
     if resultado.get("sucesso") and dados.tipo == "pdf":
         for material_id in resultado.get("material_ids", []):
@@ -1289,6 +1308,44 @@ def decidir_solicitacao_privacidade_rota(
 @app.post("/admin/privacidade/solicitacoes/{solicitacao_id}/reverter")
 def reverter_exclusao_rota(solicitacao_id: int, admin: dict = Depends(usuario_admin)):
     return reverter_exclusao(admin["email"], solicitacao_id)
+
+
+class ExclusaoDeContaRequest(BaseModel):
+    # O e-mail é o da conta excluída (alvo), não de quem pede: quem pede é o
+    # admin do token.
+    email: str
+    motivo: str
+    novo_professor_email: str = ""
+
+
+@app.post("/admin/usuarios/exclusao")
+def excluir_usuario_rota(dados: ExclusaoDeContaRequest, admin: dict = Depends(usuario_admin)):
+    """Desativa a conta de um aluno ou professor; anonimiza em 45 dias."""
+    return excluir_pela_administracao(admin["email"], dados.email, dados.motivo, dados.novo_professor_email)
+
+
+# ---------------------------- relatórios ----------------------------
+# Administração e professor; a regra confere o perfil e, para o professor,
+# recorta as disciplinas dele (regras/relatorios.py).
+
+@app.get("/relatorios/turmas")
+def relatorios_turmas_rota(usuario: dict = Depends(usuario_logado)):
+    return turmas_para_relatorio(usuario["email"])
+
+
+@app.get("/relatorios/mensal")
+def relatorio_mensal_rota(coorte_id: int, usuario: dict = Depends(usuario_logado)):
+    return relatorio_mensal(usuario["email"], coorte_id)
+
+
+@app.get("/relatorios/ao-vivo")
+def painel_ao_vivo_rota(coorte_id: int, usuario: dict = Depends(usuario_logado)):
+    return painel_ao_vivo(usuario["email"], coorte_id)
+
+
+@app.get("/admin/relatorios/dificuldade")
+def dificuldade_rota(semestre: Optional[str] = None, admin: dict = Depends(usuario_admin)):
+    return dificuldade_por_disciplina(admin["email"], semestre)
 
 
 # ---------------------------- as telas ----------------------------

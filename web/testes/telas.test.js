@@ -172,7 +172,7 @@ test("toda tela do professor e da administração abre com o título certo", () 
       "/professor/materiais": "Materiais", "/professor/atividades": "Atividades", "/professor/calendario": "Calendário",
       "/professor/disciplinas": "Disciplinas", "/professor/mensagens": "Mensagens", "/professor/desempenho": "Desempenho",
       "/professor/denuncias": "Denúncias", "/professor/avisos": "Avisos", "/professor/historico": "Semestres anteriores",
-      "/professor/lacunas": "Lacunas do material",
+      "/professor/lacunas": "Lacunas do material", "/professor/relatorios": "Relatórios",
     }],
     adm: [ADM, {
       "/admin/turmas": "Turmas", "/admin/disciplinas": "Disciplinas", "/admin/usuarios": "Usuários", "/admin/denuncias": "Denúncias",
@@ -185,10 +185,15 @@ test("toda tela do professor e da administração abre com o título certo", () 
   }
 })
 
-test("o módulo que não existe diz que não existe, sem dado de exemplo", () => {
-  logado(ADM)
-  const saida = html(h(MemoryRouter, { initialEntries: ["/admin/relatorios"] }, h(SessaoProvider, null, h(DialogosProvider, null, h(App)))))
-  assert.match(saida, /Ainda não construído nesta versão/)
+test("relatórios: a dificuldade por disciplina é só da administração", () => {
+  const telaDe = (usuario, rota) => {
+    logado(usuario)
+    return html(h(MemoryRouter, { initialEntries: [rota] }, h(SessaoProvider, null, h(DialogosProvider, null, h(App)))))
+  }
+  assert.match(telaDe(ADM, "/admin/relatorios"), /Dificuldade por disciplina/)
+  const doProfessor = telaDe(PROFESSOR, "/professor/relatorios")
+  assert.match(doProfessor, /Ao vivo/)
+  assert.doesNotMatch(doProfessor, /Dificuldade por disciplina/)
 })
 
 test("todo item de menu leva a uma rota que existe", async () => {

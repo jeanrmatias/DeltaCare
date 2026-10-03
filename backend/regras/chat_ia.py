@@ -15,14 +15,16 @@ então dá pra testar com versões falsas delas. O endereço do Ollama pode ser
 trocado pela variável de ambiente OLLAMA_URL (padrão http://127.0.0.1:11434).
 """
 
+import heapq
 import json
-import math
+import operator
 import os
 import re
 import unicodedata
 import urllib.request
 from datetime import datetime, timezone
 
+from infra.vetores import desempacotar, empacotar, normalizar
 from regras.turmas import buscar_usuario, conectar
 
 # 127.0.0.1, e não "localhost". No Windows, "localhost" tenta o IPv6 (::1)
@@ -299,8 +301,8 @@ def indexar_material(material_id: int, gerar_embeddings_fn=gerar_embeddings) -> 
         if irmao:
             conexao.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
             total = conexao.execute(
-                "INSERT INTO material_chunks (material_id, indice, texto, embedding)"
-                " SELECT ?, indice, texto, embedding FROM material_chunks WHERE material_id = ? ORDER BY indice",
+                "INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor)"
+                " SELECT ?, indice, texto, embedding, vetor FROM material_chunks WHERE material_id = ? ORDER BY indice",
                 (material_id, irmao),
             ).rowcount
             conexao.commit()
@@ -328,8 +330,8 @@ def indexar_material(material_id: int, gerar_embeddings_fn=gerar_embeddings) -> 
     try:
         conexao.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
         conexao.executemany(
-            "INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
-            [(material_id, indice, chunk, json.dumps(vetor)) for indice, (chunk, vetor) in enumerate(zip(chunks, embeddings))],
+            "INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor) VALUES (?, ?, ?, '', ?)",
+            [(material_id, indice, chunk, empacotar(vetor)) for indice, (chunk, vetor) in enumerate(zip(chunks, embeddings))],
         )
         conexao.commit()
     finally:
@@ -341,27 +343,6 @@ def indexar_material(material_id: int, gerar_embeddings_fn=gerar_embeddings) -> 
 # =========================================================================
 # Busca por similaridade + geração da resposta
 # =========================================================================
-
-def _norma(vetor: list) -> float:
-    return math.sqrt(sum(x * x for x in vetor))
-
-
-def _similaridade_cosseno(a: list, b: list, norma_a: float = None) -> float:
-    """Cosseno entre dois vetores.
-
-    `norma_a` existe para quem compara **o mesmo** vetor contra muitos outros:
-    a busca do chat roda isto uma vez por trecho da disciplina, e a norma da
-    pergunta não muda entre eles. Recalculá-la a cada trecho custava 40% do
-    tempo do cosseno — medido com 1.600 trechos de 768 dimensões.
-    """
-    produto = sum(x * y for x, y in zip(a, b))
-    if norma_a is None:
-        norma_a = _norma(a)
-    norma_b = _norma(b)
-    if norma_a == 0 or norma_b == 0:
-        return 0.0
-    return produto / (norma_a * norma_b)
-
 
 # Palavras que aparecem em praticamente todo trecho de material didático e por
 # isso não ajudam a distinguir um do outro.
@@ -442,45 +423,67 @@ def buscar_trechos_relevantes(turma_id: int, pergunta: str, gerar_embedding_fn=g
     """Busca os trechos de material mais relevantes pra pergunta, só entre
     os materiais já PUBLICADOS (não rascunho, e já liberados se agendados)
     da turma — o aluno nunca vê rascunho nem material agendado pro futuro.
+
+    Custo, medido com vetores de 768 dimensões: a busca percorre todos os
+    trechos da disciplina a cada pergunta. Com o vetor em JSON e o bônus
+    literal calculado para todos, eram 0,28 ms por trecho — 0,8 s numa
+    disciplina com 30 PDFs, 2,8 s com 100. Ver infra/vetores.py e o corte
+    abaixo.
     """
-    embedding_pergunta = gerar_embedding_fn(pergunta)
-    norma_pergunta = _norma(embedding_pergunta)
+    pergunta_vetor = normalizar(gerar_embedding_fn(pergunta))
     termos = _termos_distintivos(pergunta)
 
     conexao = conectar()
-    cursor = conexao.cursor()
-    cursor.execute(
-        '''
-        SELECT c.texto, c.embedding, m.titulo, m.id, m.rascunho, m.data_liberacao
-        FROM material_chunks c
-        JOIN materiais m ON m.id = c.material_id
-        WHERE m.turma_id = ? AND m.rascunho = 0
-        ''',
-        (turma_id,),
-    )
-    linhas = cursor.fetchall()
-    conexao.close()
+    try:
+        linhas = conexao.execute(
+            '''
+            SELECT c.texto, c.vetor, c.embedding, m.titulo, m.id, m.rascunho, m.data_liberacao
+            FROM material_chunks c
+            JOIN materiais m ON m.id = c.material_id
+            WHERE m.turma_id = ? AND m.rascunho = 0
+            ''',
+            (turma_id,),
+        ).fetchall()
+    finally:
+        conexao.close()
 
     candidatos = []
-    for texto, embedding_json, titulo_material, material_id, rascunho, data_liberacao in linhas:
+    for texto, vetor, embedding_json, titulo_material, material_id, rascunho, data_liberacao in linhas:
         # O rascunho já saiu no SQL. O agendado fica aqui de propósito: a regra
         # trata data sem fuso e data malformada, e o SQLite compararia as duas
         # como texto — seria trocar 30ms por um material aparecendo antes da
         # hora.
         if _status_material(rascunho, data_liberacao) != "publicado":
             continue
-        embedding = json.loads(embedding_json)
-        similaridade = _similaridade_cosseno(embedding_pergunta, embedding, norma_pergunta)
-        candidatos.append({
+        # Vetor ainda em JSON: trecho gravado antes da coluna binária, que o
+        # banco converte ao subir (infra/database.py).
+        trecho = desempacotar(vetor) if vetor else normalizar(json.loads(embedding_json))
+        # Os dois vetores têm norma 1: o produto escalar já é o cosseno.
+        similaridade = sum(map(operator.mul, pergunta_vetor, trecho))
+        candidatos.append((similaridade, texto, titulo_material, material_id))
+
+    # O bônus literal (_pontuar_trecho) soma no máximo PESO_BUSCA_LITERAL.
+    # Então um trecho com similaridade abaixo da k-ésima melhor menos esse
+    # peso não alcança o top-k nem com o bônus inteiro: sai antes, sem pagar a
+    # normalização do texto, que era o segundo maior custo da busca. O
+    # resultado é o mesmo de pontuar todos (há teste comparando os dois).
+    if len(candidatos) > top_k:
+        folga = PESO_BUSCA_LITERAL if termos else 0.0
+        corte = heapq.nlargest(top_k, (c[0] for c in candidatos))[-1] - folga
+        candidatos = [c for c in candidatos if c[0] >= corte]
+
+    pontuados = [
+        {
             "texto": texto,
             "pontuacao": _pontuar_trecho(texto, similaridade, termos),
             "similaridade": similaridade,
             "material": titulo_material,
             "material_id": material_id,
-        })
-
-    candidatos.sort(key=lambda c: c["pontuacao"], reverse=True)
-    return candidatos[:top_k]
+        }
+        for similaridade, texto, titulo_material, material_id in candidatos
+    ]
+    pontuados.sort(key=lambda c: c["pontuacao"], reverse=True)
+    return pontuados[:top_k]
 
 
 def montar_contexto(trechos: list) -> str:

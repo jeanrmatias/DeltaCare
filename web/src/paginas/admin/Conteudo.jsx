@@ -139,7 +139,7 @@ function AtividadeSupervisionada({ id, aoFechar }) {
   const { dados, carregando, erro } = useApi(`/admin/conteudo/atividades/${id}`)
 
   return (
-    <Modal aberto aoFechar={aoFechar} largura="max-w-[680px]">
+    <Modal aberto aoFechar={aoFechar} largura="max-w-[680px]" rotulo={dados?.atividade?.titulo || "Atividade"}>
       {carregando && <Carregando />}
       {erro && <p className="text-sm text-texto-secundario">{erro}</p>}
       {dados?.sucesso && (

@@ -7,8 +7,12 @@ import { useEffect, useId, useRef } from "react"
  *
  * Quem usa decide se está aberta: `<Modal aberto={x} aoFechar={...}>`.
  * `largura` é a classe de largura máxima (o visualizador é mais largo).
+ *
+ * Toda janela tem nome, para o leitor de tela anunciar "Alterar senha,
+ * diálogo" e não só "diálogo": `titulo`, que aparece, ou `rotulo`, quando o
+ * cabeçalho da janela é montado por quem usa.
  */
-export function Modal({ aberto, aoFechar, titulo, children, largura = "max-w-[480px]" }) {
+export function Modal({ aberto, aoFechar, titulo, rotulo, children, largura = "max-w-[480px]" }) {
   const dialogo = useRef(null)
   // O título dá nome à janela: o leitor de tela anuncia "Alterar senha,
   // diálogo" em vez de só "diálogo".
@@ -27,6 +31,7 @@ export function Modal({ aberto, aoFechar, titulo, children, largura = "max-w-[48
     <dialog
       ref={dialogo}
       aria-labelledby={titulo ? idDoTitulo : undefined}
+      aria-label={titulo ? undefined : rotulo}
       onCancel={(evento) => {
         // Esc: quem fecha é o estado de quem usa, não o navegador sozinho.
         evento.preventDefault()

@@ -120,7 +120,7 @@ function Resolver({ atividade, aoFechar, aoEntregar }) {
   const subtitulo = [atividade.turma_nome, `vale ${atividade.pontos}`, atividade.prazo && `prazo ${dataEHora(atividade.prazo)}`].filter(Boolean).join(" · ")
 
   return (
-    <Modal aberto aoFechar={aoFechar} largura="max-w-[720px]">
+    <Modal aberto aoFechar={aoFechar} largura="max-w-[720px]" rotulo={atividade.titulo}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-navy-900">{atividade.titulo}</h2>

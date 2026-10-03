@@ -30,7 +30,7 @@ export function Perfil({ aoFechar }) {
     : []
 
   return (
-    <Modal aberto aoFechar={aoFechar}>
+    <Modal aberto aoFechar={aoFechar} rotulo="Seu perfil">
       {erro && <p className="text-sm text-texto-secundario">{erro}</p>}
       {dados?.sucesso && (
         <>

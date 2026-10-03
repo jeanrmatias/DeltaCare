@@ -12,6 +12,7 @@ const DESENHOS = {
   materiais: <><path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2Z" /><path d="M12 6.5v13" /></>,
   atividades: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M8 12l3 3 5-6" /></>,
   desempenho: <path d="M6 20V10M12 20V4M18 20v-7" />,
+  relatorios: <><path d="M3 3v18h18" /><path d="m7 15 4-4 3 3 5-6" /></>,
   denuncias: <><path d="M12 9v4M12 16.5h.01" /><path d="M10.3 4.3 2.8 17a1.7 1.7 0 0 0 1.5 2.5h15.4a1.7 1.7 0 0 0 1.5-2.5L13.7 4.3a1.7 1.7 0 0 0-3 0Z" /></>,
   favoritos: <path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 9.7l5.4-.8Z" />,
   anotacoes: <path d="M16 3H8a2 2 0 0 0-2 2v14l6-3 6 3V5a2 2 0 0 0-2-2Z" />,

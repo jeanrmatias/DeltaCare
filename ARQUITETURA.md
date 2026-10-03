@@ -240,7 +240,7 @@ erDiagram
     material_chunks {
         int material_id FK
         text texto
-        text embedding "vetor em JSON"
+        blob vetor "float32 normalizado"
     }
     atividades {
         int id PK
@@ -331,14 +331,19 @@ integridade do banco depois da exclusão.
 stateDiagram-v2
     [*] --> Provisoria: administração cria a conta
     Provisoria --> Ativa: troca a senha no primeiro acesso
-    Ativa --> Desativada: exclusão aprovada
+    Ativa --> Desativada: exclusão aprovada ou feita pela administração
     Desativada --> Ativa: revertida em até 45 dias
     Desativada --> Anonimizada: passados 45 dias
     Anonimizada --> [*]
 ```
 
+- **Encarregada pelo tratamento de dados (DPO):** a administração acadêmica.
 - **Cópia dos dados:** automática, o aluno baixa quando quiser.
-- **Correção e exclusão:** o aluno pede, a administração decide.
+- **Correção e exclusão:** o aluno pede, a administração decide. A
+  administração também exclui por conta própria quem deixou a instituição
+  (aluno ou professor), com o motivo registrado; professor com disciplina só
+  sai com alguém para assumi-las (`turmas.passar_disciplina` leva junto o
+  material e as atividades).
 - **Anonimizar, e não apagar:** o que é pessoal sai (conversas com o
   assistente, anotações, favoritos, mensagens, notificações, sessões); o que é
   registro acadêmico — matrículas, entregas e notas — fica, porque a faculdade
@@ -356,12 +361,14 @@ graph TD
     ADM["Administração"] --> ADM1["Contas, turmas, disciplinas, matrículas"]
     ADM --> ADM2["Material e atividades publicados ou agendados<br/>(supervisão, só leitura)"]
     ADM --> ADM3["Denúncias e pedidos de privacidade"]
+    ADM --> ADM4["Relatórios de todas as turmas<br/>e dificuldade por disciplina, sem aluno"]
     ADM -.->|"nunca"| ADMN["Entregas, anotações, conversas"]
 
     PROF["Professor"] --> P1["Só as disciplinas atribuídas a ele"]
     PROF --> P2["Os próprios materiais e atividades,<br/>inclusive rascunho e agendado"]
     PROF --> P3["Entregas das suas atividades, para corrigir"]
     PROF --> P4["Lacunas: assunto e contagem,<br/>sem texto e sem aluno"]
+    PROF --> P5["Relatórios da turma,<br/>só nas disciplinas dele"]
 
     ALU["Aluno"] --> A1["Só as disciplinas em que está matriculado"]
     ALU --> A2["Só material publicado e já liberado"]
@@ -372,8 +379,8 @@ graph TD
     classDef prof fill:#DCFCE7,stroke:#16A34A
     classDef alu fill:#FEF3C7,stroke:#F59E0B
     classDef nunca fill:#FEE2E2,stroke:#EF4444
-    class ADM,ADM1,ADM2,ADM3 adm
-    class PROF,P1,P2,P3,P4 prof
+    class ADM,ADM1,ADM2,ADM3,ADM4 adm
+    class PROF,P1,P2,P3,P4,P5 prof
     class ALU,A1,A2,A3,A4 alu
     class ADMN nunca
 ```

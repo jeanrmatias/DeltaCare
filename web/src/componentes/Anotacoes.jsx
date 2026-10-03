@@ -109,7 +109,7 @@ export function PainelAnotacoes({ material, aoFechar, aoMudar }) {
 
   return (
     <>
-      <Modal aberto={!editando} aoFechar={aoFechar} largura="max-w-[620px]">
+      <Modal aberto={!editando} aoFechar={aoFechar} largura="max-w-[620px]" rotulo={`Anotações · ${material.titulo}`}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <h2 className="text-lg font-bold text-navy-900">Anotações · {material.titulo}</h2>
           <Botao variante="neutra" onClick={aoFechar} className="py-2">Fechar</Botao>

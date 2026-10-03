@@ -23,6 +23,11 @@ export function Privacidade() {
           A instituição de ensino é a <strong>controladora</strong> dos dados desta plataforma: é ela que
           decide para que eles servem e responde por eles.
         </Paragrafo>
+        <Paragrafo>
+          A <strong>administração acadêmica</strong> da instituição é a <strong>encarregada pelo tratamento de
+          dados</strong> (o DPO da LGPD): é ela que responde aos seus pedidos e às suas dúvidas sobre dados
+          pessoais — pela tela Meus dados ou pela secretaria acadêmica.
+        </Paragrafo>
 
         <Titulo>Que dados a plataforma guarda</Titulo>
         <Lista>
@@ -50,6 +55,7 @@ export function Privacidade() {
           <li>Suas anotações são só suas: nenhum outro perfil tem acesso a elas.</li>
           <li>Suas conversas com o assistente são individuais. Quando ele não encontra a resposta no material, o professor vê só o <strong>assunto</strong> da dúvida, em poucas palavras, e quantos alunos perguntaram — nunca o texto da pergunta nem quem perguntou. E um assunto só aparece para ele quando pelo menos dois alunos diferentes perguntaram. Serve para o professor saber o que falta no material.</li>
           <li>No ranking da turma aparece só o topo, e você pode escolher não aparecer.</li>
+          <li>Nos <strong>relatórios</strong>, a administração e os professores veem números da turma — médias, entregas, quantos alunos estudaram, quanto o material respondeu ao assistente —, nunca com o nome de um aluno.</li>
         </Lista>
         <Paragrafo>
           Essas regras são verificadas no servidor a cada requisição, e não apenas escondidas na interface.
@@ -65,6 +71,11 @@ export function Privacidade() {
           <li><strong>Correção</strong> de nome, e-mail ou matrícula: a administração confere com o registro acadêmico e responde pela própria plataforma.</li>
           <li><strong>Exclusão da conta:</strong> a administração avalia o pedido. Aprovado, a conta é desativada na hora.</li>
         </Lista>
+        <Paragrafo>
+          A administração também pode excluir a conta de quem deixou a instituição, com o mesmo prazo e as mesmas
+          regras abaixo; o motivo fica registrado, e a pessoa é avisada por e-mail. Professores apagam o próprio
+          conteúdo (material, atividade, aviso) a qualquer momento.
+        </Paragrafo>
 
         <Titulo>Por quanto tempo guardamos</Titulo>
         <Paragrafo>
@@ -79,8 +90,8 @@ export function Privacidade() {
         </Paragrafo>
 
         <div className="mt-6 rounded-bloco bg-alerta-fundo px-4 py-3 text-sm text-texto">
-          <strong>Antes de usar com dados reais:</strong> a instituição precisa indicar o encarregado pelo
-          tratamento de dados (DPO) e o canal de contato dele, e aprovar formalmente esta política.
+          <strong>Antes de usar com dados reais:</strong> a instituição precisa aprovar formalmente esta política
+          e publicar o contato da administração acadêmica para assuntos de dados pessoais.
         </div>
       </main>
 

@@ -1,8 +1,10 @@
 import contextvars
+import json
 import os
 import sqlite3
 
 from infra.security import hash_senha
+from infra.vetores import empacotar
 
 # Caminho único do banco. Os outros módulos importam daqui em vez de repetir
 # a string — já esteve duplicado em três arquivos, e bastaria mudar um deles
@@ -329,6 +331,24 @@ def configurar_banco(silencioso: bool = False):
             FOREIGN KEY (material_id) REFERENCES materiais (id)
         )
     ''')
+    # O vetor em binário, normalizado (ver infra/vetores.py): decodificar o
+    # JSON de `embedding` era o que mais pesava na busca do chat. Nas linhas
+    # novas `embedding` fica vazio — o NOT NULL dele só sai recriando a
+    # tabela. As antigas são convertidas aqui, uma vez, aos poucos para não
+    # carregar todos os JSONs na memória de uma vez.
+    cursor.execute("PRAGMA table_info(material_chunks)")
+    if "vetor" not in {linha[1] for linha in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE material_chunks ADD COLUMN vetor BLOB")
+    while True:
+        pendentes = cursor.execute(
+            "SELECT id, embedding FROM material_chunks WHERE vetor IS NULL AND embedding != '' LIMIT 500"
+        ).fetchall()
+        if not pendentes:
+            break
+        cursor.executemany(
+            "UPDATE material_chunks SET vetor = ?, embedding = '' WHERE id = ?",
+            [(empacotar(json.loads(embedding)), id_trecho) for id_trecho, embedding in pendentes],
+        )
 
     # Histórico de conversas do aluno com o chat de IA, por turma.
     cursor.execute('''
@@ -795,6 +815,13 @@ def configurar_banco(silencioso: bool = False):
         "CREATE INDEX IF NOT EXISTS idx_solicitacoes_privacidade_status"
         "  ON solicitacoes_privacidade (status, criado_em)"
     )
+    # Quem pediu: o próprio titular, ou a administração ao excluir a conta de
+    # um aluno ou professor (regras/privacidade.excluir_pela_administracao).
+    # A coluna `aluno_id` guarda o titular nos dois casos — o nome é de quando
+    # só aluno pedia.
+    cursor.execute("PRAGMA table_info(solicitacoes_privacidade)")
+    if "origem" not in {linha[1] for linha in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE solicitacoes_privacidade ADD COLUMN origem TEXT NOT NULL DEFAULT 'titular'")
 
     conexao.commit()
     conexao.close()

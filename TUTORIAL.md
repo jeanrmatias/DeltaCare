@@ -92,6 +92,10 @@ como "atual" no XP, no ranking e nas listas; o que passou vai para
 Menu → **Disciplinas**. Cada disciplina tem um professor e um semestre. Ao
 apontá-la para uma turma, os alunos dessa turma já entram matriculados.
 
+**Trocar professor** passa a disciplina para outro professor (licença, saída,
+redistribuição), com o material e as atividades dela — inclusive as entregas
+por corrigir. O professor anterior perde o acesso; o novo é avisado pelo sino.
+
 > **Excluir uma disciplina apaga junto** o material dela, os trechos
 > indexados para o assistente, as matrículas, as atividades e entregas, as
 > mensagens com o professor, as conversas com o assistente e as lacunas. Não
@@ -115,6 +119,18 @@ estar escrito de vários jeitos ("Nome Completo", "Aluno", "E-mail", "RA").
 > **Por que o aluno não se cadastra sozinho?** Quem é aluno da faculdade é a
 > secretaria que decide, não quem preenche um formulário. Toda conta nasce
 > aqui ou pela planilha.
+
+**Excluir** (em cada conta de aluno ou professor) é para quem deixou a
+instituição. Peça o **motivo**, que fica registrado:
+
+- A conta para de entrar na hora, e a pessoa recebe um e-mail.
+- Em **45 dias** os dados pessoais são anonimizados; notas, entregas e o
+  material publicado ficam, sem identificação.
+- Até lá, **Desfazer exclusão** devolve a conta (a pessoa entra com a senha de
+  antes). A exclusão também aparece em **Privacidade**.
+- **Professor com disciplina** só sai com alguém para assumi-las: escolha o
+  professor na própria janela. As disciplinas não voltam sozinhas se a
+  exclusão for desfeita — use **Trocar professor** em Disciplinas.
 
 ### Avisos
 
@@ -149,8 +165,24 @@ A cópia dos dados não passa por aqui: o aluno baixa sozinho.
 
 ### Relatórios
 
-Ainda não existe. O menu leva a uma página que diz o que o módulo vai fazer,
-em vez de mostrar números de exemplo.
+Menu → **Relatórios**. Escolha a turma no topo. Nenhum número tem nome de
+aluno.
+
+- **Ao vivo:** quantos alunos estudaram na última hora e nas últimas 24 horas
+  (material aberto, pergunta ao assistente, entrega), as atividades em aberto
+  com quantos já entregaram, e o que acabou de acontecer. Atualiza sozinho a
+  cada 30 segundos.
+- **Por mês:** aproveitamento (nota sobre pontos), entregas no prazo,
+  atrasadas e não entregues, alunos ativos, dias de estudo, XP médio,
+  perguntas ao assistente e quanto o material respondeu. Dá para ver a turma
+  inteira ou uma disciplina, e **Baixar planilha (CSV)** abre no Excel. Embaixo,
+  como cada número é calculado.
+- **Dificuldade por disciplina:** as disciplinas do semestre, da de menor
+  aproveitamento para a de maior. Ao lado de cada uma: quantos alunos estão
+  abaixo de 60%, quanto das entregas falta, quanto das perguntas o material
+  não respondeu e o tópico com mais erro. Os sinais ficam separados de
+  propósito — uma disciplina pode ter nota boa e metade das entregas faltando.
+  Com poucas notas corrigidas, a disciplina avisa.
 
 ---
 
@@ -245,6 +277,12 @@ material cita, mas não diz o que é; 4 alunos"*.
 
 Perguntas feitas numa disciplina sem nenhum PDF aparecem à parte, com um aviso
 para publicar material.
+
+### Relatórios
+
+O mesmo da administração (ao vivo e por mês), só com as **suas** disciplinas
+dentro da turma. A dificuldade por disciplina é da administração; para saber
+de um aluno, use **Desempenho**.
 
 ### Avisos, Denúncias e Semestres anteriores
 
@@ -400,9 +438,9 @@ tela de login.
 Pode. Restrito ao material, ele erra muito menos, mas não nunca. Confira a
 fonte e leve ao professor o que parecer estranho.
 
-**Um item do menu diz que o módulo não existe.**
-É o de Relatórios, da administração. Preferimos dizer isso a encher a tela de
-dados de exemplo.
+**Quem é o encarregado pelos meus dados (DPO)?**
+A administração acadêmica da instituição. É com ela — pela tela Meus dados ou
+pela secretaria — que se pede cópia, correção ou exclusão.
 
 ---
 

@@ -6,7 +6,9 @@
  * 3:1 para contorno de campo e ícone.
  */
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync, statSync } from "node:fs"
+import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { test } from "node:test"
 
 const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8")
@@ -63,4 +65,33 @@ test("o anel de foco fica fora das camadas do Tailwind", () => {
   const semComentarios = css.replace(/\/\*[\s\S]*?\*\//g, "")
   const semCamadas = semComentarios.replace(/@layer[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, "")
   assert.match(semCamadas, /:focus-visible\s*\{[^}]*outline:\s*2px solid/)
+})
+
+/** O texto de cada <Modal ...> do código, da abertura ao ">" que fecha a tag. */
+function tagsDeModal(pasta) {
+  const tags = []
+  for (const nome of readdirSync(pasta)) {
+    const caminho = join(pasta, nome)
+    if (statSync(caminho).isDirectory()) { tags.push(...tagsDeModal(caminho)); continue }
+    if (!nome.endsWith(".jsx") || nome === "Modal.jsx") continue
+    const codigo = readFileSync(caminho, "utf8")
+    for (let inicio = codigo.indexOf("<Modal "); inicio >= 0; inicio = codigo.indexOf("<Modal ", inicio + 1)) {
+      // Até o ">" fora de chaves: dentro delas, "=>" é de uma função.
+      let profundidade = 0
+      let fim = inicio
+      for (; fim < codigo.length; fim++) {
+        if (codigo[fim] === "{") profundidade++
+        else if (codigo[fim] === "}") profundidade--
+        else if (codigo[fim] === ">" && profundidade === 0) break
+      }
+      tags.push([nome, codigo.slice(inicio, fim)])
+    }
+  }
+  return tags
+}
+
+test("toda janela (Modal) tem nome para o leitor de tela", () => {
+  const tags = tagsDeModal(fileURLToPath(new URL("../src", import.meta.url)))
+  assert.ok(tags.length >= 5, "não achou os modais — o teste estaria passando por não olhar nada")
+  for (const [arquivo, tag] of tags) assert.match(tag, /\b(titulo|rotulo)=/, `${arquivo}: ${tag.slice(0, 60)}...`)
 })

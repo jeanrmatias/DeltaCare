@@ -257,7 +257,7 @@ function PainelEntregas({ atividade, aoFechar }) {
 
   return (
     <>
-      <Modal aberto={!corrigindo} aoFechar={aoFechar} largura="max-w-[760px]">
+      <Modal aberto={!corrigindo} aoFechar={aoFechar} largura="max-w-[760px]" rotulo={`Entregas · ${atividade.titulo}`}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-navy-900">{atividade.titulo}</h2>

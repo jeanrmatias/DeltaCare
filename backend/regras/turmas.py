@@ -317,7 +317,9 @@ def listar_professores(admin_email: str) -> dict:
         return {"sucesso": False, "mensagem": "Só um administrador pode ver isso.", "professores": []}
 
     cursor = conexao.cursor()
-    cursor.execute("SELECT email FROM users WHERE tipo = 'professor' ORDER BY email")
+    # Professor com a conta desativada (exclusão em andamento) não recebe
+    # disciplina nova.
+    cursor.execute("SELECT email FROM users WHERE tipo = 'professor' AND desativado_em IS NULL ORDER BY email")
     professores = [linha[0] for linha in cursor.fetchall()]
     conexao.close()
 
@@ -342,7 +344,12 @@ def listar_usuarios(admin_email: str) -> dict:
         '''
         SELECT u.id, u.email, u.tipo, u.nome, u.disciplinas, u.matricula,
                (SELECT COUNT(*) FROM turmas t WHERE t.professor_id = u.id),
-               (SELECT COUNT(*) FROM matriculas m WHERE m.aluno_id = u.id)
+               (SELECT COUNT(*) FROM matriculas m WHERE m.aluno_id = u.id),
+               u.desativado_em, u.anonimizado_em,
+               (SELECT s.id FROM solicitacoes_privacidade s
+                 WHERE s.aluno_id = u.id AND s.tipo = 'exclusao' AND s.status = 'agendada'),
+               (SELECT s.anonimizar_em FROM solicitacoes_privacidade s
+                 WHERE s.aluno_id = u.id AND s.tipo = 'exclusao' AND s.status = 'agendada')
         FROM users u
         ORDER BY
             CASE u.tipo WHEN 'adm' THEN 1 WHEN 'professor' THEN 2 ELSE 3 END,
@@ -362,11 +369,59 @@ def listar_usuarios(admin_email: str) -> dict:
             "matricula": linha[5] or "",
             "total_turmas": linha[6],
             "total_matriculas": linha[7],
+            "desativado": bool(linha[8]),
+            "anonimizado": bool(linha[9]),
+            # Exclusão em andamento: o id para desfazer, e quando vence.
+            "exclusao_id": linha[10],
+            "anonimizar_em": linha[11],
         }
         for linha in linhas
     ]
 
     return {"sucesso": True, "usuarios": usuarios}
+
+
+def passar_disciplina(conexao, turma_id: int, novo_professor_id: int) -> None:
+    """A disciplina muda de professor, e o que foi publicado nela vai junto.
+
+    Material e atividade têm `professor_id` próprio, e é ele que diz quem pode
+    editar e excluir (regras/materiais.py, regras/atividades.py). Se ficassem
+    com o professor antigo, quem assume a disciplina não conseguiria corrigir
+    um material errado nem lançar a nota de uma atividade em andamento.
+    Não faz commit: quem chama decide o que vai na mesma transação.
+    """
+    for tabela in ("materiais", "atividades"):
+        conexao.execute(f"UPDATE {tabela} SET professor_id = ? WHERE turma_id = ?", (novo_professor_id, turma_id))
+    conexao.execute("UPDATE turmas SET professor_id = ? WHERE id = ?", (novo_professor_id, turma_id))
+
+
+def trocar_professor(admin_email: str, turma_id: int, professor_email: str) -> dict:
+    """Outro professor assume a disciplina (licença, saída, redistribuição)."""
+    conexao = conectar()
+    try:
+        if not _eh_admin(conexao, admin_email):
+            return {"sucesso": False, "mensagem": "Só um administrador pode trocar o professor."}
+        turma = conexao.execute("SELECT nome, semestre, professor_id FROM turmas WHERE id = ?", (int(turma_id),)).fetchone()
+        if not turma:
+            return {"sucesso": False, "mensagem": "Disciplina não encontrada."}
+        novo = conexao.execute(
+            "SELECT id, nome FROM users WHERE email = ? AND tipo = 'professor' AND desativado_em IS NULL",
+            ((professor_email or "").strip().lower(),),
+        ).fetchone()
+        if not novo:
+            return {"sucesso": False, "mensagem": "Escolha um professor com a conta ativa."}
+        if novo[0] == turma[2]:
+            return {"sucesso": False, "mensagem": "Esse já é o professor da disciplina."}
+        passar_disciplina(conexao, int(turma_id), novo[0])
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    from regras.notificacoes import criar_notificacao
+
+    criar_notificacao(novo[0], "disciplina", "Nova disciplina",
+                      f"Você assumiu {turma[0]} · {turma[1]}, com o material e as atividades dela.", "turmas.html")
+    return {"sucesso": True, "mensagem": f"{novo[1] or professor_email} assumiu {turma[0]}."}
 
 
 def perfil_do_usuario(email: str) -> dict:

@@ -14,7 +14,7 @@ import { Avisos } from "./paginas/comum/Avisos"
 import { Denuncias } from "./paginas/comum/Denuncias"
 import { Historico } from "./paginas/comum/Historico"
 import { Mensagens } from "./paginas/comum/Mensagens"
-import { ModuloPlanejado } from "./paginas/comum/ModuloPlanejado"
+import { Relatorios } from "./paginas/comum/Relatorios"
 import { Anotacoes } from "./paginas/aluno/Anotacoes"
 import { Atividades } from "./paginas/aluno/Atividades"
 import { Chat } from "./paginas/aluno/Chat"
@@ -79,6 +79,7 @@ export function App() {
           <Route path="/professor/mensagens" element={<Mensagens />} />
           <Route path="/professor/desempenho" element={<DesempenhoProfessor />} />
           <Route path="/professor/lacunas" element={<Lacunas />} />
+          <Route path="/professor/relatorios" element={<Relatorios />} />
           <Route path="/professor/avisos" element={<Avisos />} />
           <Route path="/professor/historico" element={<Historico />} />
           <Route path="/professor/denuncias" element={<Denuncias />} />
@@ -95,7 +96,7 @@ export function App() {
           <Route path="/admin/avisos" element={<Avisos />} />
           <Route path="/admin/conteudo" element={<Conteudo />} />
           <Route path="/admin/privacidade" element={<PrivacidadeAdmin />} />
-          <Route path="/admin/relatorios" element={<ModuloPlanejado chave="relatorios" />} />
+          <Route path="/admin/relatorios" element={<Relatorios />} />
         </Route>
       </Route>
 
