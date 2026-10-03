@@ -1,3 +1,4 @@
+import json
 import os
 from functools import partial
 from typing import Any, Optional
@@ -9,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
+from infra.cabecalhos import CabecalhosDeSeguranca
+from regras import auditoria
 from infra.database import FecharConexoesDaRequisicao, configurar_banco
 from infra.sessoes import (
     buscar_usuario_da_sessao,
@@ -17,8 +20,11 @@ from infra.sessoes import (
 )
 from regras.autenticacao import (
     alterar_senha,
+    confirmar_codigo,
     criar_conta_staff,
+    email_do_desafio,
     realizar_login,
+    reenviar_codigo,
     redefinir_senha,
     solicitar_recuperacao,
 )
@@ -212,9 +218,89 @@ app.add_middleware(
 # fechada quando a requisição termina. Ver infra/database.py.
 app.add_middleware(FecharConexoesDaRequisicao)
 
+# Content-Security-Policy, anti-clickjacking e companhia, em toda resposta.
+# Ver infra/cabecalhos.py.
+app.add_middleware(CabecalhosDeSeguranca)
+
+
+class AuditarAcoes:
+    """Grava na trilha de auditoria (regras/auditoria.py) as ações marcadas lá.
+
+    Um ponto só, na entrada da API, para nenhuma rota nova de administração
+    escapar por esquecimento. Guarda o corpo da requisição (o que foi pedido)
+    e o da resposta (se deu certo), e grava depois que a resposta saiu, numa
+    thread — quem clicou não espera pela trilha.
+
+    Quem fez sai do token **antes** da rota rodar: o logout apaga a sessão, e
+    depois dele não haveria mais de quem perguntar.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not auditoria.candidata(scope["method"], scope["path"]):
+            await self.app(scope, receive, send)
+            return
+
+        pedido = []
+        while True:
+            mensagem = await receive()
+            pedido.append(mensagem)
+            if mensagem["type"] != "http.request" or not mensagem.get("more_body"):
+                break
+        restante = list(pedido)
+
+        async def reler():
+            return restante.pop(0) if restante else await receive()
+
+        cabecalhos = dict(scope.get("headers") or [])
+        autorizacao = cabecalhos.get(b"authorization", b"").decode("latin-1")
+        token = autorizacao[7:].strip() if autorizacao.lower().startswith("bearer ") else ""
+        quem = await anyio.to_thread.run_sync(buscar_usuario_da_sessao, token) if token else None
+        # No passo do código ainda não há sessão: de quem é o login sai do
+        # desafio, e antes da rota (ao acertar, o desafio é apagado).
+        desafio = _json_ou_vazio(b"".join(m.get("body", b"") for m in pedido))
+        desafio = desafio.get("desafio") if isinstance(desafio, dict) else None
+        email_do_login = await anyio.to_thread.run_sync(email_do_desafio, desafio) if desafio else ""
+
+        resposta = {"status": 500, "corpo": []}
+
+        async def anotar(mensagem):
+            if mensagem["type"] == "http.response.start":
+                resposta["status"] = mensagem["status"]
+            elif mensagem["type"] == "http.response.body" and scope["method"] != "GET":
+                resposta["corpo"].append(mensagem.get("body", b""))
+            await send(mensagem)
+
+        try:
+            await self.app(scope, reler, anotar)
+        finally:
+            rota = getattr(scope.get("route"), "path", scope["path"])
+            if auditoria.auditar(scope["method"], rota):
+                corpo_pedido = _json_ou_vazio(b"".join(m.get("body", b"") for m in pedido))
+                await anyio.to_thread.run_sync(partial(
+                    auditoria.registrar, scope["method"], rota, scope.get("path_params") or {}, corpo_pedido, quem,
+                    (corpo_pedido.get("email", "") if isinstance(corpo_pedido, dict) else "") or email_do_login,
+                    (scope.get("client") or ("", 0))[0], resposta["status"],
+                    _json_ou_vazio(b"".join(resposta["corpo"])),
+                ))
+
+
+def _json_ou_vazio(dados: bytes):
+    try:
+        return json.loads(dados) if dados else {}
+    except ValueError:
+        return {}
+
+
+# Por fora de tudo: vê a requisição como chegou e a resposta como saiu.
+app.add_middleware(AuditarAcoes)
+
 limpar_sessoes_expiradas()
 # Exclusões que venceram o prazo enquanto o servidor estava parado.
 anonimizar_vencidas()
+auditoria.expurgar_antigos()
 
 # Sem SMTP, "Esqueci minha senha" não chega a ninguém: o código vai para este
 # console. Em desenvolvimento é o esperado; em produção é um defeito, e o aviso
@@ -490,7 +576,28 @@ def saude():
 
 @app.post("/login")
 def login(dados: LoginRequest):
+    """Aluno recebe o token aqui. Professor e administração recebem um
+    `desafio`: o código chega por e-mail e é conferido em /login/codigo."""
     return realizar_login(dados.email, dados.senha)
+
+
+class CodigoRequest(BaseModel):
+    desafio: str
+    codigo: str
+
+
+class ReenvioRequest(BaseModel):
+    desafio: str
+
+
+@app.post("/login/codigo")
+def confirmar_codigo_rota(dados: CodigoRequest):
+    return confirmar_codigo(dados.desafio, dados.codigo)
+
+
+@app.post("/login/codigo/reenviar")
+def reenviar_codigo_rota(dados: ReenvioRequest):
+    return reenviar_codigo(dados.desafio)
 
 
 @app.post("/recuperar-senha")
@@ -1337,6 +1444,15 @@ class ExclusaoDeContaRequest(BaseModel):
 def excluir_usuario_rota(dados: ExclusaoDeContaRequest, admin: dict = Depends(usuario_admin)):
     """Desativa a conta de um aluno ou professor; anonimiza em 45 dias."""
     return excluir_pela_administracao(admin["email"], dados.email, dados.motivo, dados.novo_professor_email)
+
+
+# ---------------------------- auditoria ----------------------------
+
+@app.get("/admin/auditoria")
+def auditoria_rota(acao: str = "", busca: str = "", dias: Optional[int] = 30, so_falhas: bool = False,
+                   admin: dict = Depends(usuario_admin)):
+    """A trilha de auditoria. Só leitura: não há rota que escreva ou apague nela."""
+    return auditoria.listar(admin["email"], acao, busca, dias, so_falhas)
 
 
 # ---------------------------- relatórios ----------------------------

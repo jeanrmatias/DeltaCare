@@ -14,10 +14,14 @@ import { INICIO_DO_PERFIL } from "../../lib/usuario"
  *
  * A recuperação era uma sequência de caixas de diálogo; aqui é a mesma tela
  * mudando de etapa (`etapa`), e o e-mail digitado no login já vem preenchido.
+ *
+ * Professor e administração têm uma etapa a mais: a senha certa leva ao
+ * código que chega por e-mail (o segundo fator), e só ele abre a sessão.
  */
 export function Login() {
   const [etapa, setEtapa] = useState("entrar")
   const [email, setEmail] = useState("")
+  const [desafio, setDesafio] = useState(null)
   useTituloDaPagina("Entrar")
 
   return (
@@ -31,7 +35,11 @@ export function Login() {
         </div>
 
         {etapa === "entrar" && (
-          <FormularioEntrar email={email} setEmail={setEmail} aoEsquecer={() => setEtapa("pedir")} />
+          <FormularioEntrar email={email} setEmail={setEmail} aoEsquecer={() => setEtapa("pedir")}
+            aoPedirCodigo={(dados) => { setDesafio(dados); setEtapa("codigo") }} />
+        )}
+        {etapa === "codigo" && desafio && (
+          <FormularioCodigo desafio={desafio} aoVoltar={() => { setDesafio(null); setEtapa("entrar") }} />
         )}
         {etapa === "pedir" && (
           <FormularioPedirCodigo
@@ -46,9 +54,10 @@ export function Login() {
         )}
       </div>
 
-      <Link to="/privacidade" className="text-[13px] font-medium text-texto-secundario hover:text-primaria">
-        Privacidade e uso de dados
-      </Link>
+      <nav aria-label="Documentos" className="flex gap-4 text-[13px] font-medium text-texto-secundario">
+        <Link to="/privacidade" className="hover:text-primaria">Privacidade e uso de dados</Link>
+        <Link to="/termos" className="hover:text-primaria">Termos de uso</Link>
+      </nav>
     </main>
   )
 }
@@ -73,13 +82,28 @@ function LinkDeTexto({ children, onClick }) {
   )
 }
 
-function FormularioEntrar({ email, setEmail, aoEsquecer }) {
-  const [senha, setSenha] = useState("")
-  const [mensagem, setMensagem] = useState("")
-  const [enviando, setEnviando] = useState(false)
+/** Guarda a sessão e leva para onde a pessoa tentava ir — ou para o início do perfil. */
+function useConcluirLogin() {
   const { entrar } = useSessao()
   const navegar = useNavigate()
   const local = useLocation()
+
+  return (dados) => {
+    entrar(dados)
+    if (dados.trocar_senha) return navegar("/trocar-senha", { replace: true })
+    // Volta para onde a pessoa tentava ir antes do login, se for do perfil
+    // dela; senão, para o início do perfil.
+    const inicio = INICIO_DO_PERFIL[dados.tipo] ?? "/"
+    const destino = local.state?.de
+    navegar(destino && destino.startsWith(inicio) ? destino : inicio, { replace: true })
+  }
+}
+
+function FormularioEntrar({ email, setEmail, aoEsquecer, aoPedirCodigo }) {
+  const [senha, setSenha] = useState("")
+  const [mensagem, setMensagem] = useState("")
+  const [enviando, setEnviando] = useState(false)
+  const concluir = useConcluirLogin()
 
   async function enviar(evento) {
     evento.preventDefault()
@@ -90,18 +114,12 @@ function FormularioEntrar({ email, setEmail, aoEsquecer }) {
       const resposta = await apiPublica("/login", { email: email.trim(), senha })
       const dados = await resposta.json()
 
+      if (dados.sucesso && dados.segundo_fator) return aoPedirCodigo(dados)
       if (!dados.sucesso || !dados.token) {
         setMensagem(dados.mensagem || "E-mail ou senha incorretos.")
         return
       }
-
-      entrar(dados)
-      if (dados.trocar_senha) return navegar("/trocar-senha", { replace: true })
-      // Volta para onde a pessoa tentava ir antes do login, se for do perfil
-      // dela; senão, para o início do perfil.
-      const inicio = INICIO_DO_PERFIL[dados.tipo] ?? "/"
-      const destino = local.state?.de
-      navegar(destino && destino.startsWith(inicio) ? destino : inicio, { replace: true })
+      concluir(dados)
     } catch (erro) {
       console.error("Erro no login:", erro)
       setMensagem(ERRO_DE_CONEXAO)
@@ -120,6 +138,64 @@ function FormularioEntrar({ email, setEmail, aoEsquecer }) {
       </Botao>
       <LinkDeTexto onClick={aoEsquecer}>Esqueci minha senha</LinkDeTexto>
       <Mensagem texto={mensagem} />
+    </form>
+  )
+}
+
+/** O código de 6 dígitos que chegou no e-mail (professor e administração). */
+function FormularioCodigo({ desafio, aoVoltar }) {
+  const [codigo, setCodigo] = useState("")
+  const [mensagem, setMensagem] = useState({ texto: "", sucesso: false })
+  const [enviando, setEnviando] = useState(false)
+  const [expirado, setExpirado] = useState(false)
+  const concluir = useConcluirLogin()
+
+  async function confirmar(evento) {
+    evento.preventDefault()
+    setEnviando(true)
+    try {
+      const dados = await (await apiPublica("/login/codigo", { desafio: desafio.desafio, codigo: codigo.trim() })).json()
+      if (dados.sucesso && dados.token) return concluir(dados)
+      setMensagem({ texto: dados.mensagem || "Código incorreto.", sucesso: false })
+      setExpirado(Boolean(dados.expirado))
+      setCodigo("")
+    } catch (erro) {
+      console.error("Erro ao conferir o código:", erro)
+      setMensagem({ texto: ERRO_DE_CONEXAO, sucesso: false })
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function reenviar() {
+    try {
+      const dados = await (await apiPublica("/login/codigo/reenviar", { desafio: desafio.desafio })).json()
+      setMensagem({ texto: dados.mensagem, sucesso: Boolean(dados.sucesso) })
+      setExpirado(Boolean(dados.expirado))
+    } catch (erro) {
+      console.error("Erro ao reenviar o código:", erro)
+      setMensagem({ texto: ERRO_DE_CONEXAO, sucesso: false })
+    }
+  }
+
+  return (
+    <form onSubmit={confirmar}>
+      <Subtitulo>
+        Enviamos um código de 6 dígitos para <strong>{desafio.email_mascarado}</strong>. Ele vale por 10 minutos.
+      </Subtitulo>
+      {!expirado && (
+        <>
+          <CampoTexto rotulo="Código" valor={codigo} aoMudar={(valor) => setCodigo(valor.replace(/\D/g, "").slice(0, 6))}
+            autoComplete="one-time-code" placeholder="000000" obrigatorio minimo={6} maximo={6} modoTeclado="numeric" />
+          <Botao tipo="submit" largo desativado={enviando || codigo.length !== 6} className="mt-6">
+            {enviando ? "Conferindo..." : "Entrar"}
+          </Botao>
+          <LinkDeTexto onClick={reenviar}>Não chegou? Enviar outro código</LinkDeTexto>
+        </>
+      )}
+      {expirado && <Botao largo onClick={aoVoltar} className="mt-4">Entrar de novo</Botao>}
+      {!expirado && <LinkDeTexto onClick={aoVoltar}>Voltar</LinkDeTexto>}
+      <Mensagem texto={mensagem.texto} sucesso={mensagem.sucesso} />
     </form>
   )
 }
@@ -203,7 +279,7 @@ function FormularioRedefinir({ email, aoTerminar, aoVoltar }) {
         Se houver uma conta com <strong>{email}</strong>, o código chegou por e-mail. Ele vale por 15 minutos.
       </Subtitulo>
       <CampoTexto rotulo="Código de recuperação" valor={codigo} aoMudar={setCodigo} autoComplete="one-time-code" obrigatorio />
-      <CampoTexto rotulo="Nova senha" tipo="password" valor={senha} aoMudar={setSenha} placeholder="mínimo 6 caracteres" autoComplete="new-password" minimo={6} obrigatorio />
+      <CampoTexto rotulo="Nova senha" tipo="password" valor={senha} aoMudar={setSenha} placeholder="mínimo 8 caracteres" autoComplete="new-password" minimo={8} obrigatorio />
       <Botao tipo="submit" largo desativado={enviando} className="mt-6">
         {enviando ? "Salvando..." : "Redefinir senha"}
       </Botao>

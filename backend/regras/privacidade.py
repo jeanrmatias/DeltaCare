@@ -604,11 +604,17 @@ def reverter_exclusao(admin_email: str, solicitacao_id: int) -> dict:
 # =========================================================================
 
 def _anonimizar(conexao, aluno_id: int, agora: str) -> None:
-    email_antigo, tipo_conta = conexao.execute("SELECT email, tipo FROM users WHERE id = ?", (aluno_id,)).fetchone()
+    from regras.auditoria import anonimizar_na_trilha
+
+    email_antigo, tipo_conta, nome_antigo = conexao.execute(
+        "SELECT email, tipo, nome FROM users WHERE id = ?", (aluno_id,)).fetchone()
+    removido = "Professor removido" if tipo_conta == "professor" else "Aluno removido"
+    anonimizar_na_trilha(conexao, aluno_id, email_antigo, f"removido-{aluno_id}@anonimo.invalid", nome_antigo or "", removido)
 
     # Some: é pessoal e não é registro acadêmico.
     for sql in (
         "DELETE FROM sessoes WHERE user_id = ?",
+        "DELETE FROM desafios_login WHERE user_id = ?",
         "DELETE FROM notificacoes WHERE user_id = ?",
         "DELETE FROM favoritos WHERE aluno_id = ?",
         # Anotação é caderno particular; nem a administração lê (regras/anotacoes.py).
@@ -635,8 +641,7 @@ def _anonimizar(conexao, aluno_id: int, agora: str) -> None:
         "UPDATE users SET nome = ?, email = ?, matricula = NULL,"
         " senha = ?, reset_token = NULL, reset_expira = NULL, disciplinas = NULL,"
         " ranking_oculto = 1, anonimizado_em = ? WHERE id = ?",
-        ("Professor removido" if tipo_conta == "professor" else "Aluno removido",
-         f"removido-{aluno_id}@anonimo.invalid", hash_senha(secrets.token_hex(32)), agora, aluno_id),
+        (removido, f"removido-{aluno_id}@anonimo.invalid", hash_senha(secrets.token_hex(32)), agora, aluno_id),
     )
 
 

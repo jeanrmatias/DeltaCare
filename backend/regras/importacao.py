@@ -219,8 +219,13 @@ def importar_alunos(admin_email: str, arquivo_base64: str, nome_arquivo: str,
     """
     from regras.autenticacao import criar_conta_staff
 
-    if len(senha_padrao) < 6:
-        return {"sucesso": False, "mensagem": "A senha provisória precisa ter pelo menos 6 caracteres."}
+    # A mesma régua da senha de cada um: a provisória é conhecida pela turma
+    # inteira até cada aluno trocar, e "12345678" seria a primeira tentativa.
+    from regras.senhas import problema_da_senha
+
+    problema = problema_da_senha(senha_padrao)
+    if problema:
+        return {"sucesso": False, "mensagem": f"Senha provisória: {problema}"}
 
     analise = analisar_planilha(arquivo_base64, nome_arquivo)
 

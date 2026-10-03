@@ -815,6 +815,48 @@ def configurar_banco(silencioso: bool = False):
         "CREATE INDEX IF NOT EXISTS idx_solicitacoes_privacidade_status"
         "  ON solicitacoes_privacidade (status, criado_em)"
     )
+    # Segundo fator (código por e-mail) para professor e administração —
+    # regras/autenticacao.py. 1 por padrão: conta que já existia passa a pedir
+    # o código. Só as contas de demonstração e os testes desligam.
+    cursor.execute("PRAGMA table_info(users)")
+    if "segundo_fator" not in {linha[1] for linha in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE users ADD COLUMN segundo_fator INTEGER NOT NULL DEFAULT 1")
+    # Um login em andamento esperando o código. O código em si não fica: só o
+    # hash dele com o desafio.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS desafios_login (
+            desafio TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            codigo_hash TEXT NOT NULL,
+            criado_em TEXT NOT NULL,
+            expira_em TEXT NOT NULL,
+            tentativas INTEGER NOT NULL DEFAULT 0,
+            reenvios INTEGER NOT NULL DEFAULT 0,
+            ultimo_envio TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+
+    # Trilha de auditoria (regras/auditoria.py): só cresce pela entrada da API
+    # e só encolhe pelo expurgo por idade. Nenhuma chave estrangeira de
+    # propósito: o registro sobrevive a qualquer exclusão do que ele descreve.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS auditoria (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            criado_em TEXT NOT NULL,
+            usuario_id INTEGER,
+            usuario_email TEXT NOT NULL DEFAULT '',
+            metodo TEXT NOT NULL,
+            rota TEXT NOT NULL,
+            detalhe TEXT NOT NULL DEFAULT '{}',
+            ip TEXT NOT NULL DEFAULT '',
+            status INTEGER NOT NULL,
+            sucesso INTEGER NOT NULL,
+            mensagem TEXT NOT NULL DEFAULT ''
+        )
+    ''')
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_quando ON auditoria (criado_em)")
+
     # Quem pediu: o próprio titular, ou a administração ao excluir a conta de
     # um aluno ou professor (regras/privacidade.excluir_pela_administracao).
     # A coluna `aluno_id` guarda o titular nos dois casos — o nome é de quando

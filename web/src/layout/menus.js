@@ -44,5 +44,6 @@ export const MENUS = {
     { rotulo: "Conteúdo", caminho: "/admin/conteudo", icone: "materiais" },
     { rotulo: "Privacidade", caminho: "/admin/privacidade", icone: "privacidade" },
     { rotulo: "Relatórios", caminho: "/admin/relatorios", icone: "relatorios" },
+    { rotulo: "Auditoria", caminho: "/admin/auditoria", icone: "auditoria" },
   ],
 }

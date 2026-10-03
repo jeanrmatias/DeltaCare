@@ -229,6 +229,12 @@ class BaseDelta(unittest.TestCase):
         criar_conta_staff(ADMIN, PROFESSOR2, SENHA, "professor", nome="Professor Dois", provisoria=False)
         criar_conta_staff(ADMIN, ALUNO, SENHA, "aluno", nome="Aluno Um", provisoria=False)
         criar_conta_staff(ADMIN, ALUNO_FORA, SENHA, "aluno", nome="Aluno Dois", provisoria=False)
+        # O código por e-mail de professor e administração também: testado à
+        # parte, em TestesDoisFatores. Aqui os testes entram só com a senha.
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE users SET segundo_fator = 0")
+        conexao.commit()
+        conexao.close()
 
         self.turma_id = criar_turma(ADMIN, PROFESSOR, "Cardiologia", "2026.2")["turma"]["id"]
         matricular_aluno(ADMIN, ALUNO, self.turma_id)
@@ -309,7 +315,12 @@ class TestesContas(BaseDelta):
 
             login = realizar_login(f"criado_{tipo}@teste.com", SENHA)
             self.assertTrue(login["sucesso"], f"conta {tipo} criada não consegue entrar")
-            self.assertEqual(login["tipo"], tipo)
+            if tipo == "aluno":
+                self.assertEqual(login["tipo"], tipo)
+            else:
+                # Professor e administração: a senha certa leva ao código por e-mail.
+                self.assertTrue(login["segundo_fator"])
+                self.assertNotIn("token", login)
 
     def test_conta_criada_pelo_admin_recusa_senha_curta(self):
         resultado = criar_conta_staff(ADMIN, "curta@teste.com", "123", "professor", nome="Senha Curta")
@@ -611,7 +622,7 @@ class TestesCadastroCompleto(BaseDelta):
         self.assertIn("nome", resultado["mensagem"].lower())
 
     def test_nome_aparece_no_login(self):
-        criar_conta_staff(ADMIN, "comnome@teste.com", SENHA, "professor", nome="Ana Ribeiro")
+        criar_conta_staff(ADMIN, "comnome@teste.com", SENHA, "professor", nome="Ana Ribeiro", segundo_fator=False)
         self.assertEqual(realizar_login("comnome@teste.com", SENHA)["nome"], "Ana Ribeiro")
 
     def test_disciplinas_so_para_professor(self):
@@ -5335,7 +5346,8 @@ class TestesPrimeiroAdmin(unittest.TestCase):
         self.assertTrue(resultado["sucesso"], resultado)
         login = realizar_login("coord@med.com", "senha-forte-123")
         self.assertTrue(login["sucesso"])
-        self.assertEqual(login["tipo"], "adm")
+        # A primeira administração também entra com o código por e-mail.
+        self.assertTrue(login["segundo_fator"])
 
     def test_recusa_se_ja_existe_administracao(self):
         """Senão o script viraria um jeito de ganhar acesso total sem ninguém saber."""
@@ -6789,6 +6801,394 @@ class TestesMaterialForaDoChat(BaseDelta):
 
         self.assertTrue(resposta["sucesso"], resposta)
         self.assertIn("fora do chat", resposta["aviso_indexacao"])
+
+# =========================================================================
+# Força da senha (regras/senhas.py) — a mesma régua em todo lugar
+# =========================================================================
+
+class TestesForcaDaSenha(BaseDelta):
+
+    def test_regra(self):
+        from regras.senhas import problema_da_senha
+
+        casos = {
+            "1234567": "curta",
+            "12345678": "comum",
+            "Medicina123": "comum, mesmo com maiúscula",
+            "médicina123": "comum, mesmo com acento",
+            "aaaaaaaaaa": "um caractere só",
+            "marina.duarte": "o e-mail",
+            "Marina2026": "o nome",
+        }
+        for senha, motivo in casos.items():
+            with self.subTest(senha=senha, motivo=motivo):
+                self.assertIsNotNone(problema_da_senha(senha, "marina.duarte@deltacare.com", "Marina Duarte"))
+        for boa in ("pressao sistolica 92", "cardiolex-dcm3", "teste123"):
+            with self.subTest(boa=boa):
+                self.assertIsNone(problema_da_senha(boa, "marina.duarte@deltacare.com", "Marina Duarte"))
+
+    def test_conta_nova_troca_e_recuperacao_usam_a_mesma_regra(self):
+        from regras.autenticacao import alterar_senha
+
+        self.assertFalse(criar_conta_staff(ADMIN, "nova@teste.com", "12345678", "aluno", nome="Ana Paula")["sucesso"])
+        self.assertFalse(alterar_senha(ALUNO, "", SENHA, "medicina123")["sucesso"])
+
+        solicitar_recuperacao(ALUNO)
+        conexao = sqlite3.connect(CAMINHO_DB)
+        codigo = conexao.execute("SELECT reset_token FROM users WHERE email = ?", (ALUNO,)).fetchone()[0]
+        conexao.close()
+        self.assertFalse(redefinir_senha(ALUNO, codigo, "password1")["sucesso"])
+        self.assertTrue(realizar_login(ALUNO, SENHA)["sucesso"])
+
+    def test_senha_provisoria_da_planilha_tambem(self):
+        planilha = base64.b64encode("nome,email\nAluno Planilha,planilha@teste.com\n".encode()).decode()
+
+        resultado = importar_alunos(ADMIN, planilha, "turma.csv", senha_padrao="12345678")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertIn("provisória", resultado["mensagem"])
+
+    def test_contas_de_demonstracao_sao_a_unica_excecao(self):
+        resultado = criar_conta_staff(ADMIN, "demo@teste.com", "demo123", "aluno", nome="Conta Demo",
+                                      provisoria=False, conferir_senha=False)
+
+        self.assertTrue(resultado["sucesso"])
+
+class TestesConteudoDoUpload(BaseDelta):
+    """A extensão é só o nome; o começo do arquivo diz o que ele é."""
+
+    EXECUTAVEL = b"MZ\x90\x00\x03\x00\x00\x00" + b"\x00" * 64  # cabeçalho de um .exe do Windows
+
+    def _salvar(self, nome, dados, tipo="entrega"):
+        from infra.arquivos import PASTA_ENTREGAS, salvar_arquivo_base64
+
+        return salvar_arquivo_base64(base64.b64encode(dados).decode(), nome, tipo, PASTA_ENTREGAS)
+
+    def test_formatos_de_verdade_passam(self):
+        verdadeiros = {
+            "relatorio.pdf": b"%PDF-1.7\n...",
+            "ecg.png": b"\x89PNG\r\n\x1a\n" + b"\x00" * 20,
+            "peca.jpg": b"\xff\xd8\xff\xe0" + b"\x00" * 20,
+            "foto.webp": b"RIFF\x24\x00\x00\x00WEBPVP8 ",
+            "estudo.docx": b"PK\x03\x04" + b"\x00" * 20,
+            "antigo.doc": b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 20,
+            "notas.txt": "Pressão sistólica abaixo de 92 mmHg".encode(),
+            "dados.csv": b"paciente;estagio\n1;DCM-3\n",
+            "texto.rtf": b"{\\rtf1\\ansi Cardiolex}",
+        }
+        for nome, dados in verdadeiros.items():
+            with self.subTest(nome=nome):
+                self.assertTrue(self._salvar(nome, dados)["sucesso"])
+
+    def test_arquivo_renomeado_e_recusado(self):
+        for nome in ("trabalho.pdf", "trabalho.docx", "foto.png", "notas.txt"):
+            with self.subTest(nome=nome):
+                resultado = self._salvar(nome, self.EXECUTAVEL)
+                self.assertFalse(resultado["sucesso"])
+                self.assertIn("renomeado", resultado["mensagem"])
+
+    def test_video_de_verdade_e_disfarcado(self):
+        mp4 = b"\x00\x00\x00\x20ftypisom" + b"\x00" * 20
+        self.assertTrue(self._salvar("aula.mp4", mp4, tipo="video")["sucesso"])
+        self.assertFalse(self._salvar("aula.mp4", self.EXECUTAVEL, tipo="video")["sucesso"])
+
+    def test_nada_e_gravado_quando_recusa(self):
+        from infra.arquivos import PASTA_ENTREGAS
+
+        antes = set(os.listdir(PASTA_ENTREGAS)) if os.path.isdir(PASTA_ENTREGAS) else set()
+        self._salvar("trabalho.pdf", self.EXECUTAVEL)
+        depois = set(os.listdir(PASTA_ENTREGAS)) if os.path.isdir(PASTA_ENTREGAS) else set()
+
+        self.assertEqual(antes, depois)
+
+class TestesCabecalhosDeSeguranca(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+
+    def test_toda_resposta_traz_os_cabecalhos(self):
+        resposta = self.cliente.get("/saude")
+
+        self.assertEqual(resposta.headers["x-frame-options"], "DENY")
+        self.assertEqual(resposta.headers["x-content-type-options"], "nosniff")
+        self.assertEqual(resposta.headers["referrer-policy"], "same-origin")
+
+    def test_telas_tem_politica_de_conteudo_que_so_aceita_script_do_proprio_servidor(self):
+        politica = self.cliente.get("/app/aluno").headers["content-security-policy"]
+
+        self.assertIn("script-src 'self'", politica)
+        self.assertIn("frame-ancestors 'none'", politica)
+        self.assertNotIn("unsafe-inline", politica)
+        self.assertNotIn("unsafe-eval", politica)
+
+    def test_documentacao_da_api_fica_fora_da_politica(self):
+        """O /docs carrega scripts de CDN; com a política das telas, quebraria."""
+        self.assertNotIn("content-security-policy", self.cliente.get("/docs").headers)
+
+class TestesAuditoria(BaseDelta):
+    """A trilha registra quem fez o quê, sem nunca guardar senha nem código."""
+
+    def setUp(self):
+        super().setUp()
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+
+    def _cab(self, email):
+        return {"Authorization": "Bearer " + self.cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]}
+
+    def _trilha(self, **filtros):
+        from regras.auditoria import listar
+
+        return listar(ADMIN, **filtros)["registros"]
+
+    def test_login_certo_e_errado_sem_a_senha(self):
+        self.cliente.post("/login", json={"email": ALUNO, "senha": "senha-errada-123"})
+        self.cliente.post("/login", json={"email": ALUNO, "senha": SENHA})
+
+        logins = [r for r in self._trilha() if r["acao"] == "Login"]
+        self.assertEqual([r["sucesso"] for r in logins], [True, False])  # mais recente primeiro
+        self.assertEqual({r["quem"] for r in logins}, {ALUNO})
+        texto = json.dumps(logins)
+        self.assertNotIn(SENHA, texto)
+        self.assertNotIn("senha-errada-123", texto)
+
+    def test_acao_da_administracao_registra_quem_e_o_que_sem_a_senha(self):
+        self.cliente.post("/admin/usuarios", headers=self._cab(ADMIN), json={
+            "email": "nova@teste.com", "senha": "senha-provisoria-1", "tipo": "aluno", "nome": "Ana Paula"})
+
+        registro = [r for r in self._trilha() if r["acao"] == "Conta criada"][0]
+        self.assertEqual((registro["quem"], registro["sucesso"]), (ADMIN, True))
+        self.assertEqual(registro["detalhe"]["dados"]["email"], "nova@teste.com")
+        self.assertNotIn("senha", registro["detalhe"]["dados"])
+
+    def test_tentativa_recusada_tambem_fica(self):
+        resposta = self.cliente.post("/admin/usuarios", headers=self._cab(PROFESSOR), json={
+            "email": "x@teste.com", "senha": "qualquer-coisa-1", "tipo": "adm", "nome": "Golpe"})
+
+        self.assertEqual(resposta.status_code, 403)
+        registro = [r for r in self._trilha() if r["acao"] == "Conta criada"][0]
+        self.assertEqual((registro["quem"], registro["sucesso"], registro["status"]), (PROFESSOR, False, 403))
+
+    def test_consulta_nao_entra_e_exclusao_de_conteudo_entra(self):
+        cabecalho = self._cab(PROFESSOR)
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 1", tipo="link",
+                                  link_url="https://exemplo.com", rascunho=False)["material_id"]
+        self.cliente.get("/materiais", headers=cabecalho)
+        self.cliente.delete(f"/materiais/{material}", headers=cabecalho)
+
+        acoes = [r["acao"] for r in self._trilha() if r["quem"] == PROFESSOR]
+        self.assertIn("Material excluído", acoes)
+        self.assertNotIn("GET /materiais", acoes)
+
+    def test_saida_registra_quem_saiu(self):
+        """O logout apaga a sessão: quem fez precisa ser lido antes."""
+        self.cliente.post("/logout", headers=self._cab(ALUNO))
+
+        self.assertEqual([r["quem"] for r in self._trilha() if r["acao"] == "Saída"], [ALUNO])
+
+    def test_anonimizacao_tira_email_e_nome_da_trilha(self):
+        from regras.privacidade import anonimizar_vencidas
+
+        self.cliente.post("/login", json={"email": ALUNO, "senha": SENHA})
+        conexao = sqlite3.connect(CAMINHO_DB)
+        nome = conexao.execute("SELECT nome FROM users WHERE email = ?", (ALUNO,)).fetchone()[0]
+        conexao.close()
+        self.cliente.post("/admin/usuarios/exclusao", headers=self._cab(ADMIN), json={"email": ALUNO, "motivo": "Transferido."})
+        anonimizar_vencidas(datetime.now(timezone.utc) + timedelta(days=46))
+
+        texto = json.dumps(self._trilha(dias=None), ensure_ascii=False)
+        self.assertNotIn(ALUNO, texto)
+        self.assertNotIn(nome, texto)
+        self.assertIn("removido-", texto)
+
+    def test_expurgo_tira_o_que_passou_do_prazo(self):
+        from regras.auditoria import RETENCAO_DIAS, expurgar_antigos
+
+        self.cliente.post("/login", json={"email": ALUNO, "senha": SENHA})
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE auditoria SET criado_em = ?",
+                        ((datetime.now(timezone.utc) - timedelta(days=RETENCAO_DIAS + 1)).isoformat(),))
+        conexao.commit()
+        conexao.close()
+
+        self.assertGreaterEqual(expurgar_antigos(), 1)
+        self.assertEqual(self._trilha(dias=None), [])
+
+    def test_so_a_administracao_le_e_ninguem_escreve_pela_api(self):
+        from regras.auditoria import listar
+
+        self.assertFalse(listar(PROFESSOR)["sucesso"])
+        self.assertEqual(self.cliente.get("/admin/auditoria", headers=self._cab(PROFESSOR)).status_code, 403)
+        import main
+
+        rotas = {(m, r.path) for r in main.app.routes if hasattr(r, "methods") for m in r.methods}
+        self.assertEqual({r for r in rotas if "auditoria" in r[1]}, {("GET", "/admin/auditoria")})
+
+# =========================================================================
+# Segundo fator por e-mail (regras/autenticacao.py) — professor e administração
+# =========================================================================
+
+class TestesDoisFatores(BaseDelta):
+
+    def setUp(self):
+        super().setUp()
+        import re
+
+        import infra.email
+
+        # O código chega "por e-mail": aqui, numa lista.
+        self.enviados = []
+        self._original = infra.email.enviar_em_segundo_plano
+        infra.email.enviar_em_segundo_plano = lambda para, assunto, texto: self.enviados.append(
+            (para, re.search(r"\b(\d{6})\b", texto).group(1)))
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE users SET segundo_fator = 1")
+        conexao.commit()
+        conexao.close()
+
+    def tearDown(self):
+        import infra.email
+
+        infra.email.enviar_em_segundo_plano = self._original
+        super().tearDown()
+
+    def _codigo(self):
+        return self.enviados[-1][1]
+
+    def _sessoes(self):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        total = conexao.execute("SELECT COUNT(*) FROM sessoes").fetchone()[0]
+        conexao.close()
+        return total
+
+    def test_professor_so_entra_com_o_codigo_do_email(self):
+        from regras.autenticacao import confirmar_codigo
+
+        primeiro = realizar_login(PROFESSOR, SENHA)
+
+        self.assertTrue(primeiro["segundo_fator"])
+        self.assertNotIn("token", primeiro)
+        self.assertEqual(self._sessoes(), 0)
+        self.assertEqual(self.enviados[-1][0], PROFESSOR)
+
+        entrada = confirmar_codigo(primeiro["desafio"], self._codigo())
+
+        self.assertTrue(entrada["token"])
+        self.assertEqual(buscar_usuario_da_sessao(entrada["token"])["email"], PROFESSOR)
+
+    def test_aluno_entra_direto(self):
+        login = realizar_login(ALUNO, SENHA)
+
+        self.assertTrue(login["token"])
+        self.assertEqual(self.enviados, [])
+
+    def test_codigo_errado_nao_entra_e_cinco_erros_derrubam_o_login(self):
+        from regras.autenticacao import confirmar_codigo
+
+        desafio = realizar_login(ADMIN, SENHA)["desafio"]
+        certo = self._codigo()
+        errado = "000000" if certo != "000000" else "111111"
+        for _ in range(4):
+            self.assertFalse(confirmar_codigo(desafio, errado)["sucesso"])
+        self.assertTrue(confirmar_codigo(desafio, errado)["expirado"])
+
+        self.assertFalse(confirmar_codigo(desafio, certo)["sucesso"])
+        self.assertEqual(self._sessoes(), 0)
+
+    def test_codigo_errado_conta_como_erro_de_login(self):
+        """Senão quem tem a senha chutaria códigos sem fim, entrando de novo a cada 4."""
+        from regras.autenticacao import confirmar_codigo
+
+        for _ in range(MAX_FALHAS_LOGIN):
+            confirmar_codigo(realizar_login(PROFESSOR, SENHA)["desafio"], "999999" if self._codigo() != "999999" else "888888")
+
+        bloqueado = realizar_login(PROFESSOR, SENHA)
+        self.assertFalse(bloqueado["sucesso"])
+        self.assertIn("Aguarde", bloqueado["mensagem"])
+
+    def test_codigo_expirado_nao_vale(self):
+        from regras.autenticacao import confirmar_codigo
+
+        desafio = realizar_login(PROFESSOR, SENHA)["desafio"]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE desafios_login SET expira_em = ?", ((datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),))
+        conexao.commit()
+        conexao.close()
+
+        self.assertFalse(confirmar_codigo(desafio, self._codigo())["sucesso"])
+
+    def test_codigo_nao_serve_duas_vezes_nem_para_outro_login(self):
+        from regras.autenticacao import confirmar_codigo
+
+        primeiro = realizar_login(PROFESSOR, SENHA)["desafio"]
+        codigo_velho = self._codigo()
+        segundo = realizar_login(PROFESSOR, SENHA)["desafio"]  # entrar de novo invalida o anterior
+
+        self.assertFalse(confirmar_codigo(primeiro, codigo_velho)["sucesso"])
+        self.assertTrue(confirmar_codigo(segundo, self._codigo())["sucesso"])
+        self.assertFalse(confirmar_codigo(segundo, self._codigo())["sucesso"])
+
+    def test_reenvio_espera_e_tem_limite(self):
+        from regras.autenticacao import MAX_REENVIOS, confirmar_codigo, reenviar_codigo
+
+        desafio = realizar_login(PROFESSOR, SENHA)["desafio"]
+        self.assertIn("Aguarde", reenviar_codigo(desafio)["mensagem"])
+
+        def passar_a_espera():
+            conexao = sqlite3.connect(CAMINHO_DB)
+            conexao.execute("UPDATE desafios_login SET ultimo_envio = ?", ((datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat(),))
+            conexao.commit()
+            conexao.close()
+
+        for _ in range(MAX_REENVIOS):
+            passar_a_espera()
+            self.assertTrue(reenviar_codigo(desafio)["sucesso"])
+        passar_a_espera()  # recusado agora é pelo limite, não pela espera
+        recusa = reenviar_codigo(desafio)
+        self.assertFalse(recusa["sucesso"])
+        self.assertIn("vezes demais", recusa["mensagem"])
+        self.assertEqual(len(self.enviados), 1 + MAX_REENVIOS)
+        self.assertTrue(confirmar_codigo(desafio, self._codigo())["sucesso"])
+
+    def test_codigo_nao_fica_guardado(self):
+        realizar_login(PROFESSOR, SENHA)
+        conexao = sqlite3.connect(CAMINHO_DB)
+        guardado = conexao.execute("SELECT codigo_hash FROM desafios_login").fetchone()[0]
+        conexao.close()
+
+        self.assertNotIn(self._codigo(), guardado)
+
+    def test_recuperar_a_senha_nao_pula_o_codigo(self):
+        solicitar_recuperacao(PROFESSOR)
+        conexao = sqlite3.connect(CAMINHO_DB)
+        reset = conexao.execute("SELECT reset_token FROM users WHERE email = ?", (PROFESSOR,)).fetchone()[0]
+        conexao.close()
+        redefinir_senha(PROFESSOR, reset, "pressao-sistolica-92")
+
+        self.assertTrue(realizar_login(PROFESSOR, "pressao-sistolica-92")["segundo_fator"])
+
+    def test_trilha_registra_o_codigo_errado_com_o_dono(self):
+        from fastapi.testclient import TestClient
+
+        import main
+        from regras.auditoria import listar
+
+        cliente = TestClient(main.app)
+        desafio = cliente.post("/login", json={"email": PROFESSOR, "senha": SENHA}).json()["desafio"]
+        cliente.post("/login/codigo", json={"desafio": desafio, "codigo": "000000" if self._codigo() != "000000" else "111111"})
+
+        registro = [r for r in listar(ADMIN)["registros"] if r["acao"] == "Código de verificação (2FA)"][0]
+        self.assertEqual((registro["quem"], registro["sucesso"]), (PROFESSOR, False))
+        # Nem o código nem o desafio (que, com o código, abriria a sessão) vão para a trilha.
+        self.assertEqual(registro["detalhe"]["dados"], {})
 
 # =========================================================================
 # Senha provisória (regras/autenticacao.py + main.usuario_logado)

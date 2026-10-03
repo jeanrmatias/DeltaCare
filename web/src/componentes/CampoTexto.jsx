@@ -15,6 +15,7 @@ export function CampoTexto({
   obrigatorio = false,
   minimo,
   maximo,
+  modoTeclado,
 }) {
   // useId liga o <label> ao <input> sem inventar id à mão — dois campos
   // iguais na mesma tela não colidem.
@@ -35,6 +36,7 @@ export function CampoTexto({
         required={obrigatorio}
         minLength={minimo}
         maxLength={maximo}
+        inputMode={modoTeclado}
         className="w-full rounded-campo border border-borda-campo bg-white px-3.5 py-3 text-sm text-texto outline-none transition placeholder:text-texto-secundario focus:border-primaria focus:ring-3 focus:ring-primaria/12"
       />
     </div>

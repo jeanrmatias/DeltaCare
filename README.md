@@ -38,7 +38,8 @@ serviço de terceiros.
 
 Criadas pelo `backend/seed_demo.py`, que grava no banco de verdade — não são
 dados de fachada no navegador. Todas usam a senha `demo123` e entram direto,
-sem a troca de senha do primeiro acesso:
+sem a troca de senha do primeiro acesso e sem o código por e-mail que conta
+de verdade de professor e administração exige:
 
 | Perfil | E-mail |
 |---|---|
@@ -91,8 +92,9 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 - **Turmas** (com as exceções por disciplina), **Disciplinas**, **Usuários**
   (um a um ou importando planilha CSV/XLSX) e o **semestre vigente**.
 - **Denúncias**, **Avisos** para a instituição inteira, **Conteúdo**
-  (supervisão do que os professores publicaram) e **Privacidade** (pedidos dos
-  alunos sobre os próprios dados).
+  (supervisão do que os professores publicaram), **Privacidade** (pedidos dos
+  alunos sobre os próprios dados) e **Auditoria** (quem fez o quê, quando e
+  de onde).
 - **Usuários** inclui **excluir a conta** de quem saiu (desativa na hora,
   anonimiza em 45 dias, dá para desfazer) e **Disciplinas**, **trocar o
   professor** de uma disciplina.
@@ -237,7 +239,7 @@ modelo completo para o servidor está em
 | `MODELO_EMBEDDING` | `nomic-embed-text` | Modelo que indexa o material |
 | `ESFORCO_RACIOCINIO` | `low` | Esforço de raciocínio do modelo (modelos que não raciocinam ignoram). `low` corta o tempo de resposta pela metade sem perder qualidade, medido |
 | `DELTACARE_IA_SIMULTANEAS` | `4` | Chamadas ao modelo ao mesmo tempo. **Não é limite de perguntas:** quem passa espera, sem travar login nem telas. Suba conforme o servidor do modelo aguentar |
-| `DELTACARE_SMTP_HOST`, `_PORTA`, `_SEGURANCA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | vazio, `587`, `starttls` | E-mail da recuperação de senha e dos avisos de privacidade. Sem host, o código aparece no console — e o servidor avisa ao subir |
+| `DELTACARE_SMTP_HOST`, `_PORTA`, `_SEGURANCA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | vazio, `587`, `starttls` | E-mail do código de acesso de professor e administração, da recuperação de senha e dos avisos de privacidade. Sem host, o código aparece no console — serve para desenvolver, **não para produção**: sem e-mail, professor e administração não entram |
 | `DELTACARE_BACKUPS` | `backups/` ao lado do banco | Onde o `backup.py` guarda as cópias |
 | `DELTACARE_BACKUPS_MANTER` | `14` | Quantas cópias o `backup.py` mantém |
 
@@ -273,7 +275,9 @@ assistente respondeu lendo o material, e não com conhecimento próprio do
 modelo: pergunte a dose do Cardiolex e depois algo fora do material, como
 tratamento de apendicite — ele deve recusar a segunda.
 
-**Nunca rode o seed em produção:** ele cria contas com a senha `demo123`.
+**Nunca rode o seed em produção:** ele cria contas com a senha `demo123`, que
+todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
+únicas contas que o sistema deixa existir assim.
 
 ### Sem o seed
 
@@ -300,7 +304,17 @@ tratamento de apendicite — ele deve recusar a segunda.
   conferem de novo o vínculo (o professor só vê as disciplinas dele; o aluno,
   só o material publicado das disciplinas em que está matriculado).
 - **Senha** guardada como PBKDF2-SHA256 com salt individual (260 mil
-  iterações).
+  iterações). Toda senha nova tem **8 caracteres ou mais** e não pode ser uma
+  das conhecidas ("12345678", "medicina123") nem o próprio e-mail ou nome
+  ([`backend/regras/senhas.py`](backend/regras/senhas.py)). Sem troca
+  periódica forçada nem "maiúscula, número e símbolo": a recomendação atual
+  (NIST SP 800-63B) desaconselha as duas, porque produzem senhas
+  previsíveis.
+- **Dois fatores para professor e administração:** a senha certa não abre a
+  sessão; chega um código de 6 dígitos no e-mail, válido por 10 minutos, com
+  5 tentativas e até 3 reenvios. O código não é guardado (só o hash), e cada
+  código errado conta como erro de login — quem descobrir a senha não ganha
+  chutes infinitos. O aluno entra só com a senha (decisão da instituição).
 - **Login com limite:** 5 erros em 15 minutos bloqueiam o e-mail por um tempo.
   Conta que existe e que não existe respondem igual — na mensagem **e** no
   tempo de resposta —, para a tela não servir de verificador de quem é aluno
@@ -318,6 +332,43 @@ tratamento de apendicite — ele deve recusar a segunda.
   ([`backend/infra/database.py`](backend/infra/database.py)).
 - **Privado pela ausência de rota:** anotações e entregas não têm rota para a
   administração. Não é a tela que esconde; é o servidor que não entrega.
+- **Trilha de auditoria:** toda ação da administração, as exclusões de
+  conteúdo do professor, a cópia de dados pessoais e os eventos de acesso
+  (login certo e errado, código, troca e recuperação de senha) ficam
+  registrados com quem, quando, de qual IP e se deu certo — num ponto só, na
+  entrada da API, para nenhuma rota nova escapar. Senha, código e arquivo
+  nunca entram. Só a administração consulta (menu **Auditoria**), não há como
+  apagar pela API, e cada registro sai sozinho depois de 1 ano
+  ([`backend/regras/auditoria.py`](backend/regras/auditoria.py)).
+- **Cabeçalhos de segurança** em toda resposta, pela própria API
+  ([`backend/infra/cabecalhos.py`](backend/infra/cabecalhos.py)):
+  Content-Security-Policy nas telas (só script do próprio servidor — um XSS
+  que escapasse não rodaria), proibição de abrir o site dentro de outro
+  (clickjacking), `nosniff`, `Referrer-Policy` e `Permissions-Policy`. O
+  Caddy acrescenta o HSTS.
+- **Upload conferido pelo conteúdo:** além da extensão permitida e do limite
+  de 15 MB, o começo do arquivo precisa ser do formato que a extensão diz (um
+  programa renomeado para `.pdf` é recusado), e o nome no disco é sorteado.
+- **Injeção de SQL e XSS:** todo valor vai ao banco como parâmetro; o React
+  escapa todo texto, e o Markdown da IA vira elemento, nunca HTML.
+- **Termos de uso** e **política de privacidade** públicos, em `/app/termos`
+  e `/app/privacidade` (minutas para a instituição aprovar).
+
+### O que é da infraestrutura, e não do código
+
+Ficam com quem instala o servidor — o passo a passo da implantação aponta
+cada um:
+
+- **WAF e proteção contra DDoS:** um serviço na frente do Caddy (Cloudflare,
+  por exemplo). A aplicação já se defende de SQLi e XSS e limita o login e o
+  uso do modelo de IA, mas não segura uma enxurrada de tráfego.
+- **Criptografia em repouso:** disco do servidor cifrado (LUKS). O sistema
+  não guarda CPF, cartão nem dado financeiro — o que não existe não vaza.
+- **Backup fora do servidor**, **antivírus** na pasta de uploads (ClamAV),
+  **logs centralizados** (o systemd guarda os do serviço; a trilha de
+  auditoria fica no banco) e **teste de invasão** feito por gente de fora.
+- **Atualizações:** `npm audit` (hoje, 0 vulnerabilidades) e `pip-audit` a
+  cada atualização das dependências, que têm versão presa.
 
 ## Acessibilidade
 
@@ -404,10 +455,12 @@ a API **e** as telas (em `/app/`); na frente, o
    ar, e o PDF publicado nesse meio-tempo aparece como "Fora do chat" para o
    professor indexar depois.
 3. **Configuração:** copie `deploy/deltacare.env.exemplo` para
-   `/etc/deltacare.env`, preencha (domínio, SMTP, pastas de dados) e
+   `/etc/deltacare.env`, preencha (domínio, **SMTP — obrigatório**: é por ele
+   que professor e administração recebem o código de acesso, pastas de dados) e
    `chmod 600 /etc/deltacare.env`. Crie a pasta dos dados
    (`/var/lib/deltacare`) com dono `deltacare`.
-4. **Primeira conta de administração:**
+4. **Primeira conta de administração** (ela também entra com o código por
+   e-mail, então o SMTP precisa estar certo antes):
    ```
    cd /opt/deltacare/backend
    set -a; . /etc/deltacare.env; set +a
@@ -457,10 +510,12 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (520 testes):** permissões de cada perfil, visibilidade de
+- **Backend (549 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
-  exclusão de conta pela administração e troca de professor, relatórios
+  exclusão de conta pela administração e troca de professor, dois fatores,
+  força da senha, trilha de auditoria, cabeçalhos de segurança, conteúdo dos
+  uploads, relatórios
   (quem vê cada turma, mês da nota e do prazo, nenhum aluno identificado),
   integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
@@ -525,6 +580,7 @@ backend/
     email.py                 envio por SMTP, em segundo plano
     arquivos.py              gravação dos uploads
     vetores.py               os vetores do chat em binário, normalizados
+    cabecalhos.py            cabeçalhos de segurança (CSP, clickjacking...)
 
   regras/                  - o que o sistema DECIDE
     autenticacao.py          login, contas, recuperação de senha
@@ -547,6 +603,8 @@ backend/
     conteudo.py              supervisão do conteúdo pela administração
     privacidade.py           LGPD: cópia, correção, exclusão, anonimização
     relatorios.py            a turma ao vivo e por mês; dificuldade por disciplina
+    senhas.py                a régua de toda senha nova
+    auditoria.py             a trilha de auditoria
     importacao.py            planilha CSV/XLSX
     chat_ia.py               RAG: indexação, busca híbrida e resposta
 
@@ -592,9 +650,9 @@ só (`INICIO_DO_PERFIL`, em `web/src/lib/usuario.js`).
   índice vetorial (`sqlite-vec` ou `pgvector`).
 - Professor e administração não têm a tela Meus dados: os pedidos deles sobre
   dados pessoais seguem pela secretaria.
-- O front antigo (`frontend/`) não tem a tela de troca da senha provisória:
-  a conta recém-criada precisa entrar pelo `/app/` (ou usar "Esqueci minha
-  senha", que também tira a marca de provisória).
+- O front antigo (`frontend/`) não tem a tela de troca da senha provisória
+  nem a do código de acesso: conta recém-criada, professor e administração
+  entram pelo `/app/`.
 
 ## Documentos relacionados
 

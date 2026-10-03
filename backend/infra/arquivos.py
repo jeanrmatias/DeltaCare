@@ -38,6 +38,42 @@ EXTENSOES_PERMITIDAS = {
 }
 
 
+# Os primeiros bytes de cada formato (a "assinatura"). A extensão é só o nome
+# que a pessoa deu: um executável renomeado para .pdf passa por ela. Conferir
+# o começo do conteúdo barra o arquivo disfarçado antes de ele chegar ao disco
+# — e ao computador de quem baixar.
+_ZIP = (b"PK\x03\x04",)                                 # docx, xlsx, pptx, odt, odp
+_OLE = (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",)          # doc e ppt antigos
+_ASSINATURAS = {
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".docx": _ZIP, ".xlsx": _ZIP, ".pptx": _ZIP, ".odt": _ZIP, ".odp": _ZIP,
+    ".doc": _OLE, ".ppt": _OLE,
+    ".webm": (b"\x1a\x45\xdf\xa3",),
+    ".mkv": (b"\x1a\x45\xdf\xa3",),
+    ".rtf": (b"{\\rtf",),
+}
+
+
+def conteudo_confere(extensao: str, dados: bytes) -> bool:
+    """O conteúdo é mesmo do formato que a extensão diz?"""
+    extensao = extensao.lower()
+    if extensao == ".pdf":
+        # A norma aceita lixo antes do cabeçalho, até 1024 bytes.
+        return b"%PDF-" in dados[:1024]
+    if extensao == ".webp":
+        return dados[:4] == b"RIFF" and dados[8:12] == b"WEBP"
+    if extensao in (".mp4", ".mov"):
+        # Contêiner ISO/QuickTime: o primeiro bloco se apresenta nos bytes 4-8.
+        return dados[4:8] in (b"ftyp", b"moov", b"mdat", b"wide", b"free", b"skip")
+    if extensao in (".txt", ".csv"):
+        # Texto não tem byte nulo; binário quase sempre tem, logo no começo.
+        return b"\x00" not in dados[:8192]
+    assinaturas = _ASSINATURAS.get(extensao)
+    return bool(assinaturas) and dados.startswith(assinaturas)
+
+
 def extensao_valida(tipo: str, nome_arquivo: str) -> bool:
     _, extensao = os.path.splitext(nome_arquivo.lower())
     return extensao in EXTENSOES_PERMITIDAS.get(tipo, set())
@@ -76,6 +112,13 @@ def salvar_arquivo_base64(
 
     if len(dados) == 0:
         return {"sucesso": False, "mensagem": "O arquivo está vazio."}
+
+    _, extensao = os.path.splitext(nome_original)
+    if not conteudo_confere(extensao, dados):
+        return {
+            "sucesso": False,
+            "mensagem": f"O conteúdo do arquivo não é de um {extensao.lower()}. Ele pode ter sido renomeado ou estar corrompido.",
+        }
 
     os.makedirs(pasta, exist_ok=True)
 

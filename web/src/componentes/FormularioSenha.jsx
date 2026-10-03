@@ -39,7 +39,7 @@ export function FormularioSenha({ rotuloAtual = "Senha atual", aoTrocar, acoesEx
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
       <Texto rotulo={rotuloAtual} tipo="password" valor={atual} aoMudar={setAtual} obrigatorio />
-      <Texto rotulo="Nova senha" tipo="password" valor={nova} aoMudar={setNova} placeholder="mínimo 6 caracteres" obrigatorio />
+      <Texto rotulo="Nova senha" tipo="password" valor={nova} aoMudar={setNova} placeholder="mínimo 8 caracteres" obrigatorio />
       <Texto rotulo="Repita a nova senha" tipo="password" valor={confirmacao} aoMudar={setConfirmacao} obrigatorio />
       <MensagemDeFormulario texto={mensagem} />
       <div className="flex flex-wrap justify-end gap-2.5">

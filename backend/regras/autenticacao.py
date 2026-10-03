@@ -4,12 +4,14 @@ Fica separado do main.py de propósito, sem depender do FastAPI, para poder
 ser testado sozinho (com sqlite3 puro).
 """
 
+import hashlib
 import hmac
 import secrets
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from infra.security import hash_senha, verificar_senha
+from regras.senhas import problema_da_senha
 
 from infra.database import CAMINHO_DB as DB_PATH
 from infra.database import abrir_conexao
@@ -84,7 +86,10 @@ def realizar_login(email: str, senha: str) -> dict:
             ),
         }
 
-    cursor.execute("SELECT id, senha, tipo, nome, desativado_em, senha_provisoria FROM users WHERE email = ?", (email,))
+    cursor.execute(
+        "SELECT id, senha, tipo, nome, desativado_em, senha_provisoria, segundo_fator FROM users WHERE email = ?",
+        (email,),
+    )
     usuario = cursor.fetchone()
 
     # **Tempo igual para conta que existe e que não existe.** Sem o hash de
@@ -102,13 +107,10 @@ def realizar_login(email: str, senha: str) -> dict:
         conexao.close()
         return {"sucesso": False, "mensagem": "E-mail ou senha incorretos."}
 
-    # Acertou: o histórico de erros da janela some. Senão quem errou quatro
-    # vezes de manhã entraria na tarde com uma tentativa só de margem.
-    cursor.execute("DELETE FROM tentativas_login WHERE email = ?", (email,))
     conexao.commit()
     conexao.close()
 
-    user_id, _, tipo, nome, desativado_em, senha_provisoria = usuario
+    user_id, _, tipo, nome, desativado_em, senha_provisoria, segundo_fator = usuario
 
     # Conta com exclusão aprovada (regras/privacidade.py). Só é dito **depois**
     # de a senha conferir: antes disso, "desativada" contaria a qualquer um que
@@ -119,21 +121,39 @@ def realizar_login(email: str, senha: str) -> dict:
             "mensagem": "Esta conta foi desativada a pedido. Para reativar, fale com a secretaria.",
         }
 
-    pagina = PAGINAS.get(tipo)
-
     # Perfil sem tela (valor inesperado na coluna `tipo`): não há para onde
     # mandar a pessoa, e uma sessão sem destino seria acesso a coisa nenhuma.
-    if not pagina:
+    if not PAGINAS.get(tipo):
         return {"sucesso": False, "mensagem": "E-mail ou senha incorretos."}
+
+    # Professor e administração: a senha certa ainda não abre a sessão. Chega
+    # um código no e-mail, e só ele abre (confirmar_codigo).
+    if tipo in TIPOS_COM_SEGUNDO_FATOR and segundo_fator:
+        return _iniciar_segundo_fator(user_id, email, nome)
+
+    return _abrir_sessao(user_id, email, tipo, nome, senha_provisoria)
+
+
+def _abrir_sessao(user_id: int, email: str, tipo: str, nome: str, senha_provisoria) -> dict:
+    """O login terminou: abre a sessão e zera os erros de login da janela.
+
+    Zerar só aqui, e não ao acertar a senha, é o que impede a volta da
+    adivinhação pelo código: quem tem a senha e chuta códigos não zera o
+    contador entrando de novo — cada código errado conta como erro de login.
+    """
+    from infra.sessoes import criar_sessao
+
+    conexao = _conectar()
+    conexao.execute("DELETE FROM tentativas_login WHERE email = ?", (email,))
+    conexao.commit()
+    conexao.close()
 
     # O token é o que prova a identidade nas requisições seguintes —
     # nenhuma rota protegida aceita e-mail vindo do cliente (infra/sessoes.py).
-    from infra.sessoes import criar_sessao
-
     return {
         "sucesso": True,
         "mensagem": "Login bem-sucedido!",
-        "pagina": pagina,
+        "pagina": PAGINAS[tipo],
         "email": email,
         "tipo": tipo,
         # Contas anteriores à coluna `nome` não têm esse dado; o front
@@ -146,6 +166,165 @@ def realizar_login(email: str, senha: str) -> dict:
     }
 
 
+# =========================================================================
+# Segundo fator: código por e-mail para professor e administração
+# =========================================================================
+#
+# Decisão da instituição: quem mexe em nota, material e conta de outras
+# pessoas entra com a senha **e** um código que chega no e-mail. O aluno,
+# não — o que ele alcança é só dele, e o atrito de todo dia pesaria mais.
+#
+# O código vale VALIDADE_DO_CODIGO, aceita MAX_TENTATIVAS_CODIGO palpites e
+# pode ser reenviado MAX_REENVIOS vezes, com um intervalo entre um e outro.
+# Ele não é guardado: fica o hash dele com o desafio (um segredo aleatório
+# por login), e a comparação é de tempo constante.
+
+TIPOS_COM_SEGUNDO_FATOR = {"adm", "professor"}
+VALIDADE_DO_CODIGO = timedelta(minutes=10)
+MAX_TENTATIVAS_CODIGO = 5
+MAX_REENVIOS = 3
+INTERVALO_REENVIO = timedelta(seconds=60)
+
+
+def _agora_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _hash_do_codigo(desafio: str, codigo: str) -> str:
+    return hashlib.sha256(f"{desafio}:{codigo}".encode()).hexdigest()
+
+
+def _mascarar(email: str) -> str:
+    """"pr*******@deltacare.com": diz para onde foi sem mostrar o endereço inteiro."""
+    usuario, _, dominio = email.partition("@")
+    return f"{usuario[:2]}{'*' * max(len(usuario) - 2, 3)}@{dominio}"
+
+
+def _enviar_codigo(email: str, nome: str, codigo: str) -> None:
+    from infra.email import enviar_em_segundo_plano
+
+    minutos = int(VALIDADE_DO_CODIGO.total_seconds() // 60)
+    enviar_em_segundo_plano(
+        email,
+        "Delta Care — seu código de acesso",
+        f"Olá{', ' + nome.split()[0] if nome else ''}.\n\n"
+        f"Seu código para entrar no Delta Care é: {codigo}\n\n"
+        f"Ele vale por {minutos} minutos e só serve uma vez.\n\n"
+        "Se não foi você que tentou entrar, alguém sabe a sua senha: troque-a no perfil "
+        "e avise a administração.\n",
+    )
+
+
+def _iniciar_segundo_fator(user_id: int, email: str, nome: str) -> dict:
+    desafio = secrets.token_urlsafe(32)
+    codigo = f"{secrets.randbelow(10 ** 6):06d}"
+    agora = _agora_utc()
+    conexao = _conectar()
+    # Um desafio por pessoa: entrar de novo invalida o código anterior.
+    conexao.execute("DELETE FROM desafios_login WHERE user_id = ? OR expira_em < ?", (user_id, agora.isoformat()))
+    conexao.execute(
+        "INSERT INTO desafios_login (desafio, user_id, codigo_hash, criado_em, expira_em, ultimo_envio)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        (desafio, user_id, _hash_do_codigo(desafio, codigo), agora.isoformat(),
+         (agora + VALIDADE_DO_CODIGO).isoformat(), agora.isoformat()),
+    )
+    conexao.commit()
+    conexao.close()
+    _enviar_codigo(email, nome, codigo)
+    return {
+        "sucesso": True,
+        "segundo_fator": True,
+        "desafio": desafio,
+        "email_mascarado": _mascarar(email),
+        "mensagem": "Enviamos um código de 6 dígitos para o seu e-mail.",
+    }
+
+
+def _desafio(conexao, desafio: str):
+    return conexao.execute(
+        "SELECT d.user_id, d.codigo_hash, d.expira_em, d.tentativas, d.reenvios, d.ultimo_envio,"
+        "       u.email, u.tipo, u.nome, u.senha_provisoria, u.desativado_em"
+        "  FROM desafios_login d JOIN users u ON u.id = d.user_id WHERE d.desafio = ?",
+        ((desafio or "").strip(),),
+    ).fetchone()
+
+
+def confirmar_codigo(desafio: str, codigo: str) -> dict:
+    """O código do e-mail confere: abre a sessão (o mesmo retorno do login)."""
+    desafio = (desafio or "").strip()
+    conexao = _conectar()
+    linha = _desafio(conexao, desafio)
+    if not linha:
+        conexao.close()
+        return {"sucesso": False, "expirado": True, "mensagem": "Este código não vale mais. Entre de novo para receber outro."}
+
+    user_id, codigo_hash, expira_em, tentativas, _, _, email, tipo, nome, senha_provisoria, desativado_em = linha
+    if datetime.fromisoformat(expira_em) < _agora_utc() or desativado_em:
+        conexao.execute("DELETE FROM desafios_login WHERE desafio = ?", (desafio,))
+        conexao.commit()
+        conexao.close()
+        return {"sucesso": False, "expirado": True, "mensagem": "O código expirou. Entre de novo para receber outro."}
+
+    if not hmac.compare_digest(_hash_do_codigo(desafio, (codigo or "").strip()), codigo_hash):
+        # Cada código errado conta como erro de login (ver _abrir_sessao).
+        conexao.execute("INSERT INTO tentativas_login (email, criado_em) VALUES (?, ?)",
+                        (email, datetime.utcnow().isoformat()))
+        tentativas += 1
+        if tentativas >= MAX_TENTATIVAS_CODIGO:
+            conexao.execute("DELETE FROM desafios_login WHERE desafio = ?", (desafio,))
+            conexao.commit()
+            conexao.close()
+            return {"sucesso": False, "expirado": True, "mensagem": "Código errado vezes demais. Entre de novo para receber outro."}
+        conexao.execute("UPDATE desafios_login SET tentativas = ? WHERE desafio = ?", (tentativas, desafio))
+        conexao.commit()
+        conexao.close()
+        restantes = MAX_TENTATIVAS_CODIGO - tentativas
+        return {"sucesso": False, "mensagem": f"Código incorreto. Restam {restantes} tentativa(s)."}
+
+    conexao.execute("DELETE FROM desafios_login WHERE desafio = ?", (desafio,))
+    conexao.commit()
+    conexao.close()
+    return _abrir_sessao(user_id, email, tipo, nome, senha_provisoria)
+
+
+def reenviar_codigo(desafio: str) -> dict:
+    """Um código novo para o mesmo login (o anterior deixa de valer)."""
+    desafio = (desafio or "").strip()
+    conexao = _conectar()
+    linha = _desafio(conexao, desafio)
+    agora = _agora_utc()
+    if not linha or datetime.fromisoformat(linha[2]) < agora:
+        conexao.close()
+        return {"sucesso": False, "expirado": True, "mensagem": "Este login expirou. Entre de novo."}
+    user_id, _, _, _, reenvios, ultimo_envio, email, _, nome, _, _ = linha
+    if reenvios >= MAX_REENVIOS:
+        conexao.close()
+        return {"sucesso": False, "expirado": True, "mensagem": "Já reenviamos o código vezes demais. Entre de novo."}
+    espera = datetime.fromisoformat(ultimo_envio) + INTERVALO_REENVIO - agora
+    if espera.total_seconds() > 0:
+        conexao.close()
+        return {"sucesso": False, "mensagem": f"Aguarde {int(espera.total_seconds()) + 1} segundos para pedir outro código."}
+
+    codigo = f"{secrets.randbelow(10 ** 6):06d}"
+    conexao.execute(
+        "UPDATE desafios_login SET codigo_hash = ?, tentativas = 0, reenvios = reenvios + 1, ultimo_envio = ?,"
+        " expira_em = ? WHERE desafio = ?",
+        (_hash_do_codigo(desafio, codigo), agora.isoformat(), (agora + VALIDADE_DO_CODIGO).isoformat(), desafio),
+    )
+    conexao.commit()
+    conexao.close()
+    _enviar_codigo(email, nome, codigo)
+    return {"sucesso": True, "mensagem": "Enviamos um código novo. O anterior não vale mais."}
+
+
+def email_do_desafio(desafio: str) -> str:
+    """De quem é este login em andamento — para a trilha de auditoria."""
+    conexao = _conectar()
+    linha = _desafio(conexao, desafio)
+    conexao.close()
+    return linha[6] if linha else ""
+
+
 def criar_conta_staff(
     admin_email: str,
     email: str,
@@ -156,6 +335,8 @@ def criar_conta_staff(
     matricula: str = "",
     turma_id: int | None = None,
     provisoria: bool = True,
+    conferir_senha: bool = True,
+    segundo_fator: bool = True,
 ) -> dict:
     """Cria conta de qualquer perfil. Só um admin já existente pode chamar
     isso (mesmo padrão de permissão usado em regras/turmas.criar_turma).
@@ -170,6 +351,13 @@ def criar_conta_staff(
     ignorado nos outros perfis em vez de dar erro, para o formulário poder
     enviar sempre o mesmo corpo. `turma_id` matricula o aluno já na criação —
     é o que evita cadastrar a turma inteira e depois matricular um a um.
+
+    `segundo_fator=False` dispensa o código por e-mail de professor e
+    administração — só nas contas de demonstração e nos testes, como o resto.
+
+    `conferir_senha=False` só para as contas de demonstração do seed (senha
+    `demo123`, que todo mundo conhece e que o seed avisa para nunca usar em
+    produção). Toda conta de verdade passa por regras/senhas.py.
     """
     admin_email = admin_email.strip().lower()
     email = email.strip().lower()
@@ -182,8 +370,9 @@ def criar_conta_staff(
     if not nome:
         return {"sucesso": False, "mensagem": "Informe o nome completo."}
 
-    if len(senha) < 6:
-        return {"sucesso": False, "mensagem": "A senha precisa ter pelo menos 6 caracteres."}
+    problema = problema_da_senha(senha, email, nome) if conferir_senha else None
+    if problema:
+        return {"sucesso": False, "mensagem": problema}
 
     conexao = _conectar()
     cursor = conexao.cursor()
@@ -204,8 +393,8 @@ def criar_conta_staff(
         # criou a conta, não pelo dono — e, na planilha, é a mesma para a turma
         # inteira. O dono troca no primeiro acesso. Quem não deve ser forçado
         # (contas de demonstração, fixtures de teste) diz isso explicitamente.
-        "INSERT INTO users (email, senha, tipo, nome, disciplinas, matricula, senha_provisoria)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, senha, tipo, nome, disciplinas, matricula, senha_provisoria, segundo_fator)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             email,
             hash_senha(senha),
@@ -214,6 +403,7 @@ def criar_conta_staff(
             (disciplinas or "").strip() if tipo == "professor" else None,
             (matricula or "").strip() if tipo == "aluno" else None,
             1 if provisoria else 0,
+            1 if segundo_fator else 0,
         ),
     )
     conexao.commit()
@@ -302,8 +492,9 @@ def redefinir_senha(email: str, token: str, nova_senha: str) -> dict:
     email = (email or "").strip().lower()
     token = (token or "").strip()
 
-    if len(nova_senha) < 6:
-        return {"sucesso": False, "mensagem": "A nova senha precisa ter pelo menos 6 caracteres."}
+    problema = problema_da_senha(nova_senha, email)
+    if problema:
+        return {"sucesso": False, "mensagem": problema}
 
     if not email or not token:
         return {"sucesso": False, "mensagem": "Código inválido."}
@@ -383,8 +574,9 @@ def alterar_senha(email: str, token_atual: str, senha_atual: str, nova_senha: st
     outra pessoa trocaria a senha do dono e tomaria a conta. Ao trocar, as
     outras sessões dele caem (a senha antiga pode ter vazado); a de agora fica.
     """
-    if len(nova_senha or "") < 6:
-        return {"sucesso": False, "mensagem": "A nova senha precisa ter pelo menos 6 caracteres."}
+    problema = problema_da_senha(nova_senha, email)
+    if problema:
+        return {"sucesso": False, "mensagem": problema}
     if nova_senha == senha_atual:
         return {"sucesso": False, "mensagem": "A nova senha precisa ser diferente da atual."}
 

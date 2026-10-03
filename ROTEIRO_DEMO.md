@@ -85,7 +85,13 @@ Use uma **janela anônima** do navegador e deixe-a em tela cheia.
    cadastro público. E a senha que a secretaria define é provisória: no
    primeiro acesso, a pessoa é obrigada a trocar, e o servidor não deixa usar
    nada antes disso."
-5. **Privacidade.** Mostre o pedido do Rafael para corrigir o nome. Aprove.
+5. **Auditoria.** Mostre o login que você acabou de fazer e a conta que
+   abriu na tela de Usuários, se criou.
+   **Frase-chave:** "Toda ação da administração e todo acesso ficam
+   registrados: quem, quando, de onde. Senha nunca. E, numa conta de verdade,
+   professor e administração entram com um código no e-mail — a conta da
+   demonstração dispensa só para a apresentação."
+6. **Privacidade.** Mostre o pedido do Rafael para corrigir o nome. Aprove.
    **Frase-chave:** "LGPD não é uma página de política: o aluno baixa uma
    cópia dos próprios dados na hora, e pede correção ou exclusão por aqui. A
    exclusão desativa a conta na hora e anonimiza em 45 dias."
@@ -195,9 +201,13 @@ o professor.
 
 **"É seguro?"**
 Toda rota descobre quem está chamando pelo token da sessão; nenhuma aceita a
-identidade que o navegador informa. Senhas com PBKDF2, limite de tentativas no
-login (que responde igual para conta que existe e que não existe), senha
-provisória trocada no primeiro acesso, e HTTPS pelo Caddy na implantação.
+identidade que o navegador informa. Professor e administração entram com a
+senha e um código no e-mail (as contas da demonstração dispensam o código).
+Senha de 8 caracteres ou mais, recusando as conhecidas; limite de tentativas
+no login; trilha de auditoria de toda ação administrativa e de todo acesso;
+Content-Security-Policy contra XSS; upload conferido pelo conteúdo; HTTPS
+pelo Caddy na implantação. O que é de infraestrutura (WAF, DDoS, backup fora
+do servidor) está no README, em "Segurança".
 
 **"Isso escala para a faculdade inteira?"**
 Uma faculdade, sim: o SQLite enfileira 60 entregas simultâneas em cerca de 2

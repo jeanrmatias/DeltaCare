@@ -53,6 +53,7 @@ test("visitante vê o login e a privacidade, e nenhuma área privada", () => {
   logado(null)
   assert.equal(tituloEm("/"), "Delta Care")
   assert.equal(tituloEm("/privacidade"), "Privacidade e uso de dados")
+  assert.equal(tituloEm("/termos"), "Termos de uso")
   for (const rota of ["/aluno", "/professor", "/admin"]) {
     assert.equal(tituloEm(rota), null, `${rota} abriu sem login`)
   }
@@ -176,7 +177,7 @@ test("toda tela do professor e da administração abre com o título certo", () 
     }],
     adm: [ADM, {
       "/admin/turmas": "Turmas", "/admin/disciplinas": "Disciplinas", "/admin/usuarios": "Usuários", "/admin/denuncias": "Denúncias",
-      "/admin/avisos": "Avisos", "/admin/conteudo": "Conteúdo", "/admin/privacidade": "Privacidade", "/admin/relatorios": "Relatórios",
+      "/admin/avisos": "Avisos", "/admin/conteudo": "Conteúdo", "/admin/privacidade": "Privacidade", "/admin/relatorios": "Relatórios", "/admin/auditoria": "Auditoria",
     }],
   }
   for (const [, [usuario, titulos]] of Object.entries(casos)) {

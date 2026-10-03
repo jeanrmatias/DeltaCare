@@ -19,6 +19,7 @@ import sys
 
 from infra.database import abrir_conexao, configurar_banco
 from infra.security import hash_senha
+from regras.senhas import problema_da_senha
 
 TAMANHO_MINIMO_SENHA = 10
 
@@ -32,6 +33,9 @@ def criar_primeiro_admin(email: str, nome: str, senha: str) -> dict:
     # Mais exigente que a conta comum: esta abre tudo.
     if len(senha) < TAMANHO_MINIMO_SENHA:
         return {"sucesso": False, "mensagem": f"A senha da administração precisa de {TAMANHO_MINIMO_SENHA} caracteres ou mais."}
+    problema = problema_da_senha(senha, email, nome)
+    if problema:
+        return {"sucesso": False, "mensagem": problema}
 
     configurar_banco(silencioso=True)
     conexao = abrir_conexao()

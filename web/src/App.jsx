@@ -15,6 +15,7 @@ import { Denuncias } from "./paginas/comum/Denuncias"
 import { Historico } from "./paginas/comum/Historico"
 import { Mensagens } from "./paginas/comum/Mensagens"
 import { Relatorios } from "./paginas/comum/Relatorios"
+import { Auditoria } from "./paginas/admin/Auditoria"
 import { Anotacoes } from "./paginas/aluno/Anotacoes"
 import { Atividades } from "./paginas/aluno/Atividades"
 import { Chat } from "./paginas/aluno/Chat"
@@ -33,13 +34,14 @@ import { InicioProfessor } from "./paginas/professor/Inicio"
 import { MateriaisProfessor } from "./paginas/professor/Materiais"
 import { Login } from "./paginas/publicas/Login"
 import { Privacidade } from "./paginas/publicas/Privacidade"
+import { Termos } from "./paginas/publicas/Termos"
 import { TrocarSenha } from "./paginas/publicas/TrocarSenha"
 import { RotaPrivada, SoVisitante } from "./rotas/RotaPrivada"
 
 /**
  * O mapa de endereços do sistema.
  *
- * Públicas: login e privacidade. Privadas: uma árvore por perfil, cada uma
+ * Públicas: login, privacidade e termos de uso. Privadas: uma árvore por perfil, cada uma
  * atrás da RotaPrivada daquele perfil e dentro do Painel (menu + rodapé).
  * Uma rota nova é uma linha aqui e um item em layout/menus.js.
  */
@@ -50,6 +52,7 @@ export function App() {
         <Route path="/" element={<Login />} />
       </Route>
       <Route path="/privacidade" element={<Privacidade />} />
+      <Route path="/termos" element={<Termos />} />
       <Route path="/trocar-senha" element={<TrocarSenha />} />
 
       <Route element={<RotaPrivada perfil="aluno" />}>
@@ -97,6 +100,7 @@ export function App() {
           <Route path="/admin/conteudo" element={<Conteudo />} />
           <Route path="/admin/privacidade" element={<PrivacidadeAdmin />} />
           <Route path="/admin/relatorios" element={<Relatorios />} />
+          <Route path="/admin/auditoria" element={<Auditoria />} />
         </Route>
       </Route>
 

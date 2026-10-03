@@ -207,7 +207,7 @@ function NovaConta({ turmas, aoFechar, aoCriar }) {
         <Texto rotulo="Nome completo" valor={campos.nome} aoMudar={mudar("nome")} placeholder="Ex.: Ana Paula Ribeiro" obrigatorio />
         <Escolha rotulo="Perfil" valor={campos.tipo} aoMudar={mudar("tipo")} opcoes={[{ valor: "aluno", rotulo: "Aluno" }, { valor: "professor", rotulo: "Professor" }, { valor: "adm", rotulo: "Administrador" }]} />
         <Texto rotulo="E-mail institucional" tipo="email" valor={campos.email} aoMudar={mudar("email")} placeholder="nome@instituicao.edu.br" obrigatorio />
-        <Texto rotulo="Senha provisória" valor={campos.senha} aoMudar={mudar("senha")} placeholder="mínimo 6 caracteres" obrigatorio />
+        <Texto rotulo="Senha provisória" valor={campos.senha} aoMudar={mudar("senha")} placeholder="mínimo 8 caracteres" obrigatorio />
         {/* Só os campos do perfil escolhido: matrícula de administrador seria um
             campo vazio dando a entender que faltou um dado. */}
         {campos.tipo === "aluno" && (
@@ -282,7 +282,7 @@ function Importacao({ turmas, aoFechar, aoImportar }) {
     evento.preventDefault()
     const corpo = await corpoDaPlanilha()
     if (!corpo) return
-    if (senha.length < 6) return setMensagem({ texto: "A senha provisória precisa ter pelo menos 6 caracteres." })
+    if (senha.length < 8) return setMensagem({ texto: "A senha provisória precisa ter pelo menos 8 caracteres." })
     setOcupado(true)
     setMensagem({ texto: "Importando..." })
     try {
@@ -314,7 +314,7 @@ function Importacao({ turmas, aoFechar, aoImportar }) {
           <input type="file" accept=".csv,.xlsx,.xlsm" required onChange={(e) => { setArquivo(e.target.files?.[0] || null); setRelatorio(null); setMensagem({ texto: "" }) }}
             className="text-sm font-normal" />
         </label>
-        <Texto rotulo="Senha provisória" valor={senha} aoMudar={setSenha} placeholder="mínimo 6 caracteres" obrigatorio />
+        <Texto rotulo="Senha provisória" valor={senha} aoMudar={setSenha} placeholder="mínimo 8 caracteres" obrigatorio />
         <Escolha rotulo="Matricular todos na disciplina" valor={turma} aoMudar={setTurma} opcoes={[{ valor: "", rotulo: "Não matricular agora" }, ...turmas]} />
         <div className="flex flex-wrap items-end gap-2.5">
           <Botao variante="neutra" onClick={conferir} desativado={ocupado}>Conferir planilha</Botao>

@@ -67,6 +67,13 @@ sequenceDiagram
     A->>B: busca usuário
     B-->>A: hash da senha
     Note over A: verifica com PBKDF2<br/>(conta inexistente leva o mesmo tempo)
+    alt professor ou administração
+        A->>B: desafio + hash do código (10 min)
+        A-->>N: desafio (sem token ainda)
+        Note over A: código de 6 dígitos vai por e-mail
+        N->>A: POST /login/codigo (desafio, código)
+        Note over A: errado conta como erro de login<br/>5 erros encerram o desafio
+    end
     A->>B: grava sessão (token, validade 12h)
     A-->>N: token + perfil + trocar_senha
 
@@ -85,6 +92,11 @@ sequenceDiagram
   que aparecem em corpos de requisição (`aluno_email` ao matricular, por
   exemplo) são o **alvo** da ação, não quem a executa, e só existem em rotas
   de quem tem permissão sobre o alvo.
+- **Dois fatores para professor e administração:** a senha certa devolve um
+  `desafio`, e não o token; o código que chega por e-mail é conferido em
+  `/login/codigo`. O contador de erros de login só zera quando a sessão abre
+  de fato — senão, entrar de novo a cada 4 códigos errados daria chutes sem
+  fim a quem descobriu a senha.
 - **Senha provisória** é barrada no servidor (`usuario_logado`, em
   `main.py`), não só na tela. A tela (`RotaPrivada`) apenas leva a pessoa
   direto para a troca.
@@ -362,6 +374,7 @@ graph TD
     ADM --> ADM2["Material e atividades publicados ou agendados<br/>(supervisão, só leitura)"]
     ADM --> ADM3["Denúncias e pedidos de privacidade"]
     ADM --> ADM4["Relatórios de todas as turmas<br/>e dificuldade por disciplina, sem aluno"]
+    ADM --> ADM5["Trilha de auditoria (só leitura)"]
     ADM -.->|"nunca"| ADMN["Entregas, anotações, conversas"]
 
     PROF["Professor"] --> P1["Só as disciplinas atribuídas a ele"]
@@ -379,7 +392,7 @@ graph TD
     classDef prof fill:#DCFCE7,stroke:#16A34A
     classDef alu fill:#FEF3C7,stroke:#F59E0B
     classDef nunca fill:#FEE2E2,stroke:#EF4444
-    class ADM,ADM1,ADM2,ADM3,ADM4 adm
+    class ADM,ADM1,ADM2,ADM3,ADM4,ADM5 adm
     class PROF,P1,P2,P3,P4,P5 prof
     class ALU,A1,A2,A3,A4 alu
     class ADMN nunca
@@ -449,6 +462,11 @@ módulo descreve algo que o sistema **usa** (banco, hash, arquivo) ou algo que
 ele **decide** (quem vê o quê, o que é material publicado)? Nenhum módulo de
 `regras/` importa FastAPI — é o que permite testá-los direto, sem subir
 servidor, e o que permitiria trocar a camada HTTP sem reescrever as regras.
+
+**O que roda em toda requisição, antes da rota** (`main.py`, de fora para
+dentro): `AuditarAcoes` grava na trilha de auditoria o que regras/auditoria.py
+marca; `CabecalhosDeSeguranca` põe CSP e companhia na resposta;
+`FecharConexoesDaRequisicao` fecha o que a rota deixou aberto; e o CORS.
 
 **Uma conexão por requisição, fechada sempre.** `abrir_conexao()` é o único
 caminho até o banco; cada conexão aberta durante uma requisição é registrada, e

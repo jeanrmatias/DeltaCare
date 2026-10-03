@@ -104,10 +104,22 @@ def _um(sql: str, parametros=()):
 
 def _conta(email: str, nome: str, tipo: str, disciplinas: str = ""):
     if _um("SELECT 1 FROM users WHERE email = ?", (email,)):
+        _sem_codigo(email)
         return
-    # Não provisória: na demonstração, todas entram com demo123 sem trocar.
-    criar_conta_staff(ADMIN, email, SENHA_PADRAO, tipo, nome=nome, disciplinas=disciplinas, provisoria=False)
+    # Não provisória e sem código por e-mail: na demonstração, todas entram
+    # com demo123 direto (não há e-mail de verdade para receber o código).
+    criar_conta_staff(ADMIN, email, SENHA_PADRAO, tipo, nome=nome, disciplinas=disciplinas,
+                      provisoria=False, conferir_senha=False, segundo_fator=False)
     print(f"  {tipo}: {nome}")
+
+
+def _sem_codigo(email: str) -> None:
+    """Conta de demonstração criada antes do segundo fator: passa a entrar sem
+    o código também (a migração liga o código para toda conta existente)."""
+    conexao = abrir_conexao()
+    conexao.execute("UPDATE users SET segundo_fator = 0 WHERE email = ?", (email,))
+    conexao.commit()
+    conexao.close()
 
 
 def _coorte(nome: str, semestre: str) -> int:

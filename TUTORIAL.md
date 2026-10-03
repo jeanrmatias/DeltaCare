@@ -53,8 +53,21 @@ primeiro login, a plataforma pede uma senha nova antes de mostrar qualquer
 outra tela: a provisória às vezes é a mesma para a turma inteira e não pode
 continuar valendo.
 
+A senha nova precisa ter **8 caracteres ou mais** e não pode ser uma das
+muito usadas ("12345678", "medicina123") nem o seu e-mail ou nome. Uma frase
+curta funciona bem ("pressão abaixo de 92").
+
 Depois disso, a senha se troca no perfil — **Ver perfil**, embaixo do menu
-lateral → **Alterar senha**. A troca pede a senha atual e encerra as outras sessões
+lateral → **Alterar senha**.
+
+### Professor e administração: o código por e-mail
+
+Professores e administração entram com a senha **e** um código de 6 dígitos
+que chega no e-mail a cada login. Ele vale por 10 minutos; se não chegar,
+**Enviar outro código** (depois de um minuto). Errar o código 5 vezes encerra
+a tentativa — é só entrar de novo. Recebeu um código sem ter tentado entrar?
+Alguém sabe a sua senha: troque-a e avise a administração. (As contas de
+demonstração entram sem o código.) A troca pede a senha atual e encerra as outras sessões
 abertas da conta.
 
 **Esqueci minha senha:** na tela de login. Chega um código por e-mail, válido
@@ -162,6 +175,15 @@ Menu → **Privacidade**. Pedidos dos alunos sobre os próprios dados (LGPD):
   transferido de turma).
 
 A cópia dos dados não passa por aqui: o aluno baixa sozinho.
+
+### Auditoria
+
+Menu → **Auditoria**. Quem fez o quê, quando, de qual endereço (IP) e se deu
+certo: toda ação da administração (contas, matrículas, disciplinas, pedidos
+de privacidade), as exclusões de conteúdo dos professores e os acessos —
+login certo e errado, código, troca e recuperação de senha. Filtre por ação,
+período ou texto (e-mail, IP), ou só pelo que deu errado. Senha e código nunca
+aparecem; ninguém apaga um registro; cada um sai sozinho depois de 1 ano.
 
 ### Relatórios
 
@@ -443,6 +465,10 @@ tela de login.
 **O assistente pode errar?**
 Pode. Restrito ao material, ele erra muito menos, mas não nunca. Confira a
 fonte e leve ao professor o que parecer estranho.
+
+**O código de acesso não chegou.**
+Confira a caixa de spam e espere um minuto para pedir outro. Se o e-mail da
+conta estiver errado, só a administração corrige.
 
 **Quem é o encarregado pelos meus dados (DPO)?**
 A administração acadêmica da instituição. É com ela — pela tela Meus dados ou

@@ -8,10 +8,11 @@ deltacare.instituicao.edu.br {
 		max_size 25MB
 	}
 
+	# O resto dos cabeçalhos de segurança (Content-Security-Policy,
+	# X-Frame-Options, nosniff...) vem da própria API: infra/cabecalhos.py.
+	# Aqui só o que depende de HTTPS.
 	header {
 		Strict-Transport-Security "max-age=31536000"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "same-origin"
 		-Server
 	}
 

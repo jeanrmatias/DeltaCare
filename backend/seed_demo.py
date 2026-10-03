@@ -211,14 +211,19 @@ def criar_admin_inicial() -> None:
     os únicos pontos do sistema em que uma conta de confiança nasce fora das
     regras de permissão — por isso moram em scripts, e não numa rota da API.
     """
+    conexao = _conectar()
+    cursor = conexao.cursor()
     if _usuario_existe(ADMIN):
+        # Criado antes do segundo fator: a migração ligou o código para ele.
+        cursor.execute("UPDATE users SET segundo_fator = 0 WHERE email = ?", (ADMIN,))
+        conexao.commit()
+        conexao.close()
         print(f"  admin ja existe: {ADMIN}")
         return
 
-    conexao = _conectar()
-    cursor = conexao.cursor()
+    # Sem código por e-mail: na demonstração não há caixa de entrada de verdade.
     cursor.execute(
-        "INSERT INTO users (email, senha, tipo, nome) VALUES (?, ?, ?, ?)",
+        "INSERT INTO users (email, senha, tipo, nome, segundo_fator) VALUES (?, ?, ?, ?, 0)",
         (ADMIN, hash_senha(SENHA_PADRAO), "adm", NOME_ADMIN),
     )
     conexao.commit()
@@ -228,12 +233,18 @@ def criar_admin_inicial() -> None:
 
 def criar_contas() -> None:
     if _usuario_existe(PROFESSOR):
+        conexao = _conectar()
+        conexao.execute("UPDATE users SET segundo_fator = 0 WHERE email = ?", (PROFESSOR,))
+        conexao.commit()
+        conexao.close()
         print(f"  professor ja existe: {PROFESSOR}")
     else:
         resultado = criar_conta_staff(
             ADMIN, PROFESSOR, SENHA_PADRAO, "professor",
             nome=NOME_PROFESSOR, disciplinas=DISCIPLINAS_PROFESSOR,
             provisoria=False,  # demonstração: entra com demo123 sem trocar
+            conferir_senha=False,  # demo123 é fraca de propósito: é a senha que todos conhecem
+            segundo_fator=False,  # demonstração: não há caixa de e-mail para receber o código
         )
         print(f"  professor: {resultado['mensagem']}")
 
@@ -243,7 +254,7 @@ def criar_contas() -> None:
         resultado = criar_conta_staff(
             ADMIN, ALUNO, SENHA_PADRAO, "aluno",
             nome=NOME_ALUNO, matricula=MATRICULA_ALUNO,
-            provisoria=False,
+            provisoria=False, conferir_senha=False,
         )
         print(f"  aluno: {resultado['mensagem']}")
 
