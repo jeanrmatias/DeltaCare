@@ -1,4 +1,4 @@
-CHALLENGE HOSPITAL MOINHOS DE VENTO - SPRINT 3
+CHALLENGE HOSPITAL MOINHOS DE VENTO - SPRINT 4
 Projeto: Delta Care - Plataforma LXP com IA para a Formacao Medica
 FIAP - 1o Engenharia de Software - Semi Presencial - Porto Alegre
 
@@ -24,4 +24,6 @@ de dados de demonstracao (backend/seed_demo.py) e usam a mesma senha.
   Professor       professor@deltacare.com    demo123
   Aluno           aluno@deltacare.com        demo123
 
-O passo a passo para executar o projeto esta no README.md.
+As telas ficam em http://127.0.0.1:8000/app/ depois de subir o backend e
+compilar o React (web: npm install && npm run build). O passo a passo para
+executar o projeto esta no README.md.

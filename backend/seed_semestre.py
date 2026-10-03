@@ -140,6 +140,10 @@ def _material(turma_id, professor, titulo, **campos) -> int:
 def _material_pdf(turma_id, professor, titulo, texto, arquivo_nome, **campos) -> int:
     linha = _um("SELECT id FROM materiais WHERE titulo = ? AND turma_id = ?", (titulo, turma_id))
     if linha:
+        # Já existe, mas pode ter ficado sem índice (o Ollama estava fora na
+        # primeira vez): é o "rode o seed de novo" do aviso abaixo.
+        if not _um("SELECT 1 FROM material_chunks WHERE material_id = ?", (linha[0],)):
+            _indexar(linha[0])
         return linha[0]
     caminho = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_seed_temporario.pdf")
     gerar_pdf(texto, caminho)
@@ -150,6 +154,11 @@ def _material_pdf(turma_id, professor, titulo, texto, arquivo_nome, **campos) ->
     material_id = _material(turma_id, professor, titulo, tipo="pdf", rascunho=False,
                             arquivo_base64=conteudo, arquivo_nome=arquivo_nome, **campos)
 
+    _indexar(material_id)
+    return material_id
+
+
+def _indexar(material_id: int) -> None:
     from regras.chat_ia import indexar_material
 
     try:
@@ -157,7 +166,6 @@ def _material_pdf(turma_id, professor, titulo, texto, arquivo_nome, **campos) ->
         print("    indexado para o chat e para a busca")
     except RuntimeError as erro:
         print(f"    AVISO: não indexado ({erro}). Suba o Ollama e rode o seed de novo.")
-    return material_id
 
 
 def _atividade(turma_id, professor, titulo, **campos) -> int:

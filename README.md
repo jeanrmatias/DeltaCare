@@ -24,6 +24,15 @@ serviço de terceiros.
 
 - **Repositório:** https://github.com/jeanrmatias/DeltaCare
 - Sprint 3 entregue em 25/09/2026 (ver [`SPRINT_3.md`](SPRINT_3.md)).
+- **Sprint 4 — entrega em 25/10/2026** (Web Development e Front-End Design):
+
+  | O que a sprint pede | Onde está |
+  |---|---|
+  | React com componentes, props e hooks nativos | todas as telas, em [`web/src/`](web/src) (o front antigo ficou em `frontend/` como registro) |
+  | Ao menos um hook próprio | `useSessao`, `useApi`, `useDialogo`, `useApagarAnotacao` e `useTituloDaPagina`, em [`web/src/hooks/`](web/src/hooks) |
+  | Rotas públicas e privadas | [`web/src/App.jsx`](web/src/App.jsx) e [`web/src/rotas/RotaPrivada.jsx`](web/src/rotas/RotaPrivada.jsx): login e privacidade públicos; cada área só para o próprio perfil |
+  | Tailwind CSS | tema do projeto em [`web/src/index.css`](web/src/index.css) |
+  | Validação de usabilidade com no mínimo 3 participantes | [`validacao/`](validacao/README.md) e a seção **Validação de usabilidade** abaixo |
 
 ### Contas para teste
 
@@ -106,7 +115,7 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 | Interface | **React 19** com **React Router** (rotas públicas e privadas por perfil), em JavaScript, compilado pelo **Vite** |
 | Estilo | **Tailwind CSS 4**, com o tema (cores, espaços, raios) montado a partir do design system do projeto, em português (`bg-primaria`, `rounded-cartao`) |
 | Componentes | Próprios: painel com menu e sino, cartões, modal, visualizador de material, Markdown, calendário, gráficos de desempenho |
-| Hooks próprios | `useSessao` (quem está logado), `useApi` (busca com carregando e erro tratados), `useDialogo` (confirmar e avisar) |
+| Hooks próprios | `useSessao` (quem está logado), `useApi` (busca com carregando e erro tratados), `useDialogo` (confirmar e avisar), `useApagarAnotacao`, `useTituloDaPagina` (o nome da página na aba) |
 | Sessão no navegador | `sessionStorage` (o token some ao fechar a aba) |
 | API | Python 3.10+ com FastAPI, servida pelo Uvicorn |
 | Banco | SQLite (modo WAL, chaves estrangeiras cobradas) |
@@ -221,6 +230,7 @@ modelo completo para o servidor está em
 |---|---|---|
 | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
 | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
+| `DELTACARE_TELAS` | `web/dist` | Pasta das telas compiladas (`npm run build`) que a API entrega em `/app/` |
 | `DELTACARE_ORIGENS` | portas 5500 e 5173 da máquina local | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Onde está o servidor do modelo. Use o IP, não `localhost`: no Windows, `localhost` tenta o IPv6 antes e soma ~2 s a cada chamada (5 s por pergunta no chat) |
 | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
@@ -386,23 +396,30 @@ a API **e** as telas (em `/app/`); na frente, o
    `/app/` responde dizendo que as telas não estão compiladas. (Dá para
    compilar em outra máquina e copiar só o `web/dist/`: o servidor não precisa
    do Node para rodar, só para compilar.)
-2. **Configuração:** copie `deploy/deltacare.env.exemplo` para
+2. **Modelo de IA:** instale o [Ollama](https://ollama.com) no servidor (ele
+   sobe como serviço) e baixe os dois modelos com
+   `ollama pull gpt-oss:20b` e `ollama pull nomic-embed-text`. Sem GPU que
+   comporte o `gpt-oss:20b`, use um menor e defina `MODELO_CHAT`. Se o Ollama
+   cair, o resto do sistema segue; o chat avisa que o assistente está fora do
+   ar, e o PDF publicado nesse meio-tempo aparece como "Fora do chat" para o
+   professor indexar depois.
+3. **Configuração:** copie `deploy/deltacare.env.exemplo` para
    `/etc/deltacare.env`, preencha (domínio, SMTP, pastas de dados) e
    `chmod 600 /etc/deltacare.env`. Crie a pasta dos dados
    (`/var/lib/deltacare`) com dono `deltacare`.
-3. **Primeira conta de administração:**
+4. **Primeira conta de administração:**
    ```
    cd /opt/deltacare/backend
    set -a; . /etc/deltacare.env; set +a
    ../.venv/bin/python criar_admin.py
    ```
-4. **Serviço:** copie `deploy/deltacare.service` para
+5. **Serviço:** copie `deploy/deltacare.service` para
    `/etc/systemd/system/` e `systemctl enable --now deltacare`. Um processo
    só, de propósito: o SQLite aceita um escritor por vez.
-5. **HTTPS:** instale o Caddy, ponha o domínio no `deploy/Caddyfile`, copie
+6. **HTTPS:** instale o Caddy, ponha o domínio no `deploy/Caddyfile`, copie
    para `/etc/caddy/Caddyfile` e `systemctl reload caddy`. O certificado sai e
    se renova sozinho.
-6. **Rotinas diárias** (crontab do usuário `deltacare`):
+7. **Rotinas diárias** (crontab do usuário `deltacare`):
    ```
    30 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python backup.py >> /var/log/deltacare-backup.log 2>&1
    45 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python anonimizar_vencidas.py >> /var/log/deltacare-lgpd.log 2>&1
@@ -414,7 +431,7 @@ a API **e** as telas (em `/app/`); na frente, o
    dias; o servidor também faz isso ao subir e quando a administração abre a
    fila, e o agendamento cobre o servidor que fica meses no ar sem ninguém
    abrir a fila.
-7. **Conferir:** `https://<domínio>/saude` responde `{"status": "ok"}`, e
+8. **Conferir:** `https://<domínio>/saude` responde `{"status": "ok"}`, e
    `https://<domínio>/` abre a tela de login. Peça o código de recuperação de
    senha para uma conta sua: se o e-mail não chegar, o SMTP está errado (o
    log do serviço diz o motivo).
@@ -440,7 +457,7 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (517 testes):** permissões de cada perfil, visibilidade de
+- **Backend (520 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, relatórios
@@ -455,11 +472,14 @@ python testar_html.py
   troca), que todo item de menu leva a uma tela que existe,
   que HTML vindo da IA aparece como texto e não vira elemento, o cartão de
   progresso, o Markdown, a leitura de datas digitadas, os links das
-  notificações, o atalho "Pular para o conteúdo" e o **contraste das cores
-  do tema** (lido do `index.css`).
+  notificações, o atalho "Pular para o conteúdo", o **contraste das cores
+  do tema** (lido do `index.css`) e que toda janela tem nome para o leitor
+  de tela.
 - **Contrato front↔back:** lê as chamadas à API das telas React (e do front
-  antigo) e confere com as rotas do backend, verbo incluído. Pega a tela que
-  chama uma rota que não existe antes de alguém clicar.
+  antigo) e confere com as rotas do backend, verbo incluído — inclusive as
+  feitas por atalhos da tela (`chamar(...)`) e por caminho guardado em
+  variável. Pega a tela que chama uma rota que não existe antes de alguém
+  clicar.
 
 ## Validação de usabilidade
 
@@ -504,6 +524,7 @@ backend/
     security.py              hash de senha (PBKDF2)
     email.py                 envio por SMTP, em segundo plano
     arquivos.py              gravação dos uploads
+    vetores.py               os vetores do chat em binário, normalizados
 
   regras/                  - o que o sistema DECIDE
     autenticacao.py          login, contas, recuperação de senha
@@ -535,7 +556,7 @@ web/                       - as telas (React), entregues pela API em /app/
   src/App.jsx                todas as rotas, públicas e privadas
   src/rotas/                 RotaPrivada (perfil certo, ou volta ao login)
   src/sessao/, src/dialogos/ Contexts da sessão e dos diálogos
-  src/hooks/                 useSessao, useApi, useDialogo, useApagarAnotacao
+  src/hooks/                 useSessao, useApi, useDialogo, useApagarAnotacao, useTituloDaPagina
   src/layout/                Painel (menu, sino, perfil) e o menu de cada perfil
   src/componentes/           peças reutilizadas: Cartao, Botao, Modal, Visualizador...
   src/paginas/               aluno/, professor/, admin/, comum/ (as telas que

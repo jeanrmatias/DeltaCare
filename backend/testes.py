@@ -6728,6 +6728,68 @@ class TestesRelatorios(BaseDelta):
         self.assertEqual(cliente.get("/admin/relatorios/dificuldade", headers=cabecalho(PROFESSOR)).status_code, 403)
         self.assertTrue(cliente.get(f"/relatorios/ao-vivo?coorte_id={self.coorte}", headers=cabecalho(PROFESSOR)).json()["sucesso"])
 
+class TestesMaterialForaDoChat(BaseDelta):
+    """PDF publicado sem índice (assistente fora do ar, PDF escaneado): o
+    professor fica sabendo e consegue indexar de novo sem republicar."""
+
+    def _pdf(self):
+        import tempfile
+
+        from seed_demo import gerar_pdf
+
+        with tempfile.TemporaryDirectory() as pasta:
+            caminho = os.path.join(pasta, "aula.pdf")
+            gerar_pdf("O Cardiolex e suspenso abaixo de 92 mmHg.\nDose inicial de 12,5 mg.", caminho)
+            with open(caminho, "rb") as arquivo:
+                conteudo = base64.b64encode(arquivo.read()).decode()
+        return criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 3", tipo="pdf",
+                              rascunho=False, arquivo_base64=conteudo, arquivo_nome="aula3.pdf")["material_id"]
+
+    def _na_lista(self, material_id):
+        return [m for m in listar_materiais(PROFESSOR, self.turma_id)["materiais"] if m["id"] == material_id][0]
+
+    def test_lista_diz_se_o_pdf_esta_no_chat(self):
+        pdf = self._pdf()
+        link = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Link", tipo="link",
+                              link_url="https://exemplo.com", rascunho=False)["material_id"]
+
+        self.assertIs(self._na_lista(pdf)["no_chat"], False)
+        self.assertIsNone(self._na_lista(link)["no_chat"])
+
+        resultado = chat_ia.reindexar_do_professor(PROFESSOR, pdf, gerar_embeddings_fn=lambda textos: [embedding_falso(t) for t in textos])
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertIs(self._na_lista(pdf)["no_chat"], True)
+
+    def test_so_o_dono_reindexa_e_so_pdf(self):
+        pdf = self._pdf()
+        link = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Link", tipo="link",
+                              link_url="https://exemplo.com", rascunho=False)["material_id"]
+
+        def modelo_que_nao_pode_ser_chamado(textos):
+            raise AssertionError("indexou material de outro professor")
+
+        self.assertFalse(chat_ia.reindexar_do_professor(PROFESSOR2, pdf, gerar_embeddings_fn=modelo_que_nao_pode_ser_chamado)["sucesso"])
+        recusa = chat_ia.reindexar_do_professor(PROFESSOR, link, gerar_embeddings_fn=modelo_que_nao_pode_ser_chamado)
+        self.assertFalse(recusa["sucesso"])
+        self.assertIn("Só PDF", recusa["mensagem"])  # o professor entende por que, e não "não é um PDF com arquivo salvo"
+
+    def test_publicar_pdf_sem_texto_avisa_o_professor(self):
+        """PDF ilegível não dá erro, só "não indexado" — e antes isso passava calado."""
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+        token = cliente.post("/login", json={"email": PROFESSOR, "senha": SENHA}).json()["token"]
+        resposta = cliente.post("/materiais", headers={"Authorization": f"Bearer {token}"}, json={
+            "turma_ids": [self.turma_id], "titulo": "Escaneado", "tipo": "pdf", "rascunho": False,
+            "arquivo_base64": base64.b64encode(b"%PDF-1.4 sem texto nenhum").decode(), "arquivo_nome": "escaneado.pdf",
+        }).json()
+
+        self.assertTrue(resposta["sucesso"], resposta)
+        self.assertIn("fora do chat", resposta["aviso_indexacao"])
+
 # =========================================================================
 # Senha provisória (regras/autenticacao.py + main.usuario_logado)
 #

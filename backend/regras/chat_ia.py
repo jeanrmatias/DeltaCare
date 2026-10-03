@@ -340,6 +340,31 @@ def indexar_material(material_id: int, gerar_embeddings_fn=gerar_embeddings) -> 
     return {"sucesso": True, "mensagem": f"{len(chunks)} trecho(s) indexado(s).", "total_chunks": len(chunks)}
 
 
+def reindexar_do_professor(professor_email: str, material_id: int, gerar_embeddings_fn=gerar_embeddings) -> dict:
+    """O professor manda indexar de novo um PDF que ficou fora do chat.
+
+    Só o dono do material. É o caminho de volta para quando o assistente
+    estava fora do ar na publicação: sem isto, o professor teria de excluir e
+    publicar de novo — e perderia acessos, favoritos e anotações dos alunos.
+    """
+    conexao = conectar()
+    try:
+        dono = conexao.execute(
+            "SELECT m.tipo FROM materiais m JOIN users u ON u.id = m.professor_id WHERE m.id = ? AND u.email = ?",
+            (int(material_id), (professor_email or "").strip().lower()),
+        ).fetchone()
+    finally:
+        conexao.close()
+    if not dono:
+        return {"sucesso": False, "mensagem": "Material não encontrado entre os seus."}
+    if dono[0] != "pdf":
+        return {"sucesso": False, "mensagem": "Só PDF entra no chat: o assistente não lê vídeo, link nem documento."}
+    resultado = indexar_material(int(material_id), gerar_embeddings_fn=gerar_embeddings_fn)
+    if resultado["sucesso"]:
+        resultado["mensagem"] = f"Pronto: o assistente já responde com este material ({resultado['total_chunks']} trechos)."
+    return resultado
+
+
 # =========================================================================
 # Busca por similaridade + geração da resposta
 # =========================================================================

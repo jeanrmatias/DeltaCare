@@ -113,7 +113,15 @@ def chamadas_do_web() -> list:
         def linha(posicao):
             return texto.count("\n", 0, posicao) + 1
 
-        for achado in re.finditer(r"\b(api|apiPublica)\(", texto):
+        # Atalhos da própria tela que só repassam para `api` — como o
+        # `chamar(caminho, opcoes)` da tela de Turmas — contam como `api`.
+        # Sem isto, as chamadas feitas por eles não passavam pelo contrato.
+        atalhos = [
+            nome for nome, caminho, opcoes in re.findall(r"function (\w+)\((\w+)\s*,\s*(\w+)\)", texto)
+            if re.search(rf"\bapi\(\s*{caminho}\s*,\s*{opcoes}\s*\)", texto)
+        ]
+        nomes = "|".join(["api", "apiPublica", *atalhos])
+        for achado in re.finditer(rf"\b({nomes})\(", texto):
             argumentos = _argumento(texto, achado.end())
             primeiro = re.match(r"\s*([`\"'])(.*?)\1", argumentos, re.S)
             if not primeiro:
@@ -125,7 +133,15 @@ def chamadas_do_web() -> list:
                     resultado.append((relativo, linha(achado.start()), metodo, primeiro.group(2), concreto))
 
         for achado in _USO_GET.finditer(texto):
-            for fonte in _caminhos_literais(_argumento(texto, achado.end())):
+            argumento = _argumento(texto, achado.end())
+            # `useApi(caminho)`: o caminho está na definição da variável.
+            variavel = re.fullmatch(r"\s*([A-Za-z_]\w*)\s*", argumento)
+            if variavel:
+                # A última definição antes do uso: dois componentes no mesmo
+                # arquivo podem ter cada um o seu `caminho`.
+                definicoes = list(re.finditer(rf"\bconst {variavel.group(1)}\s*=\s*(.+)", texto[:achado.start()]))
+                argumento = definicoes[-1].group(1) if definicoes else ""
+            for fonte in _caminhos_literais(argumento):
                 for concreto in _normalizar(fonte, texto):
                     resultado.append((relativo, linha(achado.start()), "GET", fonte, concreto))
 

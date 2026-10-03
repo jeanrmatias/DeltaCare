@@ -228,6 +228,12 @@ Quando o material fica visível:
 > assistente não lê. Disciplina que só tem link e vídeo não tem como ter
 > resposta do assistente — a tela de Lacunas avisa quando isso acontece.
 
+**Fora do chat:** se o PDF não pôde ser indexado (o assistente estava fora do
+ar na publicação, ou o PDF é escaneado e não tem texto), a plataforma avisa na
+hora, e o material aparece na lista com o selo **Fora do chat** e o botão
+**Indexar para o chat**. Escaneado continua fora: o assistente só lê PDF com
+texto.
+
 Você só edita e exclui o material que você mesmo criou.
 
 ### Atividades

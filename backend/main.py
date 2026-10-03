@@ -137,7 +137,7 @@ from regras.notificacoes import (
     marcar_como_lida,
     marcar_todas_como_lidas,
 )
-from regras.chat_ia import buscar_historico, indexar_material, responder_pergunta
+from regras.chat_ia import buscar_historico, indexar_material, reindexar_do_professor, responder_pergunta
 
 configurar_banco()
 
@@ -761,11 +761,26 @@ async def criar_material_rota(dados: MaterialRequest, professor: dict = Depends(
     if resultado.get("sucesso") and dados.tipo == "pdf":
         for material_id in resultado.get("material_ids", []):
             try:
-                await _com_ia(indexar_material, material_id)
+                indexacao = await _com_ia(indexar_material, material_id)
             except Exception as erro:
-                resultado["aviso_indexacao"] = f"Material salvo, mas não indexado pro chat: {erro}"
+                indexacao = {"sucesso": False, "mensagem": f"o assistente de IA não respondeu ({erro})"}
+            # PDF escaneado não dá exceção, só "sem texto": também é aviso.
+            if not indexacao.get("sucesso"):
+                resultado["aviso_indexacao"] = (
+                    f"O material foi publicado, mas ficou fora do chat: {indexacao.get('mensagem')}. "
+                    "Quando o problema estiver resolvido, use \"Indexar para o chat\" na lista de materiais."
+                )
 
     return resultado
+
+
+@app.post("/materiais/{material_id}/indexar")
+async def reindexar_material_rota(material_id: int, professor: dict = Depends(usuario_professor)):
+    """Indexa de novo um PDF que ficou fora do chat."""
+    try:
+        return await _com_ia(reindexar_do_professor, professor["email"], material_id)
+    except RuntimeError:
+        return {"sucesso": False, "mensagem": "O assistente de IA está fora do ar. Tente de novo em instantes."}
 
 
 @app.get("/materiais")

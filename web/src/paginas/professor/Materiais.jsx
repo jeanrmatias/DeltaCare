@@ -47,6 +47,17 @@ export function MateriaisProfessor() {
     }
   }
 
+  async function indexar(material) {
+    try {
+      const resultado = await (await api(`/materiais/${material.id}/indexar`, { method: "POST" })).json()
+      await avisar(resultado.mensagem, resultado.sucesso ? "Material no chat" : "Não deu para indexar")
+      materiais.recarregar()
+    } catch (erro) {
+      console.error("Erro ao indexar material:", erro)
+      await avisar(ERRO_DE_CONEXAO, "Algo deu errado")
+    }
+  }
+
   return (
     <>
       <Cabecalho titulo="Materiais" descricao="Publique e organize PDFs, vídeos, documentos e links para suas disciplinas.">
@@ -67,7 +78,13 @@ export function MateriaisProfessor() {
 
       {formulario && (
         <FormularioMaterial key={formulario.id ?? "novo"} material={formulario.id ? formulario : null} turmas={lista} turmaPadrao={turma}
-          aoFechar={() => setFormulario(null)} aoSalvar={() => { setFormulario(null); materiais.recarregar(); turmas.recarregar() }} />
+          aoFechar={() => setFormulario(null)}
+          aoSalvar={async (aviso) => {
+            setFormulario(null); materiais.recarregar(); turmas.recarregar()
+            // Publicado, mas fora do chat (assistente fora do ar, PDF escaneado):
+            // calar isto deixaria o aluno perguntando sem resposta.
+            if (aviso) await avisar(aviso, "Material fora do chat")
+          }} />
       )}
 
       {materiais.carregando && <Carregando />}
@@ -77,6 +94,7 @@ export function MateriaisProfessor() {
       <section className="flex flex-col gap-3">
         {(materiais.dados?.materiais || []).map((material) => (
           <LinhaMaterial key={material.id} material={material} aoEditar={() => setFormulario(material)} aoExcluir={() => excluir(material)}
+            aoIndexar={() => indexar(material)}
             aoVer={() => setJanela({ tipo: "ver", material })} aoReportar={() => setJanela({ tipo: "reportar", material })} />
         ))}
       </section>
@@ -87,7 +105,7 @@ export function MateriaisProfessor() {
   )
 }
 
-function LinhaMaterial({ material, aoEditar, aoExcluir, aoVer, aoReportar }) {
+function LinhaMaterial({ material, aoEditar, aoExcluir, aoVer, aoReportar, aoIndexar }) {
   const { avisar } = useDialogo()
   const status = STATUS_DO_MATERIAL[material.status] || { rotulo: material.status, tom: "neutro" }
   const classificacao = [material.assunto, material.topico, material.aula, material.semestre].filter(Boolean).join(" · ")
@@ -110,6 +128,7 @@ function LinhaMaterial({ material, aoEditar, aoExcluir, aoVer, aoReportar }) {
           <Selo>{ROTULOS_TIPO_MATERIAL[material.tipo] || material.tipo}</Selo>
           <Selo tom={status.tom}>{status.rotulo}</Selo>
           {agendadoPara && <span className="text-xs text-texto-secundario">libera em {agendadoPara}</span>}
+          {material.no_chat === false && <Selo tom="alerta">Fora do chat</Selo>}
         </div>
         <h3 className="font-bold text-navy-900">{material.titulo}</h3>
         {classificacao && <p className="mt-1 text-xs font-medium text-primaria">{classificacao}</p>}
@@ -127,6 +146,7 @@ function LinhaMaterial({ material, aoEditar, aoExcluir, aoVer, aoReportar }) {
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
+        {material.no_chat === false && <Botao pequeno onClick={aoIndexar}>Indexar para o chat</Botao>}
         <button type="button" onClick={aoReportar} className="px-2 text-[13px] font-semibold text-texto-secundario hover:text-perigo">Reportar</button>
         <Botao variante="neutra" pequeno onClick={aoEditar}>Editar</Botao>
         <Botao variante="perigo" pequeno onClick={aoExcluir}>Excluir</Botao>
@@ -196,7 +216,7 @@ function FormularioMaterial({ material, turmas, turmaPadrao, aoFechar, aoSalvar 
       }
       const resultado = await resposta.json()
       if (!resultado.sucesso) return setMensagem({ texto: resultado.mensagem })
-      aoSalvar()
+      aoSalvar(resultado.aviso_indexacao)
     } catch (erro) {
       console.error("Erro ao salvar material:", erro)
       setMensagem({ texto: ERRO_DE_CONEXAO })

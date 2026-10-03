@@ -164,6 +164,13 @@ Não abra Lacunas ainda: ela fecha a apresentação.
 Se a pergunta (b) da Marina veio como resposta completa, aparecem 2 alunos em
 vez de 3. A fala é a mesma.
 
+**Se sobrar tempo (1 min):** entre como `adm@deltacare.com` →
+**Relatórios** → **Dificuldade por disciplina**.
+**Frase-chave:** "A coordenação vê em que disciplina a turma tem mais
+dificuldade — a nota, as entregas que faltam, o que o material não respondeu
+e o tópico com mais erro, cada um com o seu número. Sem nome de aluno." Na
+aba **Ao vivo**, a pergunta que a Marina acabou de fazer já aparece.
+
 ---
 
 ## Se perguntarem

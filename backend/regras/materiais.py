@@ -33,7 +33,7 @@ def _calcular_status(rascunho: int, data_liberacao: str | None) -> str:
 def _linha_para_dict(linha) -> dict:
     (id_, titulo, descricao, tipo, link_url, arquivo_nome, assunto,
      topico, aula, semestre, rascunho, data_liberacao, criado_em,
-     atualizado_em, turma_id, turma_nome) = linha
+     atualizado_em, turma_id, turma_nome, trechos) = linha
 
     return {
         "id": id_,
@@ -53,6 +53,10 @@ def _linha_para_dict(linha) -> dict:
         "atualizado_em": atualizado_em,
         "turma_id": turma_id,
         "turma_nome": turma_nome,
+        # Só PDF entra no chat. Sem trecho indexado (o assistente estava fora
+        # do ar na publicação, ou o PDF é escaneado), o professor precisa
+        # saber: o aluno pergunta e o assistente não acha nada.
+        "no_chat": bool(trechos) if tipo == "pdf" else None,
     }
 
 
@@ -242,7 +246,8 @@ def listar_materiais(professor_email: str, turma_id: int | None = None) -> dict:
         SELECT m.id, m.titulo, m.descricao, m.tipo, m.link_url, m.arquivo_nome,
                m.assunto, m.topico, m.aula, m.semestre, m.rascunho,
                m.data_liberacao, m.criado_em, m.atualizado_em,
-               m.turma_id, t.nome
+               m.turma_id, t.nome,
+               (SELECT COUNT(*) FROM material_chunks c WHERE c.material_id = m.id)
         FROM materiais m
         JOIN turmas t ON t.id = m.turma_id
         WHERE m.professor_id = ?
