@@ -3,33 +3,62 @@
 Guia de uso da plataforma, perfil por perfil. Para instalar e rodar o sistema,
 veja o [README](README.md).
 
-**Contas de demonstração** (senha `demo123` nas três):
+**Contas de demonstração** (criadas pelo `backend/seed_demo.py`, senha
+`demo123`):
 
-| Perfil | E-mail |
-|---|---|
-| Administração | `adm@deltacare.com` |
-| Professor | `professor@deltacare.com` |
-| Aluno | `aluno@deltacare.com` |
+| Perfil | E-mail | Quem é |
+|---|---|---|
+| Administração | `adm@deltacare.com` | Helena Prado |
+| Professor | `professor@deltacare.com` | Ricardo Salles, Cardiologia I |
+| Aluno | `aluno@deltacare.com` | Marina Duarte, turma MED 3A |
+
+O seed cria também outros professores e alunos (`beatriz.lemos@`,
+`lucas.martins@`…, todos `@deltacare.com`).
 
 ---
 
-## Antes de tudo: quem faz o quê
+## Antes de tudo
 
-A plataforma tem três perfis, e cada um enxerga apenas o que lhe cabe. Essa
-divisão não é só visual — o servidor confere a permissão a cada requisição.
+### Turma e disciplina
+
+- **Turma** é o grupo de alunos que cursa o semestre junto (ex.: MED 3A).
+- **Disciplina** é a matéria (ex.: Cardiologia I): um professor, o material
+  dele e um chat de estudos próprio.
+
+Uma turma tem várias disciplinas. Quem entra na turma é matriculado em todas
+elas, menos nas que a administração marcar como exceção.
+
+### Quem faz o quê
+
+Cada perfil enxerga só o que lhe cabe, e não é a tela que esconde: o servidor
+confere a permissão a cada requisição.
 
 | | Administração | Professor | Aluno |
 |---|---|---|---|
-| Criar contas | ✅ qualquer perfil | — | — |
-| Criar turma | ✅ | — | — |
+| Criar contas, turmas e disciplinas | ✅ | — | — |
 | Matricular aluno | ✅ | — | — |
-| Publicar material | — | ✅ nas turmas dele | — |
-| Ver rascunho | — | ✅ os próprios | — |
-| Ver material publicado | — | ✅ os próprios | ✅ das turmas dele |
-| Perguntar ao assistente | — | — | ✅ |
+| Publicar material e atividade | — | ✅ nas disciplinas dele | — |
+| Ver material publicado | ✅ supervisão | ✅ os próprios | ✅ das disciplinas dele |
+| Perguntar ao assistente de IA | — | — | ✅ |
+| Escrever aviso | ✅ instituição ou disciplinas | ✅ as disciplinas dele | — |
+| Ler anotações, entregas e conversas do aluno | ❌ nunca | só as entregas, para corrigir | ✅ as próprias |
 
-A ordem natural de uso é: **administração prepara → professor alimenta →
-aluno consome.** É essa ordem que este tutorial segue.
+A ordem natural de uso é: **a administração prepara → o professor alimenta →
+o aluno estuda.** É essa ordem que este tutorial segue.
+
+### Primeiro acesso
+
+A conta chega com uma **senha provisória**, definida pela secretaria. No
+primeiro login, a plataforma pede uma senha nova antes de mostrar qualquer
+outra tela: a provisória às vezes é a mesma para a turma inteira e não pode
+continuar valendo.
+
+Depois disso, a senha se troca no perfil — **Ver perfil**, embaixo do menu
+lateral → **Alterar senha**. A troca pede a senha atual e encerra as outras sessões
+abertas da conta.
+
+**Esqueci minha senha:** na tela de login. Chega um código por e-mail, válido
+por 15 minutos.
 
 ---
 
@@ -37,61 +66,91 @@ aluno consome.** É essa ordem que este tutorial segue.
 
 Entre com `adm@deltacare.com`.
 
-### Criar contas
+### Início
 
-Menu lateral → **Usuários**.
+Os números da instituição (professores, disciplinas, materiais) e o que está
+**esperando a administração**: denúncias abertas e pedidos de alunos sobre
+dados pessoais.
 
-A tela lista todas as contas separadas por perfil, mostrando o que cada uma
-tem vinculado (quantas turmas o professor leciona, em quantas o aluno está
-matriculado).
+### Turmas
 
-Para criar uma conta, clique em **Nova conta** e preencha e-mail, perfil e uma
-senha provisória. A pessoa deve trocá-la no primeiro acesso, usando "Esqueci
-minha senha" na tela de login.
+Menu → **Turmas**.
 
-Ao criar um aluno, dá para informar a matrícula e já escolher a turma — evita
-cadastrar e depois matricular um a um. Para professor, o campo é a lista de
-disciplinas que ele leciona.
+1. **Nova turma:** nome e semestre (ex.: MED 3A, 2026/2).
+2. Abra a turma e **adicione os alunos**. Cada um entra em todas as
+   disciplinas da turma.
+3. **Exceções:** cada aluno tem uma fileira com as disciplinas da turma. Um
+   clique tira o aluno de uma delas (aproveitamento de estudos, por exemplo) e
+   outro devolve.
 
-### Importar uma turma inteira
+Na mesma tela fica o **semestre vigente**. Virar o semestre muda o que conta
+como "atual" no XP, no ranking e nas listas; o que passou vai para
+**Semestres anteriores**, sem apagar nada.
 
-Menu lateral → **Usuários** → **Importar planilha**.
+### Disciplinas
 
-Aceita **.csv** e **.xlsx**. A planilha precisa de uma coluna de nome e uma de
-e-mail; matrícula é opcional. O cabeçalho pode estar escrito de várias formas
-("Nome Completo", "Aluno", "E-mail", "RA") — não é preciso renomear nada.
+Menu → **Disciplinas**. Cada disciplina tem um professor e um semestre. Ao
+apontá-la para uma turma, os alunos dessa turma já entram matriculados.
 
-O fluxo tem dois passos:
+> **Excluir uma disciplina apaga junto** o material dela, os trechos
+> indexados para o assistente, as matrículas, as atividades e entregas, as
+> mensagens com o professor, as conversas com o assistente e as lacunas. Não
+> há como desfazer.
 
-1. **Conferir planilha** — lê e valida **sem gravar nada**, e mostra quantas
-   linhas estão prontas e quais foram recusadas, com o motivo de cada uma.
-2. **Importar** — cria as contas. Escolha uma senha provisória (a mesma para
-   todos) e, se quiser, a turma em que todos serão matriculados.
+### Usuários
 
-Linhas com problema são puladas individualmente; as demais entram normalmente.
+Menu → **Usuários** → **Nova conta**: nome, perfil, e-mail e senha
+provisória. Para aluno, dá para informar a matrícula e já matricular numa
+disciplina; para professor, as disciplinas que ele leciona.
 
-> **Por que o aluno não pode se cadastrar sozinho?**
-> Porque quem é aluno da faculdade é decidido pela secretaria, não por quem
-> preenche um formulário. Toda conta — de aluno, professor ou administração —
-> nasce nesta tela ou pela importação da planilha.
+**Importar planilha** (.csv ou .xlsx) cria várias contas de uma vez. Precisa
+de uma coluna de nome e uma de e-mail; matrícula é opcional, e o cabeçalho pode
+estar escrito de vários jeitos ("Nome Completo", "Aluno", "E-mail", "RA").
 
-### Criar turma e matricular
+1. **Conferir planilha:** lê e valida **sem gravar nada**, e mostra quantas
+   linhas estão prontas e quais foram recusadas, com o motivo.
+2. **Importar:** cria as contas com a senha provisória escolhida (a mesma
+   para todos) e, se quiser, matricula todos numa disciplina.
 
-Menu lateral → **Turmas**.
+> **Por que o aluno não se cadastra sozinho?** Quem é aluno da faculdade é a
+> secretaria que decide, não quem preenche um formulário. Toda conta nasce
+> aqui ou pela planilha.
 
-1. Clique em **Nova turma**, dê um nome e o semestre, e escolha o professor
-   responsável na lista.
-2. Com a turma criada, clique nela para abrir o painel de alunos.
-3. Escolha o aluno na lista e clique em **Matricular**.
+### Avisos
 
-O aluno passa a ver essa turma — e só a partir daí consegue acessar o material
-dela e perguntar sobre ela ao assistente.
+Menu → **Avisos**. Escreva para a instituição inteira ou para disciplinas
+específicas. Marcado como **urgente**, o aviso fica no topo do mural por 7
+dias. Quem recebe é avisado pelo sino.
 
-Para desmatricular, use o botão ao lado do nome do aluno no mesmo painel.
+### Denúncias
 
-> **Excluir uma turma apaga junto** os materiais dela, os trechos indexados
-> para o assistente, as matrículas e o histórico de conversa daquela turma.
-> Não há como desfazer.
+Menu → **Denúncias**. Material reportado por alunos e professores, com o
+motivo. Mude o status (em análise, concluída, arquivada) e registre o que foi
+feito: **quem reportou é avisado** da resposta.
+
+### Conteúdo
+
+Menu → **Conteúdo**. Supervisão do que as disciplinas recebem: material e
+atividades publicados ou agendados, inclusive o gabarito das objetivas. Só
+leitura. Rascunho de professor não aparece, e entregas, anotações e conversas
+de aluno nunca aparecem aqui.
+
+### Privacidade
+
+Menu → **Privacidade**. Pedidos dos alunos sobre os próprios dados (LGPD):
+
+- **Correção** (nome, e-mail, matrícula): aprove, e o dado muda; ou recuse,
+  com um motivo que o aluno vai ler.
+- **Exclusão:** aprovada, a conta é desativada na hora e **anonimizada em 45
+  dias**. Até lá dá para reverter (o aluno que trancou e voltou, ou foi
+  transferido de turma).
+
+A cópia dos dados não passa por aqui: o aluno baixa sozinho.
+
+### Relatórios
+
+Ainda não existe. O menu leva a uma página que diz o que o módulo vai fazer,
+em vez de mostrar números de exemplo.
 
 ---
 
@@ -99,23 +158,21 @@ Para desmatricular, use o botão ao lado do nome do aluno no mesmo painel.
 
 Entre com `professor@deltacare.com`.
 
-### O painel inicial
+### Início
 
-Mostra quantas turmas você leciona, quantos alunos estão matriculados nelas e
-quantos materiais você já publicou ou deixou agendados. Abaixo ficam suas
-turmas e os materiais mais recentes.
+O que você tem a fazer hoje: **entregas para corrigir**, **mensagens** de
+alunos sem resposta e **o que falta no material** (ver Lacunas, abaixo). Além
+das suas disciplinas e dos materiais recentes.
 
-Você não cria turmas: isso é da administração. Se o painel disser que você não
-tem turmas atribuídas, fale com a coordenação.
+Você não cria disciplinas: isso é da administração. Se não aparecer nenhuma,
+fale com a coordenação.
 
-### Publicar material
+### Materiais
 
-Menu lateral → **Materiais** → **Novo material**.
+Menu → **Materiais** → **Novo material**.
 
-Marque em **quais turmas** o material deve entrar. Dá para escolher várias de
-uma vez, e há um "Selecionar todas" quando você leciona em mais de uma.
-
-Preencha o título e escolha o tipo:
+Marque **em quais disciplinas** o material entra (dá para várias de uma vez),
+preencha o título e escolha o tipo:
 
 | Tipo | O que enviar |
 |---|---|
@@ -124,31 +181,77 @@ Preencha o título e escolha o tipo:
 | Vídeo | Arquivo |
 | Link | Endereço começando com `http://` ou `https://` |
 
-Os campos **assunto, tópico, aula e semestre** são opcionais, mas é o que
-permite ao aluno filtrar depois — vale preencher.
+**Assunto, tópico, aula e semestre** são opcionais, mas é por eles que o aluno
+filtra depois.
 
-No fim do formulário você decide quando o material fica visível:
+Quando o material fica visível:
 
-- **Salvar como rascunho** — só você vê. Serve para preparar com antecedência.
-- **Publicar** — o aluno vê na hora.
-- **Publicar com data de liberação** — preencha a data e hora. O material fica
-  invisível para o aluno até aquele momento e aparece sozinho quando a data
-  chega. Não é preciso voltar aqui para liberar.
+- **Rascunho:** só você vê.
+- **Publicar:** o aluno vê na hora, e o sino avisa.
+- **Publicar com data de liberação:** invisível até a data e hora, e aparece
+  sozinho quando ela chega.
 
-> **Só o PDF alimenta o assistente de IA.** Ao publicar um PDF, o sistema
-> extrai o texto e o indexa automaticamente, e o aluno já pode perguntar sobre
-> ele. Vídeo e link ficam disponíveis para download e leitura, mas o assistente
-> não os consulta — vídeo exigiria transcrição, e link exigiria buscar o
-> conteúdo fora da plataforma.
+> **Só o PDF alimenta o assistente de IA.** Ao publicar um PDF, o texto é
+> extraído e indexado, e o aluno já pode perguntar sobre ele. Vídeo e link o
+> assistente não lê. Disciplina que só tem link e vídeo não tem como ter
+> resposta do assistente — a tela de Lacunas avisa quando isso acontece.
 
-### Editar e excluir
+Você só edita e exclui o material que você mesmo criou.
 
-Na lista de materiais, cada item tem **Editar** e **Excluir**. Você só consegue
-mexer nos materiais que você mesmo criou, mesmo que outro professor dê aula na
-mesma turma.
+### Atividades
 
-Ao editar, dá para mudar de rascunho para publicado, ajustar a data de
-liberação ou corrigir a classificação.
+Menu → **Atividades** → **Nova atividade**.
+
+- **Objetiva:** questões de múltipla escolha. A nota sai na hora, comparando
+  com o gabarito — que nunca é enviado ao navegador do aluno.
+- **Dissertativa:** o aluno escreve a resposta e, se você permitir, anexa um
+  arquivo (nenhum, opcional ou obrigatório). A nota e a devolutiva são suas.
+
+Prazo, pontos, assunto e tópico são da atividade. **Entrega atrasada é aceita
+e marcada como atrasada**, não recusada: quem decide o que fazer com ela é
+você.
+
+Para corrigir: abra a atividade, escolha a entrega, dê a nota e escreva a
+devolutiva. O aluno é avisado.
+
+### Calendário
+
+O semestre por data: material publicado, material agendado, atividade
+liberada e **prazo de entrega**. Serve para ver, antes dos alunos reclamarem,
+que duas entregas caíram no mesmo dia.
+
+### Chat
+
+Menu → **Chat**. As conversas com os alunos, uma por aluno e disciplina. É
+para cá que vêm as dúvidas que o assistente não respondeu.
+
+### Desempenho
+
+Como a turma está indo e, principalmente, **qual tópico** ela mais erra nas
+atividades corrigidas — a informação que muda a próxima aula. Disciplina sem
+atividade corrigida mostra isso, em vez de gráfico de zeros.
+
+### Lacunas do material
+
+O que os alunos perguntam ao assistente e o seu material **não responde**, ou
+responde só em parte, agrupado por assunto. Por exemplo: *"Cardiolex — o
+material cita, mas não diz o que é; 4 alunos"*.
+
+- Você **nunca** vê o texto da pergunta nem quem perguntou.
+- Um assunto só aparece quando **pelo menos dois alunos diferentes**
+  perguntaram, para ninguém ser identificado.
+- Depois de completar o material, marque **Já tratei**: o assunto sai da
+  lista e só volta se alguém perguntar de novo.
+
+Perguntas feitas numa disciplina sem nenhum PDF aparecem à parte, com um aviso
+para publicar material.
+
+### Avisos, Denúncias e Semestres anteriores
+
+- **Avisos:** escreva para uma, várias ou todas as suas disciplinas.
+- **Denúncias:** reporte um material com problema e acompanhe a resposta da
+  administração.
+- **Semestres anteriores:** o material das disciplinas que já terminaram.
 
 ---
 
@@ -156,108 +259,155 @@ liberação ou corrigir a classificação.
 
 Entre com `aluno@deltacare.com`.
 
-### Tela inicial
+### Início
 
-Abre com seu progresso: nível, XP acumulado, sequência de dias estudando e um
-gráfico dos últimos 14 dias. Abaixo, suas turmas e os materiais liberados mais
-recentes.
+Seu progresso no semestre: **nível**, **faixa** (Bronze, Prata, Ouro,
+Platina) e quanto falta para a próxima, sequência de dias estudando e o
+gráfico dos últimos 14 dias. Abaixo, o mural de avisos, suas disciplinas e os
+materiais recentes.
 
-**De onde vem o XP:** cada pergunta ao assistente vale 10, cada material novo
-que você abre vale 15, e cada dia com atividade vale 25. A composição fica
-visível no próprio cartão — reabrir o mesmo material não conta de novo.
+**De onde vem o XP** (150 XP por nível):
 
-### Notificações
+| Ação | XP |
+|---|---|
+| Pergunta ao assistente respondida pelo material | 5 (até 5 por dia; repetir a mesma não conta) |
+| Abrir um material pela primeira vez | 15 |
+| Dia com atividade na plataforma | 25 |
+| Entregar uma atividade | 20 |
+| Nota da atividade | até 30, proporcional ao acerto |
 
-O sino no topo avisa quando um professor publica material novo numa turma sua,
-inclusive os que estavam agendados e chegaram na data. Clicar numa notificação
-a marca como lida e leva até o material.
+O nível e a faixa são do **semestre**: no seguinte, todo mundo recomeça, e o
+XP dos semestres anteriores aparece como total.
+
+### Sino e avisos
+
+O sino avisa material e atividade novos, nota lançada, mensagem do professor,
+resposta de denúncia ou de pedido sobre seus dados, e avisos dos professores e
+da coordenação. Clicar leva até o que mudou. Os avisos ficam no
+mural da tela inicial; os urgentes, no topo.
 
 ### Materiais
 
-Menu lateral → **Materiais**.
+Tudo que os professores liberaram nas suas disciplinas, com filtros por
+disciplina, assunto, tópico, tipo e período.
 
-Lista tudo que os professores liberaram nas suas turmas. Use o seletor no topo
-para filtrar por turma, e a busca para procurar por título, assunto ou tópico.
+- **Visualizar** abre o material dentro da plataforma (PDF, imagem, vídeo,
+  áudio). Formato que o navegador não exibe, como .docx, só com **Baixar**.
+- **Favoritar** (a estrela) guarda o material em **Favoritos**, que valem
+  entre semestres.
+- **Anotações:** escreva sobre o material e, se quiser, cole o trecho a que a
+  nota se refere. **Só você lê** — nem o professor, nem a administração. Todas
+  ficam juntas em **Anotações**.
+- **Reportar:** material com erro, arquivo que não abre, conteúdo
+  inadequado. Você acompanha a resposta em **Denúncias**.
 
-Use os filtros de assunto, tópico, tipo e período para achar mais rápido quando
-o semestre acumular material.
-
-Clique em **Visualizar** para abrir o material **dentro da plataforma**, sem
-precisar baixar — funciona para PDF, imagem, vídeo e áudio. **Baixar** salva o
-arquivo no seu computador, e **Abrir link** vale para material que é um
-endereço externo.
-
-Formatos que o navegador não sabe exibir (como .docx) não têm o botão
-Visualizar; para esses, use Baixar.
-
-> Se um material que o professor mencionou em aula não aparece aqui, ele ainda
-> está como rascunho ou foi agendado para uma data futura.
+> Material que o professor citou em aula e não aparece aqui ainda está como
+> rascunho ou agendado para outra data.
 
 ### Chat de estudos
 
-Menu lateral → **Chat de estudos**. Escolha a turma no seletor do topo e
-escreva sua dúvida.
+Escolha a disciplina no topo e escreva sua dúvida.
 
-**O que torna esse assistente diferente:** ele responde **apenas** com base no
-material que o seu professor publicou naquela turma. Se você perguntar algo
-que não está no material, ele diz isso em vez de responder por conta própria —
-mesmo que sob outras circunstâncias soubesse a resposta.
+**O que torna esse assistente diferente:** ele responde **apenas** com base
+no material que o professor publicou naquela disciplina. O que não está no
+material, ele não responde — mesmo que o modelo soubesse.
 
-Cada resposta traz embaixo qual material foi usado. Quando não aparece fonte
-nenhuma, é porque a resposta não veio do material.
+A resposta pode vir de três jeitos:
 
-A resposta leva de 10 a 20 segundos, porque o modelo roda na infraestrutura da
-instituição, e não em serviço externo. Enquanto processa, aparece um indicador
-com o tempo decorrido — é normal, não travou.
+- **Completa:** com a fonte (o material usado) embaixo.
+- **Em parte:** o material fala do assunto, mas não responde exatamente o que
+  você perguntou. Ele traz o que o material tem e mostra **"O material não
+  traz:"** o que faltou.
+- **Não coberta:** uma frase dizendo isso, sem fonte. A plataforma oferece
+  levar a dúvida a um professor: a pergunta vai pronta para **Mensagens**, e
+  você escolhe a conversa.
 
-Se mudar de ideia no meio, o botão **Parar** interrompe a geração e devolve o
-campo de digitação. Não é preciso recarregar a página.
+O que o material não cobriu chega ao professor como **lacuna** — sem o seu
+nome e sem o texto da pergunta.
 
-Seu histórico fica salvo por turma e volta quando você reabre a página.
+A resposta leva de 10 a 30 segundos, porque o modelo roda na própria
+instituição. Enquanto isso, aparece um cronômetro; **Parar** interrompe. O
+histórico fica salvo por disciplina.
 
 #### Como perguntar bem
 
+- **Pergunte na disciplina certa.** O assistente só lê o material da
+  disciplina escolhida no topo.
 - **Seja específico.** "Qual a dose inicial de Cardiolex?" funciona melhor que
   "fala sobre medicamentos".
-- **Cite o termo exato** quando souber (o nome do protocolo, da escala, do
-  medicamento). A busca dá peso extra a siglas, códigos e números.
-- **Uma pergunta de cada vez.** Perguntas com várias partes tendem a ter a
-  resposta concentrada na primeira.
-- **Confira a fonte.** Ela diz de qual material veio a informação, e é por onde
-  você continua o estudo.
+- **Use o termo exato** (nome do protocolo, da escala, do medicamento): a
+  busca dá peso a siglas, códigos e números.
+- **Uma pergunta de cada vez.**
+- **Confira a fonte.** É por onde você continua o estudo.
+
+### Atividades
+
+Os quizzes e trabalhos das suas disciplinas, com prazo e situação. O progresso
+fica salvo: dá para fechar a aba e voltar depois. A **objetiva** mostra a nota
+na hora; a **dissertativa** espera a correção do professor, e o sino avisa
+quando ela sai. Entrega depois do prazo é aceita, marcada como atrasada.
+
+### Desempenho
+
+Suas notas, sua evolução e em que assunto você mais erra, por disciplina e
+por tópico.
+
+### Mensagens
+
+Uma conversa com o professor de cada disciplina.
+
+### Ranking
+
+A sua turma, pelo XP do semestre. Só os 10 primeiros aparecem para todos; a
+sua posição, só você vê, onde quer que esteja. Também tem **quem mais evoluiu**
+nos últimos 7 dias. Se não quiser aparecer, desligue: você continua na sua
+posição, mas como "colega que preferiu não aparecer".
+
+### Semestres anteriores
+
+O material das disciplinas que você já cursou, com **busca dentro dos PDFs**.
+
+### Meus dados
+
+**Ver perfil** (embaixo do menu lateral) → **Meus dados**:
+
+- **Baixar uma cópia** de tudo que a plataforma guarda sobre você — na hora,
+  sem pedir a ninguém.
+- **Pedir correção** de nome, e-mail ou matrícula.
+- **Pedir exclusão** da conta. Aprovada pela administração, a conta é
+  desativada na hora e anonimizada em 45 dias.
 
 ---
 
 ## Perguntas frequentes
 
-**Esqueci minha senha.**
-Na tela de login, clique em "Esqueci minha senha" e informe seu e-mail. Nesta
-versão de demonstração o link de recuperação é impresso no console do servidor,
-não enviado por e-mail.
-
 **Fui desconectado do nada.**
-A sessão dura 12 horas. Depois disso é preciso entrar de novo.
+A sessão dura 12 horas. Trocar a senha também encerra as outras sessões da
+conta.
+
+**Errei a senha várias vezes e não consigo entrar.**
+Depois de 5 erros em 15 minutos, o login daquele e-mail fica bloqueado por um
+tempo. "Esqueci minha senha" destrava na hora.
 
 **Minhas perguntas ao assistente são privadas?**
-Seu histórico é individual: outros alunos não o veem. E nada sai da
-infraestrutura da instituição — o modelo de IA roda localmente. Veja a
-[política de privacidade](frontend/privacidade.html) na tela de login.
+O histórico é seu: colegas não veem, e a administração também não. O professor
+vê só os assuntos que o material não cobriu, sem nome nem texto, e só quando
+dois alunos ou mais perguntaram. E nada sai da instituição: o modelo de IA
+roda localmente. A política completa está em **Privacidade e uso de dados**, na
+tela de login.
 
 **O assistente pode errar?**
-Pode. Ele é restrito ao material do professor, o que reduz muito o risco de
-inventar, mas não elimina. Confira sempre a fonte citada, e leve ao professor
-o que parecer estranho.
+Pode. Restrito ao material, ele erra muito menos, mas não nunca. Confira a
+fonte e leve ao professor o que parecer estranho.
 
-**Alguns itens do menu não abrem uma tela funcional.**
-Atividades, Desempenho, Mensagens, Calendário, Denúncias e Relatórios ainda não
-foram construídos. Clicando neles você vê o que cada módulo vai permitir e em
-qual etapa está previsto. Preferimos deixar isso explícito a preencher a tela
-com dados de exemplo.
+**Um item do menu diz que o módulo não existe.**
+É o de Relatórios, da administração. Preferimos dizer isso a encher a tela de
+dados de exemplo.
 
 ---
 
 ## Para quem vai apresentar o sistema
 
-O [ROTEIRO_DEMO.md](ROTEIRO_DEMO.md) tem um passo a passo cronometrado da
-demonstração, com as perguntas certas a fazer no chat, respostas para as
-dúvidas mais prováveis da banca e um plano B caso algum serviço caia.
+O [ROTEIRO_DEMO.md](ROTEIRO_DEMO.md) tem o passo a passo cronometrado da
+demonstração, com o preparo da máquina, as perguntas a fazer no chat,
+respostas para as dúvidas mais prováveis da banca e um plano B.

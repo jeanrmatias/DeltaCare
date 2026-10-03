@@ -1,48 +1,68 @@
 # Roteiro de demonstração — Delta Care
 
 Passo a passo fixo para a apresentação. A ideia é não improvisar: cada tela
-tem um objetivo, e a ordem foi montada para a última coisa que a banca vê ser
-a mais forte.
+tem um objetivo, e a ordem foi montada para a banca ver o ciclo inteiro — a
+administração organiza, o professor publica, o aluno estuda com o assistente,
+e o que o assistente não soube responder volta para o professor.
 
-**Duração estimada:** 8 a 12 minutos.
+**Duração estimada:** 12 a 15 minutos.
 
 ---
 
-## Antes de começar (15 minutos antes)
+## Antes de começar (20 minutos antes)
 
-Três serviços precisam estar no ar. Abra três terminais e deixe rodando:
+### Um banco só para a apresentação
 
-```
-# 1. Ollama (o modelo de IA)
-ollama serve
-
-# 2. Backend
-cd backend
-python -m uvicorn main:app --host 127.0.0.1 --port 8000
-
-# 3. Frontend
-cd frontend
-python servir.py
-```
-
-Confira nesta ordem:
-
-- [ ] `ollama list` mostra `gpt-oss:20b` e `nomic-embed-text`
-- [ ] <http://127.0.0.1:8000> responde `{"mensagem": "Backend funcionando :)"}`
-- [ ] <http://127.0.0.1:5500> abre a tela de login
-- [ ] **Faça uma pergunta de teste no chat antes da banca entrar.** A primeira
-      resposta carrega o modelo na memória e demora ~30s; as seguintes caem
-      para 13-20s. Não gaste esse tempo na frente de ninguém.
-
-Se o banco estiver vazio ou bagunçado:
+O banco do dia a dia acumula testes e perguntas soltas. Para a banca ver
+exatamente o que este roteiro descreve, use um banco novo. No PowerShell, na
+pasta `backend`:
 
 ```
-cd backend
+$env:DELTACARE_DB = "apresentacao.db"
+$env:DELTACARE_UPLOADS = "uploads/apresentacao"
 python seed_demo.py
+uvicorn main:app
 ```
 
-**Contas** (senha `demo123` nas três): `adm@deltacare.com`,
-`professor@deltacare.com`, `aluno@deltacare.com`.
+As variáveis valem só nessa janela: deixe-a aberta. O seed monta o semestre
+inteiro (turma MED 3A, três disciplinas, professores, oito alunos, atividades,
+entregas, avisos, uma denúncia e um pedido de LGPD).
+
+### Conferir
+
+- [ ] O Ollama está no ar: `ollama list` mostra `gpt-oss:20b` e
+      `nomic-embed-text`.
+- [ ] As telas estão compiladas com a versão atual: `cd web` e
+      `npm run build` (a API entrega o que está em `web/dist`).
+- [ ] <http://127.0.0.1:8000/saude> responde `{"status":"ok"}`.
+- [ ] <http://127.0.0.1:8000/> abre a tela de login (redireciona para
+      `/app/`).
+
+### Preparar a tela de Lacunas
+
+A tela **Lacunas do material** só mostra um assunto quando **dois alunos
+diferentes** perguntaram sobre ele (para não expor ninguém). Na apresentação,
+só a Marina pergunta; então dois colegas dela perguntam antes:
+
+1. Entre como `lucas.martins@deltacare.com` / `demo123` → **Chat de estudos**
+   → **Cardiologia I** → pergunte *O que é o Cardiolex?* Saia.
+2. Mesma coisa com `ana.rocha@deltacare.com`.
+3. Entre como `professor@deltacare.com` → **Lacunas do material**. Deve
+   aparecer **Cardiolex** com 2 alunos. Saia.
+
+Isso também tira o tempo de carregar o modelo da frente da banca: a primeira
+resposta do dia demora mais (o modelo sobe para a memória); as seguintes
+levam de 10 a 30 segundos.
+
+Se o Cardiolex não aparecer em Lacunas, o modelo considerou a resposta
+completa nas duas vezes. Pergunte de novo com um terceiro aluno
+(`gabriel.teixeira@deltacare.com`).
+
+**Contas** (senha `demo123`): `adm@deltacare.com` (Helena Prado),
+`professor@deltacare.com` (Ricardo Salles, Cardiologia I),
+`aluno@deltacare.com` (Marina Duarte).
+
+Use uma **janela anônima** do navegador e deixe-a em tela cheia.
 
 ---
 
@@ -51,71 +71,98 @@ python seed_demo.py
 **Objetivo:** mostrar que existe controle institucional, não é um app solto.
 
 1. Login como `adm@deltacare.com`.
-2. Na visão geral, aponte os números: professores, turmas e materiais — todos
-   vindos do banco.
-3. Vá em **Usuários**. Mostre a lista com os três perfis e abra **Nova conta**.
-   Vale criar uma conta de professor ao vivo: é rápido e responde antes de ser
-   perguntado como alguém entra no sistema.
-4. **Frase-chave:** "Toda conta nasce aqui ou pela planilha. Não existe
-   cadastro público: ninguém de fora cria conta para si, nem de aluno."
-5. Vá em **Turmas**. Mostre a turma Cardiologia I, o professor responsável e
-   os alunos matriculados.
-6. **Frase-chave:** "Quem cria turma e matricula aluno é só a administração.
-   O professor não consegue, nem que tente pela API — a regra está no backend."
+2. No início, aponte **Esperando a administração**: uma denúncia de conteúdo e
+   um pedido de correção de dados. "Nada aqui é dado de exemplo: são registros
+   do banco."
+3. **Turmas → MED 3A.** Mostre os alunos e as três disciplinas. Aponte o
+   **Pedro Albuquerque**, fora de Fisiologia.
+   **Frase-chave:** "Quem entra na turma é matriculado em todas as
+   disciplinas dela. O Pedro já cursou Fisiologia em outra faculdade: é uma
+   exceção, um clique, e ele sai só dessa."
+4. **Usuários → Nova conta.** Mostre o formulário e o campo **Senha
+   provisória** (não precisa criar).
+   **Frase-chave:** "Toda conta nasce aqui ou pela planilha; não existe
+   cadastro público. E a senha que a secretaria define é provisória: no
+   primeiro acesso, a pessoa é obrigada a trocar, e o servidor não deixa usar
+   nada antes disso."
+5. **Privacidade.** Mostre o pedido do Rafael para corrigir o nome. Aprove.
+   **Frase-chave:** "LGPD não é uma página de política: o aluno baixa uma
+   cópia dos próprios dados na hora, e pede correção ou exclusão por aqui. A
+   exclusão desativa a conta na hora e anonimiza em 45 dias."
 
 ---
 
-## Parte 2 — Professor (3 min)
+## Parte 2 — Professor (2 min)
 
-**Objetivo:** mostrar o fluxo de trabalho de quem alimenta a plataforma.
+**Objetivo:** o fluxo de quem alimenta a plataforma.
 
 1. Saia e entre como `professor@deltacare.com`.
-2. No dashboard, aponte: turmas, alunos matriculados, materiais publicados e
-   agendados. Se alguém perguntar sobre os cartões tracejados ("Atividades e
-   desempenho", "Mensagens"), essa é uma boa hora para dizer: "esses módulos
-   ainda não existem, e preferimos declarar isso a preencher a tela com dado
-   de exemplo."
-3. Vá em **Materiais**. Mostre o PDF já publicado.
-4. Abra o formulário de novo material e mostre os três estados:
-   **rascunho**, **agendado** e **publicado**.
-5. **Frase-chave:** "O aluno só enxerga o que está publicado. Rascunho e
-   agendado são invisíveis para ele — e isso vale também para o assistente de
-   IA, que não indexa material não liberado."
+2. No início, aponte **Para corrigir** (o relatório do Lucas) e **Mensagens**
+   (uma pergunta da Ana sem resposta). É o que o professor tem a fazer hoje.
+3. **Materiais.** Mostre a *Aula 3 - Insuficiência Cardíaca Aguda*, o PDF
+   publicado. Abra **Novo material** e mostre os três estados: **rascunho**,
+   **agendado** e **publicado**.
+   **Frase-chave:** "O aluno só enxerga o que está publicado. Rascunho e
+   agendado são invisíveis para ele — e para o assistente de IA, que não lê
+   material não liberado."
+
+Não abra Lacunas ainda: ela fecha a apresentação.
 
 ---
 
-## Parte 3 — Aluno (4 min, é o ponto alto)
+## Parte 3 — Aluno (5 min, o ponto alto)
 
 **Objetivo:** o diferencial do produto.
 
 1. Saia e entre como `aluno@deltacare.com`.
-2. A **tela inicial** abre com os números dele: turmas, materiais disponíveis,
-   perguntas já feitas.
-3. Vá em **Materiais**: só aparece o material publicado. Se você criou um
-   rascunho na Parte 2, mostre que ele **não** está aqui.
-4. Abra o **Chat de estudos** e faça as três perguntas na ordem:
+2. No início, aponte o **nível e a faixa** do semestre (bronze, prata, ouro,
+   platina) e o aviso urgente **Prova antecipada**.
+3. Abra o **Chat de estudos**, em **Cardiologia I**, e faça as três perguntas
+   na ordem:
 
    **a) Pergunta que o material responde**
    > Quais são os quatro estágios da Escala DCM-4 e a conduta de cada um?
 
-   Costuma vir como tabela formatada. Aponte a fonte citada no rodapé.
+   Costuma vir em tabela. Aponte a fonte citada abaixo da resposta.
+   **Frase-chave:** "O protocolo, a escala e o medicamento são inventados. Se
+   ele acertou, foi porque leu o material — o modelo não tinha como saber."
 
-   **b) Pergunta de detalhe**
-   > Quando o Cardiolex deve ser interrompido?
+   **b) Pergunta que o material responde só em parte**
+   > O que é o Cardiolex?
 
-   Resposta: pressão sistólica abaixo de 92 mmHg ou frequência acima de
-   130 bpm. Esses números só existem no PDF.
+   O material diz para que o Cardiolex serve e em que dose, mas não o que ele
+   é. O assistente traz o que tem e mostra, abaixo, **"O material não traz:"**
+   o que faltou.
+   **Frase-chave:** "Ele não inventa a classe do remédio, e também não joga
+   fora o que o material tem. Diz o que sabe e o que falta."
 
-   **c) Pergunta fora do material — a mais importante**
+   **c) Pergunta fora do material**
    > Qual o tratamento cirúrgico da apendicite?
 
-   Ele **recusa** e sugere perguntar ao professor. Repare que nenhuma fonte
-   aparece no rodapé.
+   Ele **recusa**, sem nenhuma fonte, e a plataforma oferece levar a dúvida a
+   um professor.
+   **Frase-chave:** "O modelo sabe responder sobre apendicite. Ele se recusou
+   porque não está no material que o professor liberou. É isso que separa
+   esta ferramenta de um ChatGPT genérico: o aluno não estuda por uma fonte que
+   o professor não validou."
 
-5. **Frase-chave (guarde para depois da recusa):** "O modelo sabe responder
-   sobre apendicite. Ele se recusou porque não está no material que o
-   professor liberou. É isso que separa esta ferramenta de um ChatGPT
-   genérico: o aluno não estuda por uma fonte que o professor não validou."
+---
+
+## Parte 4 — De volta ao professor (2 min, o fecho)
+
+**Objetivo:** mostrar que a recusa não é o fim da linha.
+
+1. Saia e entre como `professor@deltacare.com`.
+2. Abra **Lacunas do material**. **Cardiolex** aparece com 3 alunos e, em "o
+   que falta", o que eles queriam saber.
+3. **Frase-chave:** "O que o assistente não soube responder vira pauta para o
+   professor: o que a turma está perguntando e o material não cobre. Sem
+   nome de aluno e sem o texto da pergunta — e só quando pelo menos dois
+   alunos perguntaram, para ninguém ser identificado. O professor completa o
+   material e marca 'Já tratei'."
+
+Se a pergunta (b) da Marina veio como resposta completa, aparecem 2 alunos em
+vez de 3. A fala é a mesma.
 
 ---
 
@@ -123,46 +170,64 @@ python seed_demo.py
 
 **"Os dados vão para a OpenAI?"**
 Não. O modelo roda localmente, via Ollama. Nenhum material de aula e nenhuma
-pergunta de aluno sai da infraestrutura da instituição — o que importa para
+pergunta de aluno sai da infraestrutura da instituição — o que importa para a
 LGPD.
 
 **"E se ele inventar uma resposta?"**
-Duas travas. O prompt restringe ao material, e as fontes citadas são validadas
-pelo sistema: o modelo só consegue citar um material que realmente foi
-recuperado na busca, porque o formato da resposta é imposto no decodificador,
-não pedido em texto.
+Três travas. O prompt restringe ao material e proíbe deduzir; o assistente
+declara se o material cobriu a pergunta por inteiro, em parte ou nada; e as
+fontes são validadas pelo sistema: o modelo só consegue citar um material que
+realmente foi recuperado na busca, porque o formato da resposta é imposto no
+decodificador, não pedido em texto.
 
-**"Isso escala para a faculdade inteira?"**
-A arquitetura sim, com trabalho conhecido: trocar Ollama por vLLM (que atende
-várias requisições em paralelo), SQLite por Postgres e o disco local por
-storage em nuvem. O README tem o levantamento completo, em "Limitações
-conhecidas".
-
-**"Por que demora alguns segundos?"**
-Porque o modelo roda numa GPU de desenvolvimento que não comporta ele inteiro.
-Em servidor adequado, cai para poucos segundos.
+**"Por que ele não me mandou para a disciplina certa?"**
+Já mandou, e errava: a plataforma adivinhava pela palavra da pergunta, e no
+teste piloto mandou uma dúvida de crânio para Cardiologia. Caminho errado é
+pior que nenhum. Hoje a pergunta vai pronta para Mensagens, e o aluno escolhe
+o professor.
 
 **"É seguro?"**
-O login emite um token de sessão, e toda rota deduz quem está chamando a partir
-dele. Nenhuma rota aceita identidade informada pelo cliente. O que ainda falta
-antes de uso real: HTTPS e limite de tentativas de login.
+Toda rota descobre quem está chamando pelo token da sessão; nenhuma aceita a
+identidade que o navegador informa. Senhas com PBKDF2, limite de tentativas no
+login (que responde igual para conta que existe e que não existe), senha
+provisória trocada no primeiro acesso, e HTTPS pelo Caddy na implantação.
+
+**"Isso escala para a faculdade inteira?"**
+Uma faculdade, sim: o SQLite enfileira 60 entregas simultâneas em cerca de 2
+segundos. Uma rede de faculdades pede trocar o SQLite por Postgres, o Ollama
+por um servidor que atenda várias perguntas em paralelo (vLLM) e o disco por
+storage. O README tem o levantamento em "Limitações conhecidas".
+
+**"Por que demora alguns segundos?"**
+O modelo roda numa GPU de desenvolvimento. Enquanto ele pensa, a tela mostra
+um cronômetro, e as outras telas e o login continuam respondendo.
+
+**"Por que React?"**
+Exigência da Sprint 4, e ela pagou: as telas que antes se repetiam em 33
+páginas viraram componentes (o menu, por exemplo, é uma lista só), e as rotas
+públicas e privadas ficaram num arquivo. A validação de usabilidade com
+participantes de fora está em [`validacao/`](validacao/README.md).
 
 ---
 
 ## Se precisar consultar
 
-O [TUTORIAL.md](TUTORIAL.md) descreve cada tela em detalhe, perfil por perfil —
-útil se a banca pedir para ver algo fora do roteiro.
+O [TUTORIAL.md](TUTORIAL.md) descreve cada tela, perfil por perfil — útil se a
+banca pedir para ver algo fora do roteiro.
 
 ## Plano B
 
-**O Ollama caiu ou está muito lento:** o chat mostra "O assistente de IA está
-indisponível no momento" em vez de quebrar. Siga para as telas de materiais e
-administração, que não dependem dele, e mostre o histórico de conversa já
-salvo na turma.
+**O Ollama caiu ou está muito lento:** o chat responde "O assistente de IA está
+indisponível no momento" em vez de quebrar. Mostre o histórico da conversa já
+salvo e a tela de Lacunas preparada antes, e siga com o resto, que não depende
+do modelo.
 
-**Alguma tela não carrega:** dê `Ctrl+Shift+R`. Se persistir, confira se os
-três serviços continuam rodando.
+**Alguma tela não carrega:** `Ctrl+Shift+R`. Se persistir, confira se a janela
+do uvicorn continua aberta e se `/saude` responde.
 
-**A resposta veio sem tabela:** é variação normal do modelo, não é erro. O
-conteúdo está correto do mesmo jeito.
+**A resposta veio sem tabela:** variação normal do modelo, não é erro. O
+conteúdo está certo do mesmo jeito.
+
+**Terminou a apresentação:** feche a janela do uvicorn. Na próxima vez que
+subir o backend numa janela nova, ele volta ao banco do dia a dia
+(`deltacare.db`).
