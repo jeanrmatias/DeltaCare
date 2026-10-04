@@ -18,8 +18,11 @@ export function CartaoProgresso({ progresso }) {
       <div className="flex flex-wrap items-center gap-[22px] md:flex-nowrap">
         <Escudo nivel={progresso.nivel} faixa={progresso.faixa} percentual={percentual} />
 
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 flex items-baseline justify-between gap-3">
+        {/* No celular, o XP desce para a linha de baixo, inteira: dividindo a
+            linha com o escudo e a sequência, "faltam 56 XP para o nível 3"
+            quebrava uma palavra por linha. */}
+        <div className="order-last min-w-0 basis-full md:order-none md:flex-1 md:basis-auto">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <strong className="text-[19px] text-navy-900">{progresso.xp} XP</strong>
             <span className="text-[12.5px] text-texto-secundario">
               faltam {faltamXp} XP para o nível {progresso.nivel + 1}

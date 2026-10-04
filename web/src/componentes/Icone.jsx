@@ -13,6 +13,8 @@ const DESENHOS = {
   atividades: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M8 12l3 3 5-6" /></>,
   desempenho: <path d="M6 20V10M12 20V4M18 20v-7" />,
   relatorios: <><path d="M3 3v18h18" /><path d="m7 15 4-4 3 3 5-6" /></>,
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  fechar: <path d="M6 6l12 12M18 6 6 18" />,
   auditoria: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h3" /></>,
   denuncias: <><path d="M12 9v4M12 16.5h.01" /><path d="M10.3 4.3 2.8 17a1.7 1.7 0 0 0 1.5 2.5h15.4a1.7 1.7 0 0 0 1.5-2.5L13.7 4.3a1.7 1.7 0 0 0-3 0Z" /></>,
   favoritos: <path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 9.7l5.4-.8Z" />,

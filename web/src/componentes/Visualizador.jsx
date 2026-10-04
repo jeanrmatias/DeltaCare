@@ -46,7 +46,16 @@ export function Visualizador({ material, caminho, aoFechar }) {
           <strong className="block truncate text-navy-900">{material.titulo}</strong>
           <span className="text-xs text-texto-secundario">{[material.turma_nome, material.arquivo_nome].filter(Boolean).join(" · ")}</span>
         </div>
-        <Botao variante="neutra" onClick={aoFechar} className="py-2">Fechar</Botao>
+        <div className="flex shrink-0 items-center gap-3">
+          {/* O Chrome do Android não mostra PDF dentro da página (e o iPhone,
+              só a primeira folha): em outra aba, abre o leitor do aparelho. */}
+          {estado.url && mime === "application/pdf" && (
+            <a href={estado.url} target="_blank" rel="noopener" className="text-[13px] font-semibold text-primaria hover:underline">
+              Abrir em outra aba
+            </a>
+          )}
+          <Botao variante="neutra" onClick={aoFechar} className="py-2">Fechar</Botao>
+        </div>
       </div>
 
       <div className="flex h-[min(78vh,820px)] items-center justify-center overflow-hidden rounded-bloco bg-fundo">

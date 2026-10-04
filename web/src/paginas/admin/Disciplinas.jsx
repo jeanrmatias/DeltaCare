@@ -74,13 +74,14 @@ export function DisciplinasAdmin() {
       <section className="flex flex-col gap-3">
         {lista.map((turma) => (
           <div key={turma.id} className="rounded-cartao bg-superficie shadow-cartao">
-            <article className="flex flex-col gap-3 p-5 md:flex-row md:items-start md:justify-between">
+            {/* Lado a lado só com folga (lg): no tablet, três botões ao lado do nome passavam da tela. */}
+            <article className="flex flex-col gap-3 p-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h3 className="font-bold text-navy-900">{turma.nome} · {turma.semestre}</h3>
                 <p className="mt-1 text-[13px] text-texto-secundario">Professor: {turma.professor_email}</p>
                 <p className="text-[13px] text-texto-secundario">{turma.total_materiais} material(is) cadastrado(s)</p>
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="flex shrink-0 flex-wrap gap-2">
                 <Botao variante="neutra" pequeno onClick={() => setTrocando(trocando === turma.id ? null : turma.id)}>Trocar professor</Botao>
                 <Botao variante="neutra" pequeno onClick={() => alternar(turma.id)}>{abertas.has(turma.id) ? "Fechar alunos" : "Alunos"}</Botao>
                 <Botao variante="perigo" pequeno onClick={() => excluir(turma)}>Excluir</Botao>

@@ -370,6 +370,34 @@ cada um:
 - **Atualizações:** `npm audit` (hoje, 0 vulnerabilidades) e `pip-audit` a
   cada atualização das dependências, que têm versão presa.
 
+## No celular
+
+As mesmas telas, sem app à parte. Conferido num navegador com tamanho de
+celular e de tablet (360, 390, 768 e 1280 px de largura), nas 34 telas dos
+três perfis: nenhuma transborda para os lados.
+
+- **Menu numa gaveta lateral:** no celular, uma barra fina com a logo e o
+  botão **Menu**; o menu desliza da direita, sobre um fundo escurecido. Abre
+  pelo botão ou puxando da borda direita da tela; fecha escolhendo um item,
+  tocando fora, com Esc ou empurrando-a de volta. Aberto o tempo todo, o menu
+  ocupava quase metade da tela antes do conteúdo. A partir do tablet, volta a
+  ser a coluna da esquerda.
+- **A logo leva ao início** do perfil, no celular e no computador.
+- **Troca de tela com um esmaecer curto** (220 ms); quem pede menos
+  movimento nas configurações do sistema não vê animação nenhuma.
+- **Listas de escolha com a cara do produto:** no Chrome e no Edge (135 em
+  diante) a lista aberta segue o tema (marca no item escolhido, grupos com
+  rótulo); nos outros navegadores fica a lista do sistema, que no iPhone é a
+  roda de seleção.
+- **Cabeçalhos que quebram linha** (busca, seletores e botões), números do
+  topo dois por linha, e o cartão de progresso do aluno empilhado.
+- **Tabelas largas** (relatório mês a mês, auditoria) rolam de lado dentro do
+  próprio cartão, sem quebrar a página.
+- **PDF:** o Chrome do Android não mostra PDF dentro da página, e o iPhone
+  mostra só a primeira folha. O visualizador tem **Abrir em outra aba**, que
+  abre o leitor do próprio aparelho.
+- O campo de código do login abre o teclado numérico.
+
 ## Acessibilidade
 
 Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
@@ -520,7 +548,7 @@ python testar_html.py
   integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (53 testes):** as telas são renderizadas no Node, sem
+- **Telas React (55 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de

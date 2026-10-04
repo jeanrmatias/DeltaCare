@@ -15,15 +15,16 @@ export function Cartao({ titulo, children, className = "" }) {
 /** Um número com rótulo, nas fileiras do topo das telas. */
 export function Numero({ rotulo, valor, destaque = false }) {
   return (
-    <article className="flex flex-col gap-2.5 rounded-cartao bg-superficie px-5 py-[18px] shadow-cartao">
+    <article className="flex flex-col gap-2 rounded-cartao bg-superficie px-4 py-3.5 shadow-cartao sm:gap-2.5 sm:px-5 sm:py-[18px]">
       <span className="text-[13px] font-medium text-texto-secundario">{rotulo}</span>
-      <strong className={`text-[26px] font-bold ${destaque ? "text-sucesso" : "text-navy-900"}`}>{valor}</strong>
+      <strong className={`text-[22px] font-bold sm:text-[26px] ${destaque ? "text-sucesso" : "text-navy-900"}`}>{valor}</strong>
     </article>
   )
 }
 
 export function Numeros({ children }) {
-  return <section className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-4">{children}</section>
+  // Dois por linha no celular: um embaixo do outro, três números ocupavam a tela inteira.
+  return <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(170px,1fr))] sm:gap-4">{children}</section>
 }
 
 /** O que a tela diz quando não há o que mostrar — ou quando não conseguiu buscar. */

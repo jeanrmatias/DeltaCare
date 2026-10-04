@@ -105,6 +105,26 @@ test("toda tela logada começa com o atalho para pular o menu", () => {
   }
 })
 
+test("no celular o menu começa na gaveta fechada, fora do alcance do Tab", () => {
+  logado(ALUNA)
+  const saida = html(h(MemoryRouter, { initialEntries: ["/aluno/materiais"] }, h(SessaoProvider, null, h(DialogosProvider, null, h(App)))))
+  assert.match(saida, /aria-expanded="false" aria-controls="gaveta-menu"/)
+  // Fechada: fora da tela (translate-x-full) e inerte (nem Tab nem leitor de tela).
+  const gaveta = saida.match(/<aside id="gaveta-menu"[^>]*>/)?.[0] ?? ""
+  assert.match(gaveta, /inert=""/)
+  assert.match(gaveta, /translate-x-full/)
+})
+
+test("a logo leva ao início do perfil, de qualquer tela", () => {
+  for (const [usuario, rota, inicio] of [[ALUNA, "/aluno/chat", "/aluno"], [PROFESSOR, "/professor/materiais", "/professor"], [ADM, "/admin/auditoria", "/admin"]]) {
+    logado(usuario)
+    const saida = html(h(MemoryRouter, { initialEntries: [rota] }, h(SessaoProvider, null, h(DialogosProvider, null, h(App)))))
+    const logos = saida.match(/<a [^>]*aria-label="Delta Care — ir para o início"[^>]*>/g) || []
+    assert.equal(logos.length, 2, `${rota}: a logo do computador e a do celular`)
+    for (const logo of logos) assert.match(logo, new RegExp(`href="${inicio}"`), rota)
+  }
+})
+
 test("endereço que não existe diz que não existe", () => {
   logado(null)
   assert.equal(tituloEm("/qualquer-coisa"), "Página não encontrada")
