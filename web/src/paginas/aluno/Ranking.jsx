@@ -41,7 +41,7 @@ export function Ranking() {
           <MinhaPosicao dados={dados} aoMudar={recarregar} />
 
           <Cartao titulo="Topo da turma">
-            <p className="-mt-2 mb-3 text-[13px] text-texto-secundario">Só o topo é mostrado. A posição de cada um, só a própria pessoa vê.</p>
+            <p className="-mt-2 mb-3 text-[14px] text-texto-secundario">Só o topo é mostrado. A posição de cada um, só a própria pessoa vê.</p>
             {dados.topo.length === 0 ? <p className="text-sm text-texto-secundario">Ninguém pontuou neste semestre ainda.</p> : (
               <ol className="flex flex-col gap-1.5">
                 {dados.topo.map((linha) => (
@@ -83,7 +83,7 @@ function Linha({ eu, children }) {
 function SeloDeFaixa({ faixa }) {
   const cores = coresDaFaixa(faixa?.chave)
   return (
-    <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase" style={{ background: cores.escura }}>
+    <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wider text-white uppercase" style={{ background: cores.escura }}>
       {faixa?.nome}
     </span>
   )
@@ -115,7 +115,7 @@ function MinhaPosicao({ dados, aoMudar }) {
         <strong className="text-2xl text-navy-900">{eu.xp > 0 ? `${eu.posicao}º de ${total}` : "Ainda sem pontos"}</strong>
         <SeloDeFaixa faixa={eu.faixa} />
       </div>
-      <p className="mt-1.5 text-[13px] text-texto-secundario">
+      <p className="mt-1.5 text-[14px] text-texto-secundario">
         {eu.xp > 0
           ? `${eu.xp} XP neste semestre · ${eu.xp_semana} nos últimos ${dias} dias`
           : "Abra um material, pergunte ao assistente ou entregue uma atividade para entrar no ranking."}
@@ -124,7 +124,7 @@ function MinhaPosicao({ dados, aoMudar }) {
         <input type="checkbox" checked={eu.aparece} onChange={alternar} disabled={enviando} className="size-4 accent-primaria" />
         Aparecer no ranking da turma
       </label>
-      <p className="mt-1.5 text-[13px] text-texto-secundario">
+      <p className="mt-1.5 text-[14px] text-texto-secundario">
         {eu.aparece
           ? "Os colegas veem seu nome se você estiver no topo."
           : "Os colegas veem \"colega que preferiu não aparecer\" no seu lugar. Sua posição continua visível só para você."}

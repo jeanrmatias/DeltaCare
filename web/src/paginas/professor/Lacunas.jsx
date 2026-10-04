@@ -63,13 +63,13 @@ export function Lacunas() {
           ))}
 
           {disciplina.lacunas.length > 0 && disciplina.ocultas > 0 && (
-            <p className="text-[13px] text-texto-secundario">
+            <p className="text-[14px] text-texto-secundario">
               Mais {disciplina.ocultas} assunto(s) perguntados por um aluno só não aparecem, para proteger quem perguntou.
             </p>
           )}
 
           <Cartao titulo="Como funciona">
-            <ul className="list-disc space-y-1.5 pl-5 text-[13px] leading-relaxed text-texto-secundario">
+            <ul className="list-disc space-y-1.5 pl-5 text-[14px] leading-relaxed text-texto-secundario">
               <li>A cada pergunta, o assistente diz se o material respondeu por inteiro, em parte ou nada, e resume o assunto em poucas palavras.</li>
               <li>Aqui entram as que o material respondeu em parte ou não respondeu, agrupadas por assunto.</li>
               <li>Você nunca vê o texto da pergunta nem quem perguntou. Um assunto só aparece quando pelo menos {dados.min_alunos} alunos diferentes perguntaram.</li>
@@ -102,8 +102,8 @@ function ItemLacuna({ lacuna, disciplina, tipos, aoTratar }) {
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
           <Selo tom={lacuna.tipo === "parcial" ? "alerta" : "perigo"}>{tipos[lacuna.tipo]}</Selo>
         </div>
-        <h3 className="text-base font-bold text-navy-900">{lacuna.assunto}</h3>
-        <p className="mt-1 text-[13px] text-texto-secundario">
+        <h3 className="text-base font-semibold text-navy-900">{lacuna.assunto}</h3>
+        <p className="mt-1 text-[14px] text-texto-secundario">
           {lacuna.alunos} alunos · {lacuna.perguntas} pergunta(s) · a última em {dataComAno(lacuna.ultima_em)}
         </p>
         {lacuna.o_que_falta.length > 0 && (
@@ -112,7 +112,7 @@ function ItemLacuna({ lacuna, disciplina, tipos, aoTratar }) {
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         <Link to={`/professor/materiais?turma=${disciplina.id}`}
-          className="rounded-campo border border-primaria bg-primaria px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-primaria-escura">
+          className="rounded-campo border border-primaria bg-primaria px-3.5 py-2 text-[14px] font-semibold text-white hover:bg-primaria-escura">
           Publicar material
         </Link>
         <Botao variante="neutra" pequeno onClick={tratar}>Já tratei</Botao>

@@ -23,14 +23,14 @@ export function CartaoProgresso({ progresso }) {
             quebrava uma palavra por linha. */}
         <div className="order-last min-w-0 basis-full md:order-none md:flex-1 md:basis-auto">
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <strong className="text-[19px] text-navy-900">{progresso.xp} XP</strong>
-            <span className="text-[12.5px] text-texto-secundario">
+            <strong className="font-numero text-[24px] leading-none font-semibold text-navy-900">{progresso.xp} XP</strong>
+            <span className="text-[13.5px] text-texto-secundario">
               faltam {faltamXp} XP para o nível {progresso.nivel + 1}
             </span>
           </div>
           <div className="h-2.5 overflow-hidden rounded-full bg-fundo">
             <div
-              className="h-full rounded-full bg-linear-to-r from-primaria to-[#5B93FF] transition-[width] duration-500"
+              className="h-full rounded-full bg-marca transition-[width] duration-500"
               style={{ width: `${percentual}%` }}
             />
           </div>
@@ -41,8 +41,8 @@ export function CartaoProgresso({ progresso }) {
         {/* "0 dias seguidos" seria um lembrete de fracasso, não um incentivo. */}
         {progresso.sequencia > 0 && (
           <div className="flex shrink-0 flex-col items-center rounded-bloco bg-alerta-fundo px-4 py-2.5 text-[#92400E]">
-            <strong className="text-[22px] leading-none">{progresso.sequencia}</strong>
-            <span className="mt-0.5 text-[11px] font-semibold">dias seguidos</span>
+            <strong className="font-numero text-[26px] leading-none font-semibold">{progresso.sequencia}</strong>
+            <span className="mt-0.5 text-[12px] font-semibold">dias seguidos</span>
           </div>
         )}
       </div>
@@ -79,12 +79,12 @@ function Escudo({ nivel, faixa, percentual }) {
           className="flex size-full flex-col items-center justify-center gap-px text-white"
           style={{ clipPath: FORMA_DE_ESCUDO, background: `linear-gradient(150deg, ${cores.clara}, ${cores.escura})` }}
         >
-          <span className="text-[9px] font-semibold tracking-widest uppercase opacity-70">Nível</span>
+          <span className="text-[10px] font-semibold tracking-widest uppercase opacity-70">Nível</span>
           <span className="text-2xl leading-none font-bold tabular-nums">{nivel}</span>
         </div>
       </div>
       {faixa && (
-        <span className="text-[11px] font-bold tracking-[0.1em] uppercase" style={{ color: cores.clara }}>
+        <span className="text-[12px] font-bold tracking-[0.1em] uppercase" style={{ color: cores.clara }}>
           {faixa.nome}
         </span>
       )}
@@ -129,7 +129,7 @@ function Composicao({ itens }) {
   return (
     <div>
       {itens.map((item) => (
-        <div key={item.rotulo} className="flex items-center justify-between gap-3 py-[7px] text-[13px]">
+        <div key={item.rotulo} className="flex items-center justify-between gap-3 py-[7px] text-[14px]">
           <span className="text-texto-secundario">{item.rotulo}</span>
           <span className="font-semibold whitespace-nowrap text-texto">
             {item.quantidade} · {item.xp} XP
@@ -155,7 +155,7 @@ function Frequencia({ dias, totalDiasAtivos }) {
               key={entrada.dia}
               title={`${rotulo} — ${estado}`}
               aria-label={`${rotulo}, ${estado}`}
-              className={`size-[18px] rounded border ${entrada.ativo ? "border-primaria bg-primaria" : "border-borda bg-fundo"}`}
+              className={`size-[18px] rounded border ${entrada.ativo ? "border-marca bg-marca" : "border-borda bg-fundo"}`}
             />
           )
         })}

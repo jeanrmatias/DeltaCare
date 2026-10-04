@@ -27,7 +27,7 @@ function Bloco({ bloco }) {
       return (
         // Rola na horizontal: tabela larga não estoura a bolha em tela estreita.
         <div className="mb-2.5 overflow-x-auto last:mb-0">
-          <table className="w-full border-collapse text-[13px]">
+          <table className="w-full border-collapse text-[14px]">
             <thead>
               <tr>{bloco.cabecalho.map((celula, i) => <th key={i} className="border border-borda bg-superficie px-2.5 py-1.5 text-left font-semibold"><Trechos trechos={celula} /></th>)}</tr>
             </thead>
@@ -54,7 +54,7 @@ function Bloco({ bloco }) {
 
 function Trechos({ trechos }) {
   return trechos.map((trecho, i) => {
-    if (trecho.tipo === "codigo") return <code key={i} className="rounded bg-superficie px-1 py-px font-mono text-[12.5px]">{trecho.texto}</code>
+    if (trecho.tipo === "codigo") return <code key={i} className="rounded bg-superficie px-1 py-px font-mono text-[13.5px]">{trecho.texto}</code>
     if (trecho.tipo === "negrito") return <strong key={i}>{trecho.texto}</strong>
     if (trecho.tipo === "italico") return <em key={i}>{trecho.texto}</em>
     return trecho.texto

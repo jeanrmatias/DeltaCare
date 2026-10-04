@@ -83,10 +83,10 @@ function LinhaAtividade({ atividade, aoAbrir }) {
   const detalhes = [atividade.tipo === "objetiva" && `${atividade.total_questoes} questão(ões)`, `vale ${atividade.pontos}`].filter(Boolean)
 
   let prazo = null
-  if (atividade.atrasada) prazo = <p className="mt-1.5 text-[13px] font-semibold text-perigo">Entregue com atraso</p>
+  if (atividade.atrasada) prazo = <p className="mt-1.5 text-[14px] font-semibold text-perigo">Entregue com atraso</p>
   else if (atividade.prazo && venceu(atividade.prazo) && !entregue)
-    prazo = <p className="mt-1.5 text-[13px] font-semibold text-perigo">Prazo venceu em {dataEHora(atividade.prazo)} — ainda dá para entregar, constará como atrasada</p>
-  else if (atividade.prazo) prazo = <p className="mt-1.5 text-[13px] text-texto-secundario">Prazo: {dataEHora(atividade.prazo)}</p>
+    prazo = <p className="mt-1.5 text-[14px] font-semibold text-perigo">Prazo venceu em {dataEHora(atividade.prazo)} — ainda dá para entregar, constará como atrasada</p>
+  else if (atividade.prazo) prazo = <p className="mt-1.5 text-[14px] text-texto-secundario">Prazo: {dataEHora(atividade.prazo)}</p>
 
   return (
     <article className="flex flex-col gap-4 rounded-cartao bg-superficie p-5 shadow-cartao md:flex-row md:items-start md:justify-between">
@@ -95,20 +95,20 @@ function LinhaAtividade({ atividade, aoAbrir }) {
           <Selo>{atividade.tipo === "objetiva" ? "Objetiva" : "Dissertativa"}</Selo>
           <Selo tom={situacao.tom}>{situacao.rotulo}</Selo>
         </div>
-        <h3 className="text-base font-bold text-navy-900">{atividade.titulo}</h3>
+        <h3 className="text-base font-semibold text-navy-900">{atividade.titulo}</h3>
         <p className="mt-1 text-xs font-medium text-primaria">{[atividade.turma_nome, atividade.assunto, atividade.topico].filter(Boolean).join(" · ")}</p>
-        <p className="mt-1 text-[13px] text-texto-secundario">{detalhes.join(" · ")}</p>
+        <p className="mt-1 text-[14px] text-texto-secundario">{detalhes.join(" · ")}</p>
         {prazo}
         {temNota(atividade.nota) && <p className="mt-1.5 text-sm text-texto"><strong className="text-sucesso">Nota {atividade.nota}</strong> de {atividade.pontos}</p>}
         {atividade.devolutiva && <Devolutiva texto={atividade.devolutiva} />}
       </div>
-      <Botao onClick={aoAbrir} className="shrink-0 py-2 text-[13px]">{situacao.acao}</Botao>
+      <Botao onClick={aoAbrir} className="shrink-0 py-2 text-[14px]">{situacao.acao}</Botao>
     </article>
   )
 }
 
 function Devolutiva({ texto }) {
-  return <p className="mt-2 rounded-campo bg-fundo px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-texto">{texto}</p>
+  return <p className="mt-2 rounded-campo bg-fundo px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-texto">{texto}</p>
 }
 
 const LIMITE_ANEXO = 15 * 1024 * 1024
@@ -123,7 +123,7 @@ function Resolver({ atividade, aoFechar, aoEntregar }) {
     <Modal aberto aoFechar={aoFechar} largura="max-w-[720px]" rotulo={atividade.titulo}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-navy-900">{atividade.titulo}</h2>
+          <h2 className="text-lg font-semibold text-navy-900">{atividade.titulo}</h2>
           <p className="text-xs text-texto-secundario">{subtitulo}</p>
         </div>
         <Botao variante="neutra" onClick={aoFechar} className="py-2">Fechar</Botao>
@@ -246,7 +246,7 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
       )}
 
       {!entregue && anexo !== "nenhum" && (
-        <label className="flex flex-col gap-1.5 text-[13px] font-medium text-texto">
+        <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto">
           Arquivo da entrega ({anexo === "obrigatorio" ? "obrigatório" : "opcional"})
           <input type="file" accept={ACEITOS} onChange={escolherArquivo} className="text-sm font-normal" />
           <span className="text-xs font-normal text-texto-secundario">Até 15MB. PDF, documento, imagem, planilha ou apresentação.</span>
@@ -289,7 +289,7 @@ function Resultado({ atividade, entrega }) {
         : <p className="mt-1.5 text-texto-secundario">Aguardando correção do professor.</p>}
       {entrega.devolutiva && <Devolutiva texto={entrega.devolutiva} />}
       {entrega.arquivo_nome && entrega.entrega_id && (
-        <button type="button" onClick={baixarAnexo} className="mt-2 text-[13px] font-semibold text-primaria hover:underline">
+        <button type="button" onClick={baixarAnexo} className="mt-2 text-[14px] font-semibold text-primaria hover:underline">
           Anexo enviado: {entrega.arquivo_nome}
         </button>
       )}

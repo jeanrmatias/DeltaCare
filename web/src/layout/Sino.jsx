@@ -71,7 +71,7 @@ export function Sino() {
         className="relative flex size-10 items-center justify-center rounded-full bg-superficie text-texto shadow-cartao hover:text-primaria">
         <Icone nome="sino" />
         {dados.nao_lidas > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-perigo px-1 text-[10px] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-perigo px-1 text-[11px] font-bold text-white">
             {dados.nao_lidas > 9 ? "9+" : dados.nao_lidas}
           </span>
         )}
@@ -90,9 +90,9 @@ export function Sino() {
               <li key={notificacao.id} className="border-b border-borda last:border-b-0">
                 <button type="button" onClick={() => abrirNotificacao(notificacao)}
                   className={`flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-fundo ${notificacao.lida ? "" : "bg-primaria/5"}`}>
-                  <strong className="text-[13px] text-texto">{notificacao.titulo}</strong>
-                  <span className="text-[13px] text-texto-secundario">{notificacao.mensagem}</span>
-                  <time className="text-[11px] text-texto-secundario">{haQuanto(notificacao.criado_em)}</time>
+                  <strong className="text-[14px] text-texto">{notificacao.titulo}</strong>
+                  <span className="text-[14px] text-texto-secundario">{notificacao.mensagem}</span>
+                  <time className="text-[12px] text-texto-secundario">{haQuanto(notificacao.criado_em)}</time>
                 </button>
               </li>
             ))}

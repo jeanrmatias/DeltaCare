@@ -42,7 +42,7 @@ export function Modal({ aberto, aoFechar, titulo, rotulo, children, largura = "m
     >
       {aberto && (
         <div className="p-6">
-          {titulo && <h2 id={idDoTitulo} className="mb-3 text-lg font-bold text-navy-900">{titulo}</h2>}
+          {titulo && <h2 id={idDoTitulo} className="mb-3 text-lg font-semibold text-navy-900">{titulo}</h2>}
           {children}
         </div>
       )}

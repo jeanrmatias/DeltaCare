@@ -101,7 +101,7 @@ function Filtros({ materiais, filtros, aoMudar }) {
   const mudar = (campo) => (evento) => aoMudar({ ...filtros, [campo]: evento.target.value })
 
   const seletor = (rotulo, campo, opcoes) => (
-    <label className="flex min-w-[150px] flex-1 flex-col gap-1.5 text-[13px] font-medium text-texto">
+    <label className="flex min-w-[150px] flex-1 flex-col gap-1.5 text-[14px] font-medium text-texto">
       {rotulo}
       <select value={filtros[campo]} onChange={mudar(campo)}
         className="rounded-campo border border-borda-campo bg-superficie px-3 py-2 text-sm font-normal outline-none focus:border-primaria">

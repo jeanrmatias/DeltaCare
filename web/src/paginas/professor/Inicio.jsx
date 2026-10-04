@@ -132,7 +132,7 @@ export function InicioProfessor() {
 }
 
 const classeAcaoPrimaria =
-  "inline-flex w-full justify-center rounded-campo bg-primaria px-3.5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-primaria-escura"
+  "inline-flex w-full justify-center rounded-campo bg-primaria px-3.5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-primaria-escura"
 
 function hojePorExtenso() {
   const texto = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
@@ -145,11 +145,11 @@ function CartaoDisciplina({ turma }) {
 
   return (
     <article className="rounded-cartao border border-borda p-4">
-      <h3 className="text-[17px] font-bold text-navy-900">{turma.nome}</h3>
+      <h3 className="text-[17px] font-semibold text-navy-900">{turma.nome}</h3>
       <span className="mt-1 inline-block rounded-campo bg-fundo px-2 py-0.5 text-xs font-semibold text-texto-secundario">
         {turma.semestre}
       </span>
-      <p className="mt-3 mb-3.5 text-[13px] text-texto-secundario">
+      <p className="mt-3 mb-3.5 text-[14px] text-texto-secundario">
         {alunos} aluno{alunos === 1 ? "" : "s"} · {publicados} materia{publicados === 1 ? "l" : "is"}
       </p>
       <Link to={`/professor/materiais?turma=${turma.id}`} className={classeAcaoPrimaria}>
@@ -161,7 +161,7 @@ function CartaoDisciplina({ turma }) {
 
 function MateriaisRecentes({ materiais }) {
   if (!materiais.length) {
-    return <p className="py-3.5 text-[13px] text-texto-secundario">Você ainda não publicou nenhum material.</p>
+    return <p className="py-3.5 text-[14px] text-texto-secundario">Você ainda não publicou nenhum material.</p>
   }
 
   return (
@@ -172,7 +172,7 @@ function MateriaisRecentes({ materiais }) {
           <li key={material.id} className="flex items-start gap-2.5 border-b border-borda py-2.5 last:border-b-0">
             <Selo tom={status.tom}>{status.rotulo}</Selo>
             <div className="flex min-w-0 flex-col gap-0.5">
-              <strong className="text-[13.5px] leading-snug font-semibold text-texto">{material.titulo}</strong>
+              <strong className="text-[14.5px] leading-snug font-semibold text-texto">{material.titulo}</strong>
               <span className="text-xs text-texto-secundario">
                 {[ROTULOS_TIPO_MATERIAL[material.tipo] || material.tipo, material.turma_nome, dataCurta(material.criado_em)]
                   .filter(Boolean)

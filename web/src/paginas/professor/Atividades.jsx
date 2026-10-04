@@ -96,11 +96,11 @@ function LinhaAtividade({ atividade, aoEditar, aoExcluir, aoCorrigir }) {
           <Selo>{atividade.tipo === "objetiva" ? "Objetiva" : "Dissertativa"}</Selo>
           <Selo tom={status.tom}>{status.rotulo}</Selo>
         </div>
-        <h3 className="font-bold text-navy-900">{atividade.titulo}</h3>
+        <h3 className="text-[17px] font-semibold text-navy-900">{atividade.titulo}</h3>
         {(atividade.assunto || atividade.topico) && <p className="mt-1 text-xs font-medium text-primaria">{[atividade.assunto, atividade.topico].filter(Boolean).join(" · ")}</p>}
-        <p className="mt-1 text-[13px] text-texto-secundario">{detalhes.join(" · ")}</p>
+        <p className="mt-1 text-[14px] text-texto-secundario">{detalhes.join(" · ")}</p>
         {atividade.status === "publicado" && (
-          <p className="mt-1.5 text-[13px] text-texto">
+          <p className="mt-1.5 text-[14px] text-texto">
             <strong>{atividade.entregues}</strong> de {atividade.total_alunos} entregaram
             {atividade.a_corrigir > 0 && <span className="font-semibold text-perigo"> · {atividade.a_corrigir} a corrigir</span>}
           </p>
@@ -211,7 +211,7 @@ function EditorDeQuestoes({ questoes, aoMudar }) {
 
   return (
     <fieldset className="flex flex-col gap-3">
-      <legend className="mb-1.5 text-[13px] font-medium text-texto">Questões — marque a alternativa correta de cada uma</legend>
+      <legend className="mb-1.5 text-[14px] font-medium text-texto">Questões — marque a alternativa correta de cada uma</legend>
       {questoes.map((questao, indice) => (
         <div key={indice} className="rounded-bloco border border-borda p-4">
           <div className="mb-2 flex items-center justify-between">
@@ -260,7 +260,7 @@ function PainelEntregas({ atividade, aoFechar }) {
       <Modal aberto={!corrigindo} aoFechar={aoFechar} largura="max-w-[760px]" rotulo={`Entregas · ${atividade.titulo}`}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-navy-900">{atividade.titulo}</h2>
+            <h2 className="text-lg font-semibold text-navy-900">{atividade.titulo}</h2>
             <p className="text-xs text-texto-secundario">{[atividade.turma_nome, `vale ${atividade.pontos}`, atividade.prazo && `prazo ${dataEHora(atividade.prazo)}`].filter(Boolean).join(" · ")}</p>
           </div>
           <Botao variante="neutra" pequeno onClick={aoFechar}>Fechar</Botao>
@@ -307,13 +307,13 @@ function LinhaEntrega({ entrega, questoes, aoCorrigir }) {
           {entrega.atrasada && <span className="font-semibold text-perigo">entregue com atraso</span>}
         </div>
         {entrega.entregue && typeof entrega.respostas === "string" && entrega.respostas && (
-          <p className="mt-2 rounded-campo bg-fundo px-3 py-2 text-[13px] whitespace-pre-wrap text-texto">{entrega.respostas}</p>
+          <p className="mt-2 rounded-campo bg-fundo px-3 py-2 text-[14px] whitespace-pre-wrap text-texto">{entrega.respostas}</p>
         )}
         {entrega.entregue && Array.isArray(entrega.respostas) && <GabaritoDoAluno questoes={questoes} escolhas={entrega.respostas} />}
         {entrega.arquivo_nome && (
-          <button type="button" onClick={baixarAnexo} className="mt-2 text-[13px] font-semibold text-primaria hover:underline">Anexo: {entrega.arquivo_nome}</button>
+          <button type="button" onClick={baixarAnexo} className="mt-2 text-[14px] font-semibold text-primaria hover:underline">Anexo: {entrega.arquivo_nome}</button>
         )}
-        {entrega.devolutiva && <p className="mt-2 text-[13px] text-texto-secundario italic">Devolutiva: {entrega.devolutiva}</p>}
+        {entrega.devolutiva && <p className="mt-2 text-[14px] text-texto-secundario italic">Devolutiva: {entrega.devolutiva}</p>}
       </div>
       {entrega.entregue && <Botao pequeno variante={temNota ? "neutra" : "primaria"} onClick={aoCorrigir} className="shrink-0">{temNota ? "Rever nota" : "Corrigir"}</Botao>}
     </article>
@@ -334,7 +334,7 @@ function GabaritoDoAluno({ questoes, escolhas }) {
         const respondeu = marcada !== null && marcada !== undefined
         const acertou = respondeu && marcada === questao.correta
         return (
-          <li key={indice} className={`flex gap-2 rounded-campo px-3 py-1.5 text-[13px] ${acertou ? "bg-sucesso-fundo" : "bg-perigo-fundo"}`}>
+          <li key={indice} className={`flex gap-2 rounded-campo px-3 py-1.5 text-[14px] ${acertou ? "bg-sucesso-fundo" : "bg-perigo-fundo"}`}>
             <span aria-hidden="true" className={acertou ? "text-sucesso" : "text-perigo"}>{acertou ? "✓" : "✗"}</span>
             <span>
               <strong>{indice + 1}.</strong> {questao.enunciado}

@@ -50,14 +50,14 @@ export function Desempenho() {
 
           {dados.topicos.length > 0 && (
             <Cartao titulo="Onde você mais erra">
-              <p className="-mt-2 mb-4 text-[13px] text-texto-secundario">Sai das questões objetivas que você respondeu. Serve para decidir o que revisar primeiro.</p>
+              <p className="-mt-2 mb-4 text-[14px] text-texto-secundario">Sai das questões objetivas que você respondeu. Serve para decidir o que revisar primeiro.</p>
               <BarrasDeErro topicos={dados.topicos} detalhe={(t) => `${t.erros} de ${t.total} questão(ões) você errou`} />
             </Cartao>
           )}
 
           {dados.evolucao.length >= 2 && (
             <Cartao titulo="Evolução">
-              <p className="-mt-2 mb-4 text-[13px] text-texto-secundario">Cada coluna é uma atividade corrigida, na ordem em que você entregou.</p>
+              <p className="-mt-2 mb-4 text-[14px] text-texto-secundario">Cada coluna é uma atividade corrigida, na ordem em que você entregou.</p>
               <Evolucao pontos={dados.evolucao} />
             </Cartao>
           )}

@@ -26,13 +26,14 @@ export function Login() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
-      <div className="w-full max-w-[420px] rounded-cartao bg-superficie px-6 py-7 shadow-cartao">
-        <div className="mb-2 flex items-center justify-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-campo bg-primaria text-white">
+      <div className="w-full max-w-[420px] rounded-cartao bg-superficie px-7 py-8 shadow-cartao">
+        <div className="mb-1 flex items-center justify-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-campo bg-marca text-white">
             <Icone nome="marca" />
           </span>
-          <h1 className="text-[26px] font-bold text-navy-900">Delta Care</h1>
+          <h1 className="text-[32px] font-semibold tracking-tight text-navy-900">Delta Care</h1>
         </div>
+        <p className="mb-3 text-center font-titulo text-[15px] text-texto-secundario italic">Estudo com o material do seu professor</p>
 
         {etapa === "entrar" && (
           <FormularioEntrar email={email} setEmail={setEmail} aoEsquecer={() => setEtapa("pedir")}
@@ -54,7 +55,7 @@ export function Login() {
         )}
       </div>
 
-      <nav aria-label="Documentos" className="flex gap-4 text-[13px] font-medium text-texto-secundario">
+      <nav aria-label="Documentos" className="flex gap-4 text-[14px] font-medium text-texto-secundario">
         <Link to="/privacidade" className="hover:text-primaria">Privacidade e uso de dados</Link>
         <Link to="/termos" className="hover:text-primaria">Termos de uso</Link>
       </nav>
@@ -68,7 +69,7 @@ function Subtitulo({ children }) {
 
 function Mensagem({ texto, sucesso = false }) {
   return (
-    <p role="alert" className={`mt-4 min-h-5 text-center text-[13px] font-medium ${sucesso ? "text-sucesso" : "text-perigo"}`}>
+    <p role="alert" className={`mt-4 min-h-5 text-center text-[14px] font-medium ${sucesso ? "text-sucesso" : "text-perigo"}`}>
       {texto}
     </p>
   )
@@ -76,7 +77,7 @@ function Mensagem({ texto, sucesso = false }) {
 
 function LinkDeTexto({ children, onClick }) {
   return (
-    <button type="button" onClick={onClick} className="mt-4 block w-full text-center text-[13px] font-medium text-primaria hover:underline">
+    <button type="button" onClick={onClick} className="mt-4 block w-full text-center text-[14px] font-medium text-primaria hover:underline">
       {children}
     </button>
   )

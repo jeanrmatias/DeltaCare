@@ -50,7 +50,7 @@ export function Visualizador({ material, caminho, aoFechar }) {
           {/* O Chrome do Android não mostra PDF dentro da página (e o iPhone,
               só a primeira folha): em outra aba, abre o leitor do aparelho. */}
           {estado.url && mime === "application/pdf" && (
-            <a href={estado.url} target="_blank" rel="noopener" className="text-[13px] font-semibold text-primaria hover:underline">
+            <a href={estado.url} target="_blank" rel="noopener" className="text-[14px] font-semibold text-primaria hover:underline">
               Abrir em outra aba
             </a>
           )}

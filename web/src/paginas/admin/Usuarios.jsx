@@ -79,8 +79,8 @@ export function Usuarios() {
                   {conta.desativado && <Selo tom="perigo">Desativada · anonimiza em {dataComAno(conta.anonimizar_em)}</Selo>}
                   {conta.email === usuario.email && <span className="text-xs font-semibold text-texto-secundario">você</span>}
                 </div>
-                <h3 className="font-bold text-navy-900">{conta.nome || conta.email}</h3>
-                <p className="text-[13px] text-texto-secundario">{conta.email}</p>
+                <h3 className="text-[17px] font-semibold text-navy-900">{conta.nome || conta.email}</h3>
+                <p className="text-[14px] text-texto-secundario">{conta.email}</p>
                 <p className="mt-0.5 text-xs font-medium text-primaria">{vinculo(conta)}</p>
               </div>
               {conta.tipo !== "adm" && !conta.desativado && (
@@ -202,7 +202,7 @@ function NovaConta({ turmas, aoFechar, aoCriar }) {
 
   return (
     <Cartao titulo="Nova conta" className="mb-5">
-      <p className="mb-4 text-[13px] text-texto-secundario">Toda conta nasce aqui ou pela importação da planilha, inclusive a de aluno: não existe cadastro pela tela de login.</p>
+      <p className="mb-4 text-[14px] text-texto-secundario">Toda conta nasce aqui ou pela importação da planilha, inclusive a de aluno: não existe cadastro pela tela de login.</p>
       <form onSubmit={criar} className="grid gap-4 sm:grid-cols-2">
         <Texto rotulo="Nome completo" valor={campos.nome} aoMudar={mudar("nome")} placeholder="Ex.: Ana Paula Ribeiro" obrigatorio />
         <Escolha rotulo="Perfil" valor={campos.tipo} aoMudar={mudar("tipo")} opcoes={[{ valor: "aluno", rotulo: "Aluno" }, { valor: "professor", rotulo: "Professor" }, { valor: "adm", rotulo: "Administrador" }]} />
@@ -304,12 +304,12 @@ function Importacao({ turmas, aoFechar, aoImportar }) {
 
   return (
     <Cartao titulo="Importar alunos de uma planilha" className="mb-5">
-      <p className="mb-4 text-[13px] text-texto-secundario">
+      <p className="mb-4 text-[14px] text-texto-secundario">
         Aceita <strong>.csv</strong> e <strong>.xlsx</strong>. A planilha precisa ter uma coluna de nome e uma de e-mail; matrícula é opcional.
         O cabeçalho pode estar escrito de várias formas ("Nome Completo", "Aluno", "E-mail", "RA").
       </p>
       <form onSubmit={importar} className="grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5 text-[13px] font-medium text-texto">
+        <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto">
           Planilha
           <input type="file" accept=".csv,.xlsx,.xlsm" required onChange={(e) => { setArquivo(e.target.files?.[0] || null); setRelatorio(null); setMensagem({ texto: "" }) }}
             className="text-sm font-normal" />
@@ -336,7 +336,7 @@ function Importacao({ turmas, aoFechar, aoImportar }) {
           {rejeitados.length > 0 && (
             <ul className="mt-3 flex flex-col gap-1.5">
               {rejeitados.map((item) => (
-                <li key={item.linha} className="rounded-campo bg-perigo-fundo px-3 py-1.5 text-[13px]">
+                <li key={item.linha} className="rounded-campo bg-perigo-fundo px-3 py-1.5 text-[14px]">
                   <strong>Linha {item.linha}</strong> — {[item.email || item.nome, item.motivo].filter(Boolean).join(" — ")}
                 </li>
               ))}

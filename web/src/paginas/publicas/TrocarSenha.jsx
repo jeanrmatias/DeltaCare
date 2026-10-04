@@ -24,7 +24,7 @@ export function TrocarSenha() {
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-[420px] rounded-cartao bg-superficie px-6 py-7 shadow-cartao">
-        <h1 className="text-xl font-bold text-navy-900">Defina a sua senha</h1>
+        <h1 className="text-[26px] font-semibold tracking-tight text-navy-900">Defina a sua senha</h1>
         <p className="mt-2 mb-5 text-sm leading-relaxed text-texto-secundario">
           Você entrou com a senha provisória que recebeu da secretaria. Antes de continuar, escolha uma senha só sua.
         </p>

@@ -9,15 +9,38 @@
  * `--radius-cartao` vira `rounded-cartao`. Os nomes ficam em português, como
  * o resto do projeto.
  *
- * Contraste (WCAG AA, Sprint 4): os tons vieram do frontend/tokens.css e
- * alguns não passavam em texto pequeno — o azul dos links e botões (4,45:1),
- * o cinza das descrições sobre o fundo da página (4,44), o vermelho das
- * mensagens de erro (3,76), o verde (3,30) — nem no contorno dos campos
- * (1,35, para um mínimo de 3). Cada um foi escurecido só até passar, no mesmo
- * matiz. O mínimo é 4,5:1 para texto e 3:1 para contorno e ícone.
+ * **As cores são as da marca do hospital, e não mudam.** O que o redesign
+ * da Sprint 4 mudou foi a tipografia e as superfícies (direção "editorial
+ * clínico": títulos em serifada de leitura, contorno fino no lugar de
+ * sombra, cantos menores).
+ *
+ * Contraste (WCAG AA): alguns tons da marca não passam em texto pequeno — o
+ * azul (4,45:1 no branco), o cinza das descrições sobre o fundo (4,44), o
+ * vermelho (3,76), o verde (3,30). Por isso há dois de cada:
+ * - `marca-*`: a cor **exata** da marca, nas superfícies sem texto pequeno em
+ *   cima — logo, barras, gráficos, ícones, anel de foco (o mínimo ali é 3:1);
+ * - `primaria`, `texto-secundario`, `perigo`, `sucesso`: o mesmo matiz
+ *   escurecido só até passar 4,5:1, em texto e botões.
+ * O teste web/testes/contraste.test.js confere os dois grupos.
  */
 @theme {
-  --font-sans: "Inter", sans-serif;
+  /* Texto em Source Sans 3; títulos e números em Literata, uma serifada de
+     leitura — cara de material de estudo, e não de painel de sistema. */
+  --font-sans: "Source Sans 3", "Segoe UI", sans-serif;
+  --font-titulo: "Literata", Georgia, serif;
+  --font-numero: "Literata", Georgia, serif;
+
+  /* A Source Sans é menor que a Inter no mesmo tamanho (olho menor): a
+     escala sobe um degrau para o texto continuar tão legível quanto antes. */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.1875rem;
+
+  --color-marca: #2F70F2;
+  --color-marca-cinza: #64748B;
+  --color-marca-perigo: #EF4444;
+  --color-marca-sucesso: #16A34A;
 
   --color-navy-900: #0D1D3A;
   --color-navy-800: #102542;
@@ -46,11 +69,13 @@
   --color-alerta-forte: #D97706;
   --color-alerta-fundo: #FEF3C7;
 
-  --radius-campo: 8px;
-  --radius-bloco: 12px;
-  --radius-cartao: 16px;
+  /* Cantos menores e contorno fino: a sombra suave em tudo, com canto de
+     16px, era a assinatura de painel genérico. */
+  --radius-campo: 6px;
+  --radius-bloco: 8px;
+  --radius-cartao: 10px;
 
-  --shadow-cartao: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-cartao: 0 0 0 1px var(--color-borda);
 
   /* A troca de tela: um esmaecer curto, subindo 6px. Leve de propósito —
      fluidez, não espetáculo; quem pede menos movimento no sistema não vê. */
@@ -71,6 +96,20 @@
 @layer base {
   body {
     @apply bg-fundo text-texto font-sans antialiased;
+  }
+
+  /* Títulos na serifada; números alinhados em coluna (tabela, XP, notas). */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titulo);
+    letter-spacing: -0.01em;
+  }
+
+  .font-numero,
+  td,
+  strong {
+    font-variant-numeric: tabular-nums;
   }
 
   /*
@@ -199,6 +238,6 @@
  * `:focus-visible` só aparece no teclado — o clique do mouse não ganha anel.
  */
 :focus-visible {
-  outline: 2px solid var(--color-primaria);
+  outline: 2px solid var(--color-marca);
   outline-offset: 2px;
 }

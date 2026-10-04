@@ -84,8 +84,8 @@ export function Painel() {
 function Marca({ para, className = "" }) {
   return (
     <Link to={para} aria-label="Delta Care — ir para o início"
-      className={`flex items-center gap-2.5 rounded-campo px-2 text-[17px] font-bold text-white transition hover:opacity-90 ${className}`}>
-      <span className="flex size-[30px] items-center justify-center rounded-campo bg-primaria">
+      className={`flex items-center gap-2.5 rounded-campo px-2 font-titulo text-[19px] font-semibold tracking-tight text-white transition hover:opacity-90 ${className}`}>
+      <span className="flex size-[30px] items-center justify-center rounded-campo bg-marca">
         <Icone nome="marca" />
       </span>
       Delta Care
@@ -104,8 +104,11 @@ function ItensDoMenu({ tipo, aoEscolher }) {
           onClick={aoEscolher}
           className={({ isActive }) =>
             [
-              "flex items-center gap-2.5 rounded-campo px-2.5 py-2 text-sm font-medium transition-colors duration-150",
-              isActive ? "bg-primaria text-white" : "text-texto-inverso/75 hover:bg-navy-700 hover:text-white",
+              "flex items-center gap-2.5 rounded-campo border-l-[3px] px-2.5 py-2 text-sm font-medium transition-colors duration-150",
+              // Ativo: a barra na cor exata da marca e o texto branco sobre o
+              // azul-marinho — branco direto no azul da marca não passaria
+              // no contraste de texto (4,45:1).
+              isActive ? "border-marca bg-navy-700 font-semibold text-white" : "border-transparent text-texto-inverso/75 hover:bg-navy-800 hover:text-white",
             ].join(" ")
           }
         >
@@ -122,7 +125,7 @@ function Rodape({ aoVerPerfil }) {
   const nome = nomeExibicao(usuario)
   return (
     <footer className="mt-4 flex items-center gap-2.5 border-t border-navy-700 px-2 pt-2.5 pb-1">
-      <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-primaria text-[13px] font-bold text-white">
+      <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-navy-700 text-[14px] font-semibold text-white ring-1 ring-marca">
         {iniciaisDe(nome)}
       </span>
       <div className="min-w-0">
@@ -245,8 +248,8 @@ export function Cabecalho({ titulo, descricao, children }) {
   return (
     <header className="mb-6 flex flex-wrap items-start justify-between gap-5 pr-14">
       <div>
-        <h1 className="text-2xl font-bold text-navy-900">{titulo}</h1>
-        {descricao && <p className="mt-1 text-[13px] text-texto-secundario">{descricao}</p>}
+        <h1 className="text-[28px] leading-tight font-semibold text-navy-900 sm:text-[32px]">{titulo}</h1>
+        {descricao && <p className="mt-1.5 max-w-2xl text-[15px] text-texto-secundario">{descricao}</p>}
       </div>
       {/* Quebra linha no celular: busca, seletor e botões lado a lado não cabem em 390 px. */}
       {children && <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">{children}</div>}

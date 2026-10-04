@@ -63,8 +63,8 @@ export function Turmas() {
             <div key={coorte.id} className="rounded-cartao bg-superficie shadow-cartao">
               <article className="flex flex-col gap-3 p-5 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <h3 className="font-bold text-navy-900">{coorte.nome} · {coorte.semestre}</h3>
-                  <p className="mt-1 text-[13px] text-texto-secundario">
+                  <h3 className="text-[17px] font-semibold text-navy-900">{coorte.nome} · {coorte.semestre}</h3>
+                  <p className="mt-1 text-[14px] text-texto-secundario">
                     {contar(coorte.total_alunos, "aluno", "alunos")} · {contar(coorte.total_disciplinas, "disciplina", "disciplinas")}
                   </p>
                 </div>
@@ -109,8 +109,8 @@ function SemestreVigente() {
 
   return (
     <Cartao titulo="Semestre vigente">
-      <p className="text-2xl font-bold text-navy-900">{dados?.semestre ?? "—"}</p>
-      <p className="mt-1 text-[13px] text-texto-secundario">
+      <p className="font-numero text-[28px] font-semibold text-navy-900">{dados?.semestre ?? "—"}</p>
+      <p className="mt-1 text-[14px] text-texto-secundario">
         {dados?.definido_pela_administracao ? "Definido pela administração." : "Pelo calendário (jan–jun é o 1º, jul–dez o 2º). Vira sozinho se ninguém definir."}
       </p>
       <form onSubmit={virar} className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -201,7 +201,7 @@ function PainelDaTurma({ coorte, aoMudar }) {
   return (
     <div className="border-t border-borda px-5 py-4">
       <h4 className="mb-1 text-sm font-semibold text-navy-900">{coorte.nome} · alunos e disciplinas</h4>
-      <p className="mb-3 text-[13px] text-texto-secundario">
+      <p className="mb-3 text-[14px] text-texto-secundario">
         {disciplinas.dados && !listaDisciplinas.length
           ? <>Esta turma ainda não tem disciplinas. Crie uma em <Link to="/admin/disciplinas" className="font-semibold text-primaria">Disciplinas</Link> apontando para esta turma — os alunos que já estiverem aqui entram nela automaticamente.</>
           : `Disciplinas: ${listaDisciplinas.map((d) => `${d.nome} (Prof. ${d.professor_nome})`).join(", ")}`}

@@ -21,7 +21,7 @@ export function Botao({ children, variante = "primaria", tipo = "button", largo 
       disabled={desativado}
       className={[
         "rounded-campo font-semibold transition active:scale-[0.98]",
-        pequeno ? "px-3.5 py-2 text-[13px]" : "px-4 py-3 text-sm",
+        pequeno ? "px-3.5 py-2 text-[14px]" : "px-4 py-3 text-sm",
         "disabled:cursor-not-allowed disabled:bg-texto-secundario disabled:text-white disabled:active:scale-100",
         VARIANTES[variante],
         largo ? "w-full" : "",

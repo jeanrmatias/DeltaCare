@@ -82,7 +82,7 @@ export function PrivacidadeAdmin() {
             <Numero rotulo="Contas desativadas" valor={contagem.agendada || 0} />
             <Numero rotulo="Concluídos" valor={contagem.concluida || 0} destaque />
           </Numeros>
-          <p className="mb-5 max-w-3xl text-[13px] leading-relaxed text-texto-secundario">
+          <p className="mb-5 max-w-3xl text-[14px] leading-relaxed text-texto-secundario">
             A cópia dos dados o aluno baixa sozinho, por isso não aparece aqui. Correção e exclusão esperam a sua decisão.
             Exclusão aprovada desativa a conta na hora; os dados pessoais são anonimizados {dados.prazo_anonimizacao_dias} dias
             depois, e até lá dá para reverter.
@@ -108,18 +108,18 @@ export function PrivacidadeAdmin() {
                   </span>
                   <Selo tom={situacao.tom}>{situacao.rotulo}</Selo>
                 </div>
-                <h3 className="font-bold text-navy-900">{pedido.campo_rotulo ? `${pedido.tipo_rotulo}: ${pedido.campo_rotulo}` : pedido.tipo_rotulo}</h3>
+                <h3 className="text-[17px] font-semibold text-navy-900">{pedido.campo_rotulo ? `${pedido.tipo_rotulo}: ${pedido.campo_rotulo}` : pedido.tipo_rotulo}</h3>
                 {/* O valor de hoje ao lado do pedido: aprovar sem ver o que vai ser trocado é aprovar no escuro. */}
                 {pedido.tipo === "correcao" && pedido.valor_novo && (
-                  <p className="mt-1 text-[13px] text-texto">Hoje: <strong>{pedido.valor_atual || "(vazio)"}</strong> → Pedido: <strong>{pedido.valor_novo}</strong></p>
+                  <p className="mt-1 text-[14px] text-texto">Hoje: <strong>{pedido.valor_atual || "(vazio)"}</strong> → Pedido: <strong>{pedido.valor_novo}</strong></p>
                 )}
-                {pedido.origem === "administracao" && <p className="mt-1 text-[13px] text-texto-secundario">Excluída pela administração.</p>}
+                {pedido.origem === "administracao" && <p className="mt-1 text-[14px] text-texto-secundario">Excluída pela administração.</p>}
                 {pedido.motivo && (
-                  <p className="mt-1 text-[13px] text-texto-secundario">{pedido.origem === "administracao" ? "Motivo registrado" : "Motivo do aluno"}: {pedido.motivo}</p>
+                  <p className="mt-1 text-[14px] text-texto-secundario">{pedido.origem === "administracao" ? "Motivo registrado" : "Motivo do aluno"}: {pedido.motivo}</p>
                 )}
-                {pedido.resposta && <p className="mt-1 text-[13px] text-texto-secundario">Resposta: {pedido.resposta}</p>}
+                {pedido.resposta && <p className="mt-1 text-[14px] text-texto-secundario">Resposta: {pedido.resposta}</p>}
                 {pedido.status === "agendada" && pedido.anonimizar_em && (
-                  <p className="mt-1 text-[13px] font-semibold text-perigo">Anonimização em {dataComAno(pedido.anonimizar_em)}.</p>
+                  <p className="mt-1 text-[14px] font-semibold text-perigo">Anonimização em {dataComAno(pedido.anonimizar_em)}.</p>
                 )}
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">

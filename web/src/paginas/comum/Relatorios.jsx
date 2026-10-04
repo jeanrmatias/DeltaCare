@@ -97,7 +97,7 @@ function AoVivo({ coorteId }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-[13px] text-texto-secundario" aria-live="polite">
+      <p className="text-[14px] text-texto-secundario" aria-live="polite">
         Atualiza sozinho a cada 30 segundos · última leitura: {dataEHora(dados.gerado_em)}
       </p>
       <Numeros>
@@ -160,7 +160,7 @@ function AoVivo({ coorteId }) {
 function Barra({ valor, rotulo }) {
   return (
     <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-fundo" role="img" aria-label={rotulo}>
-      <div className="h-full rounded-full bg-primaria" style={{ width: `${Math.min(100, Math.max(0, valor))}%` }} />
+      <div className="h-full rounded-full bg-marca" style={{ width: `${Math.min(100, Math.max(0, valor))}%` }} />
     </div>
   )
 }
@@ -190,7 +190,7 @@ function Mensal({ coorteId }) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className="flex flex-col gap-1.5 text-[13px] font-medium text-texto">
+        <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto">
           Ver
           <select value={disciplina} onChange={(e) => setDisciplina(e.target.value)}
             className="rounded-campo border border-borda-campo bg-superficie px-3 py-2 text-sm font-normal outline-none focus:border-primaria">
@@ -233,7 +233,7 @@ function Mensal({ coorteId }) {
       </Cartao>
 
       <Cartao titulo="Como cada número é calculado">
-        <ul className="list-disc space-y-1.5 pl-5 text-[13px] leading-relaxed text-texto-secundario">
+        <ul className="list-disc space-y-1.5 pl-5 text-[14px] leading-relaxed text-texto-secundario">
           <li><strong>Aproveitamento:</strong> média de nota sobre pontos das atividades corrigidas, no mês em que o aluno entregou.</li>
           <li><strong>Entregas:</strong> atividades com prazo no mês, uma por aluno matriculado — no prazo, atrasada, ou não entregue (prazo vencido). Atividade sem prazo não entra; aluno que saiu da instituição também não.</li>
           <li><strong>Alunos ativos:</strong> quem abriu material, perguntou ao assistente ou entregou atividade no mês. Dias de estudo: quantos dias diferentes, em média, por aluno ativo.</li>
@@ -254,12 +254,12 @@ function BarrasDoMes({ meses, limite }) {
           aria-label={`${m.rotulo}: ${m.valor === null ? "sem nota" : `${m.valor}%`}`}>
           <div className="flex h-36 w-8 items-end overflow-hidden rounded-campo bg-fundo">
             {m.valor !== null && (
-              <div className={`w-full rounded-campo ${m.valor >= limite ? "bg-sucesso" : "bg-alerta"}`} style={{ height: `${Math.max(m.valor, 3)}%` }} />
+              <div className={`w-full rounded-campo ${m.valor >= limite ? "bg-marca-sucesso" : "bg-alerta"}`} style={{ height: `${Math.max(m.valor, 3)}%` }} />
             )}
           </div>
-          <span className="text-[11px] font-semibold text-texto">{ou(m.valor, "%")}</span>
-          <span className="text-[11px] text-texto-secundario">{m.rotulo}</span>
-          <span className="text-[10px] text-texto-secundario">{m.detalhe}</span>
+          <span className="text-[12px] font-semibold text-texto">{ou(m.valor, "%")}</span>
+          <span className="text-[12px] text-texto-secundario">{m.rotulo}</span>
+          <span className="text-[11px] text-texto-secundario">{m.detalhe}</span>
         </div>
       ))}
     </div>
@@ -280,7 +280,7 @@ function Dificuldade() {
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="max-w-3xl text-[13px] leading-relaxed text-texto-secundario">
+      <p className="max-w-3xl text-[14px] leading-relaxed text-texto-secundario">
         Disciplinas do semestre {dados.semestre}, da de <strong>menor aproveitamento</strong> para a de maior. Não há nota composta: atraso,
         entrega que não veio e pergunta que o material não respondeu aparecem ao lado, cada uma com o seu número — uma disciplina pode ter
         nota boa e metade das entregas faltando. Sem nome de aluno.
@@ -290,8 +290,8 @@ function Dificuldade() {
           <article key={d.id} className="rounded-cartao bg-superficie p-5 shadow-cartao">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className="font-bold text-navy-900">{d.aproveitamento !== null ? `${posicao + 1}. ` : ""}{d.nome}</h3>
-                <p className="text-[13px] text-texto-secundario">{[d.turma, d.professor, `${d.alunos} aluno(s)`].filter(Boolean).join(" · ")}</p>
+                <h3 className="text-[17px] font-semibold text-navy-900">{d.aproveitamento !== null ? `${posicao + 1}. ` : ""}{d.nome}</h3>
+                <p className="text-[14px] text-texto-secundario">{[d.turma, d.professor, `${d.alunos} aluno(s)`].filter(Boolean).join(" · ")}</p>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {d.aproveitamento === null && <Selo>Sem nota corrigida</Selo>}

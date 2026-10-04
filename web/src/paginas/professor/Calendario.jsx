@@ -53,7 +53,7 @@ export function Calendario() {
       {turmas.dados && lista.length === 0 && <EstadoVazio>Você ainda não tem disciplinas atribuídas.</EstadoVazio>}
 
       {conflitos.length > 0 && (
-        <p className="mb-5 rounded-campo border-l-3 border-alerta bg-alerta-fundo px-4 py-3 text-[13.5px] text-texto">
+        <p className="mb-5 rounded-campo border-l-3 border-alerta bg-alerta-fundo px-4 py-3 text-[14.5px] text-texto">
           {conflitos.length === 1
             ? `Atenção: há mais de uma entrega marcada para ${rotuloLongo(conflitos[0])}.`
             : `Atenção: há mais de uma entrega marcada nestes dias — ${conflitos.map(rotuloLongo).join(", ")}.`}
@@ -65,7 +65,7 @@ export function Calendario() {
           <Cartao>
             <div className="mb-3 flex items-center justify-between">
               <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)} className="rounded-campo px-3 py-1 text-xl hover:bg-fundo">‹</button>
-              <h2 className="text-base font-bold text-navy-900">{MESES[mes.getMonth()]} de {mes.getFullYear()}</h2>
+              <h2 className="text-base font-semibold text-navy-900">{MESES[mes.getMonth()]} de {mes.getFullYear()}</h2>
               <button type="button" aria-label="Próximo mês" onClick={() => mudarMes(1)} className="rounded-campo px-3 py-1 text-xl hover:bg-fundo">›</button>
             </div>
             <div className="grid grid-cols-7 gap-1.5 text-center">
@@ -84,8 +84,8 @@ export function Calendario() {
               ) : <span key={`vazio-${i}`} />)}
             </div>
             <div className="mt-4 flex flex-wrap gap-4 text-xs text-texto-secundario">
-              <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-primaria" /> Material</span>
-              <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-sucesso" /> Atividade</span>
+              <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-marca" /> Material</span>
+              <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-marca-sucesso" /> Atividade</span>
               <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-alerta" /> Prazo</span>
             </div>
           </Cartao>
@@ -97,7 +97,7 @@ export function Calendario() {
             <div className="flex flex-col gap-2.5">
               {(porDia[dia] || []).map((evento, i) => (
                 <article key={i} className="flex items-start gap-3 rounded-bloco bg-fundo p-3">
-                  <i className={`mt-1.5 size-2 shrink-0 rounded-full ${COR_DO_TIPO[evento.tipo] || "bg-primaria"}`} />
+                  <i className={`mt-1.5 size-2 shrink-0 rounded-full ${COR_DO_TIPO[evento.tipo] || "bg-marca"}`} />
                   <div className="min-w-0 flex-1">
                     <strong className="block text-sm text-texto">{evento.titulo}</strong>
                     <span className="block text-xs text-texto-secundario">{evento.detalhe}{evento.hora ? ` · ${evento.hora}` : ""}</span>
@@ -117,10 +117,10 @@ export function Calendario() {
 }
 
 const COR_DO_TIPO = {
-  material: "bg-primaria",
-  material_agendado: "bg-primaria",
-  atividade: "bg-sucesso",
-  atividade_agendada: "bg-sucesso",
+  material: "bg-marca",
+  material_agendado: "bg-marca",
+  atividade: "bg-marca-sucesso",
+  atividade_agendada: "bg-marca-sucesso",
   prazo: "bg-alerta",
 }
 

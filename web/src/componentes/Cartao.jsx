@@ -6,25 +6,34 @@
 export function Cartao({ titulo, children, className = "" }) {
   return (
     <section className={`rounded-cartao bg-superficie p-5 shadow-cartao ${className}`}>
-      {titulo && <h2 className="mb-4 text-[15px] font-semibold text-navy-900">{titulo}</h2>}
+      {titulo && <h2 className="mb-4 text-[18px] font-semibold text-navy-900">{titulo}</h2>}
       {children}
     </section>
   )
 }
 
-/** Um número com rótulo, nas fileiras do topo das telas. */
+/** Um número com rótulo, numa faixa (Numeros): o número na serifada, grande; o rótulo embaixo. */
 export function Numero({ rotulo, valor, destaque = false }) {
   return (
-    <article className="flex flex-col gap-2 rounded-cartao bg-superficie px-4 py-3.5 shadow-cartao sm:gap-2.5 sm:px-5 sm:py-[18px]">
-      <span className="text-[13px] font-medium text-texto-secundario">{rotulo}</span>
-      <strong className={`text-[22px] font-bold sm:text-[26px] ${destaque ? "text-sucesso" : "text-navy-900"}`}>{valor}</strong>
+    <article className="flex flex-1 flex-col gap-1.5 bg-superficie px-5 py-4 last:odd:col-span-2">
+      <strong className={`font-numero text-[28px] leading-none font-semibold sm:text-[32px] ${destaque ? "text-sucesso" : "text-navy-900"}`}>{valor}</strong>
+      <span className="text-[14px] text-texto-secundario">{rotulo}</span>
     </article>
   )
 }
 
+/**
+ * Os números do topo das telas, numa faixa só, separados por filetes — e não
+ * uma caixa com sombra para cada um, que era o traço mais reconhecível de
+ * painel genérico. O filete é o fundo aparecendo pelo vão de 1px (gap-px).
+ * No celular, dois por linha; o último, se sobrar sozinho, ocupa a linha.
+ */
 export function Numeros({ children }) {
-  // Dois por linha no celular: um embaixo do outro, três números ocupavam a tela inteira.
-  return <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(170px,1fr))] sm:gap-4">{children}</section>
+  return (
+    <section className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-cartao bg-borda shadow-cartao sm:flex">
+      {children}
+    </section>
+  )
 }
 
 /** O que a tela diz quando não há o que mostrar — ou quando não conseguiu buscar. */

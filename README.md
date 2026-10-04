@@ -115,7 +115,7 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 | Camada | O que é usado |
 |---|---|
 | Interface | **React 19** com **React Router** (rotas públicas e privadas por perfil), em JavaScript, compilado pelo **Vite** |
-| Estilo | **Tailwind CSS 4**, com o tema (cores, espaços, raios) montado a partir do design system do projeto, em português (`bg-primaria`, `rounded-cartao`) |
+| Estilo | **Tailwind CSS 4**, com o tema (cores, espaços, raios) montado a partir do design system do projeto, em português (`bg-primaria`, `rounded-cartao`). Tipografia "editorial clínica": títulos e números em **Literata** (serifada de leitura), texto em **Source Sans 3** |
 | Componentes | Próprios: painel com menu e sino, cartões, modal, visualizador de material, Markdown, calendário, gráficos de desempenho |
 | Hooks próprios | `useSessao` (quem está logado), `useApi` (busca com carregando e erro tratados), `useDialogo` (confirmar e avisar), `useApagarAnotacao`, `useTituloDaPagina` (o nome da página na aba) |
 | Sessão no navegador | `sessionStorage` (o token some ao fechar a aba) |
@@ -402,8 +402,11 @@ três perfis: nenhuma transborda para os lados.
 
 Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
 
-- **Contraste.** Os tons herdados do front antigo não passavam em texto
-  pequeno: o azul de links e botões (4,45:1), o cinza das descrições sobre o
+- **Contraste e cores da marca.** As cores são as da marca do hospital e não
+  mudam. Onde não há texto pequeno em cima (logo, barras, gráficos, ícones,
+  anel de foco), vale a cor **exata** da marca; em texto pequeno e botões, o
+  mesmo matiz um pouco mais escuro, porque os tons originais não passavam em
+  texto pequeno: o azul de links e botões (4,45:1), o cinza das descrições sobre o
   fundo (4,44), o vermelho das mensagens de erro (3,76), o verde (3,30) e o
   contorno dos campos (1,35, para um mínimo de 3). Cada um foi escurecido só
   até passar, no mesmo matiz. Um teste lê os tokens do
@@ -548,7 +551,7 @@ python testar_html.py
   integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (55 testes):** as telas são renderizadas no Node, sem
+- **Telas React (62 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de

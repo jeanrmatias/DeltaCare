@@ -23,7 +23,7 @@ export function CampoTexto({
 
   return (
     <div>
-      <label htmlFor={id} className="mt-5 mb-2 block text-[13px] font-medium text-texto">
+      <label htmlFor={id} className="mt-5 mb-2 block text-[14px] font-medium text-texto">
         {rotulo}
       </label>
       <input

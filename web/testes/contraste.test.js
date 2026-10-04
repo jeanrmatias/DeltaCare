@@ -49,7 +49,22 @@ const PARES = [
   ["borda-campo", "superficie", 3, "contorno dos campos"],
   ["borda-campo", "fundo", 3, "contorno dos campos fora de cartão"],
   ["alerta-forte", "superficie", 3, "estrela do favorito"],
+  [BRANCO, "navy-700", 4.5, "item ativo do menu"],
+  // A cor exata da marca, onde não há texto pequeno em cima: 3:1 basta.
+  ["marca", "superficie", 3, "barras e ícones na cor da marca"],
+  ["marca", "fundo", 3, "anel de foco no fundo da página"],
+  ["marca", "navy-900", 3, "anel de foco e barra do item ativo no menu"],
+  ["marca-perigo", "superficie", 3, "barra de tópico com muito erro"],
+  ["marca-sucesso", "superficie", 3, "barra de aproveitamento bom"],
 ]
+
+test("as cores da marca continuam as do hospital", () => {
+  // Elas não mudam: o produto é vendido para quem tem exatamente estas cores.
+  assert.deepEqual(
+    ["marca", "marca-cinza", "marca-perigo", "marca-sucesso", "fundo", "navy-900"].map(token),
+    ["#2F70F2", "#64748B", "#EF4444", "#16A34A", "#F4F7FE", "#0D1D3A"],
+  )
+})
 
 for (const [frente, fundo, minimo, onde] of PARES) {
   test(`contraste: ${onde}`, () => {

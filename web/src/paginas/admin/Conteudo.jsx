@@ -40,14 +40,14 @@ export function Conteudo() {
         descricao="O que as turmas recebem: material e atividades publicados ou agendados. Rascunhos, entregas e anotações não aparecem aqui." />
 
       <section className="mb-5 flex flex-col gap-3 rounded-cartao bg-superficie p-4 shadow-cartao sm:flex-row">
-        <label className="flex flex-col gap-1.5 text-[13px] text-texto-secundario">
+        <label className="flex flex-col gap-1.5 text-[14px] text-texto-secundario">
           Semestre
           <select value={dados?.semestre ?? semestre} onChange={(e) => setSemestre(e.target.value)}
             className="rounded-campo border border-borda-campo px-3 py-2 text-sm text-texto outline-none focus:border-primaria">
             {(dados?.semestres || []).map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <label className="flex flex-1 flex-col gap-1.5 text-[13px] text-texto-secundario">
+        <label className="flex flex-1 flex-col gap-1.5 text-[14px] text-texto-secundario">
           Buscar disciplina, professor ou título
           <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off"
             className="rounded-campo border border-borda-campo px-3 py-2 text-sm text-texto outline-none focus:border-primaria" />
@@ -66,7 +66,7 @@ export function Conteudo() {
               <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 p-5">
                 <span className="text-texto-secundario transition group-open:rotate-90" aria-hidden="true">›</span>
                 <strong className="text-navy-900">{disciplina.nome}</strong>
-                <span className="text-[13px] text-texto-secundario">
+                <span className="text-[14px] text-texto-secundario">
                   Prof. {disciplina.professor_nome} · {disciplina.total_alunos} aluno(s) · {disciplina.materiais.length} material(is) · {disciplina.atividades.length} atividade(s)
                   {denuncias > 0 && <span className="font-semibold text-perigo"> · {denuncias} denúncia(s) aberta(s)</span>}
                 </span>
@@ -97,7 +97,7 @@ function Item({ selos, titulo, detalhe, acao }) {
     <article className="flex flex-col gap-3 rounded-bloco border border-borda p-4 md:flex-row md:items-start md:justify-between">
       <div className="min-w-0">
         <div className="mb-1.5 flex flex-wrap gap-2">{selos}</div>
-        <h3 className="font-bold text-navy-900">{titulo}</h3>
+        <h3 className="text-[17px] font-semibold text-navy-900">{titulo}</h3>
         {detalhe && <p className="mt-1 text-xs font-medium text-primaria">{detalhe}</p>}
       </div>
       <div className="shrink-0">{acao}</div>
@@ -128,7 +128,7 @@ function ItemMaterial({ material }) {
       titulo={material.titulo}
       detalhe={material.classificacao}
       acao={material.tipo === "link" && material.link_url
-        ? <a href={material.link_url} target="_blank" rel="noopener noreferrer" className="rounded-campo border border-borda px-3.5 py-2 text-[13px] font-semibold hover:bg-fundo">Abrir link</a>
+        ? <a href={material.link_url} target="_blank" rel="noopener noreferrer" className="rounded-campo border border-borda px-3.5 py-2 text-[14px] font-semibold hover:bg-fundo">Abrir link</a>
         : material.arquivo_nome && <Botao variante="neutra" pequeno onClick={baixar}>Baixar</Botao>}
     />
   )
@@ -144,7 +144,7 @@ function AtividadeSupervisionada({ id, aoFechar }) {
       {erro && <p className="text-sm text-texto-secundario">{erro}</p>}
       {dados?.sucesso && (
         <>
-          <h2 className="mb-3 text-lg font-bold text-navy-900">{dados.atividade.titulo} · {dados.atividade.turma_nome}</h2>
+          <h2 className="mb-3 text-lg font-semibold text-navy-900">{dados.atividade.titulo} · {dados.atividade.turma_nome}</h2>
           {dados.atividade.enunciado && <p className="mb-4 text-sm whitespace-pre-wrap text-texto">{dados.atividade.enunciado}</p>}
           <ol className="flex max-h-[60vh] list-decimal flex-col gap-3 overflow-y-auto pl-5">
             {dados.questoes.map((questao, i) => (

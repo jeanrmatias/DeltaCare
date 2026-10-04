@@ -83,7 +83,7 @@ const CAMPO = "rounded-campo border border-borda-campo bg-superficie px-3 py-2.5
 
 function Filtro({ rotulo, largo = false, children }) {
   return (
-    <label className={`flex flex-col gap-1.5 text-[13px] font-medium text-texto ${largo ? "min-w-56 flex-1" : ""}`}>
+    <label className={`flex flex-col gap-1.5 text-[14px] font-medium text-texto ${largo ? "min-w-56 flex-1" : ""}`}>
       {rotulo}
       {children}
     </label>

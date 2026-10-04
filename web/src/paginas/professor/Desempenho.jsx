@@ -55,7 +55,7 @@ export function DesempenhoProfessor() {
 
           {dados.topicos.length > 0 && (
             <Cartao titulo="Tópicos que a turma mais erra">
-              <p className="-mt-2 mb-4 text-[13px] text-texto-secundario">Conta apenas questões objetivas, somando todos os alunos. Questão em branco entra como erro.</p>
+              <p className="-mt-2 mb-4 text-[14px] text-texto-secundario">Conta apenas questões objetivas, somando todos os alunos. Questão em branco entra como erro.</p>
               <BarrasDeErro topicos={dados.topicos} detalhe={(t) => `${t.erros} erro(s) em ${t.total} questão(ões) respondidas`} />
             </Cartao>
           )}

@@ -115,7 +115,7 @@ function NaoEncontrada() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-4 text-center">
-      <h1 className="text-2xl font-bold text-navy-900">Página não encontrada</h1>
+      <h1 className="text-2xl font-semibold text-navy-900">Página não encontrada</h1>
       <p className="text-sm text-texto-secundario">O endereço não existe ou mudou de lugar.</p>
       <Link to={destino} className="text-sm font-semibold text-primaria hover:underline">
         {usuario ? "Voltar para o início" : "Ir para o login"}

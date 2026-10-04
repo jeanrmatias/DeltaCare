@@ -64,13 +64,13 @@ export function DenunciasAdmin() {
                 <Selo>{denuncia.motivo_rotulo}</Selo>
                 <Selo tom={TOM[denuncia.status]}>{denuncia.status_rotulo}</Selo>
               </div>
-              <h3 className="font-bold text-navy-900">{denuncia.material_titulo}</h3>
+              <h3 className="text-[17px] font-semibold text-navy-900">{denuncia.material_titulo}</h3>
               <p className="mt-1 text-xs font-medium text-primaria">
                 {[denuncia.autor_nome, denuncia.turma_nome, dataComAno(denuncia.criado_em)].filter(Boolean).join(" · ")}
               </p>
-              {denuncia.descricao && <p className="mt-1.5 text-[13px] text-texto-secundario">{denuncia.descricao}</p>}
+              {denuncia.descricao && <p className="mt-1.5 text-[14px] text-texto-secundario">{denuncia.descricao}</p>}
               {denuncia.acao && (
-                <div className="mt-2.5 rounded-campo bg-fundo px-3 py-2 text-[13px]">
+                <div className="mt-2.5 rounded-campo bg-fundo px-3 py-2 text-[14px]">
                   <strong className="text-navy-900">Ação registrada</strong>
                   <p className="mt-0.5 text-texto">{denuncia.acao}</p>
                 </div>

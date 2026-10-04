@@ -37,7 +37,7 @@ export function Anotacoes() {
     <>
       <Cabecalho titulo="Anotações" descricao="Seu caderno, de todos os materiais. Só você vê." />
 
-      <label className="mb-5 flex max-w-md flex-col gap-1.5 text-[13px] text-texto-secundario">
+      <label className="mb-5 flex max-w-md flex-col gap-1.5 text-[14px] text-texto-secundario">
         Buscar nas anotações
         <input type="search" value={busca} onChange={(evento) => setBusca(evento.target.value)} placeholder="ex.: forame magno"
           autoComplete="off" className="rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm text-texto outline-none focus:border-primaria" />

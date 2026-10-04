@@ -89,7 +89,7 @@ function NovoAviso({ adm, aoEnviar }) {
         {!geral && (
           <fieldset>
             <div className="mb-1.5 flex items-center justify-between">
-              <legend className="text-[13px] font-semibold text-texto">Para quais disciplinas</legend>
+              <legend className="text-[14px] font-semibold text-texto">Para quais disciplinas</legend>
               <button type="button" onClick={() => setMarcadas(todas ? [] : opcoes.map((d) => d.id))} className="text-xs font-semibold text-primaria hover:underline">
                 {todas ? "Nenhuma" : "Todas"}
               </button>

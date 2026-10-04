@@ -77,9 +77,9 @@ export function DisciplinasAdmin() {
             {/* Lado a lado só com folga (lg): no tablet, três botões ao lado do nome passavam da tela. */}
             <article className="flex flex-col gap-3 p-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="font-bold text-navy-900">{turma.nome} · {turma.semestre}</h3>
-                <p className="mt-1 text-[13px] text-texto-secundario">Professor: {turma.professor_email}</p>
-                <p className="text-[13px] text-texto-secundario">{turma.total_materiais} material(is) cadastrado(s)</p>
+                <h3 className="text-[17px] font-semibold text-navy-900">{turma.nome} · {turma.semestre}</h3>
+                <p className="mt-1 text-[14px] text-texto-secundario">Professor: {turma.professor_email}</p>
+                <p className="text-[14px] text-texto-secundario">{turma.total_materiais} material(is) cadastrado(s)</p>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 <Botao variante="neutra" pequeno onClick={() => setTrocando(trocando === turma.id ? null : turma.id)}>Trocar professor</Botao>
@@ -121,7 +121,7 @@ function NovaDisciplina({ professores, coortes, aoFechar, aoCriar }) {
 
   return (
     <Cartao titulo="Nova disciplina" className="mb-5">
-      <p className="mb-4 text-[13px] text-texto-secundario">
+      <p className="mb-4 text-[14px] text-texto-secundario">
         Uma entrada por disciplina, com o seu professor e o seu material. Escolhendo a turma, os alunos dela entram matriculados na hora,
         menos os que estiverem marcados como exceção.
       </p>
@@ -165,7 +165,7 @@ function TrocarProfessor({ turma, professores, aoFechar, aoTrocar }) {
 
   return (
     <form onSubmit={trocar} className="border-t border-borda px-5 py-4">
-      <p className="mb-3 text-[13px] text-texto-secundario">
+      <p className="mb-3 text-[14px] text-texto-secundario">
         Quem assume fica com o material e as atividades de {turma.nome}, inclusive as entregas por corrigir. {turma.professor_email} perde o acesso a ela.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">

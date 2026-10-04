@@ -38,7 +38,7 @@ export function Perfil({ aoFechar }) {
             <span className="flex size-12 items-center justify-center rounded-full bg-primaria text-base font-bold text-white">{iniciaisDe(nome)}</span>
             <div>
               <strong className="block text-base text-navy-900">{nome}</strong>
-              <span className="text-[13px] text-texto-secundario">{PERFIS[dados.tipo] || dados.tipo}</span>
+              <span className="text-[14px] text-texto-secundario">{PERFIS[dados.tipo] || dados.tipo}</span>
             </div>
           </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
@@ -49,7 +49,7 @@ export function Perfil({ aoFechar }) {
               </div>
             ))}
           </dl>
-          <p className="mt-4 text-[13px] text-texto-secundario">
+          <p className="mt-4 text-[14px] text-texto-secundario">
             {dados.tipo === "aluno" ? (
               <>Algum dado errado? Peça a correção, baixe uma cópia ou peça a exclusão em{" "}
                 <Link to="/aluno/meus-dados" onClick={aoFechar} className="font-semibold text-primaria hover:underline">Meus dados</Link>.</>
@@ -67,7 +67,7 @@ export function Perfil({ aoFechar }) {
         </div>
       ) : (
         <>
-          {aviso && <p role="status" className="mt-4 text-[13px] font-medium text-sucesso">{aviso}</p>}
+          {aviso && <p role="status" className="mt-4 text-[14px] font-medium text-sucesso">{aviso}</p>}
           <div className="mt-5 flex justify-end gap-2.5">
             <Botao variante="neutra" onClick={() => { setAviso(""); setTrocandoSenha(true) }}>Alterar senha</Botao>
             <Botao onClick={aoFechar}>Fechar</Botao>

@@ -27,7 +27,7 @@ export function ItemAnotacao({ anotacao, aoEditar, aoApagar, comMaterial = false
         </p>
       )}
       {anotacao.trecho && (
-        <blockquote className="mb-2 border-l-3 border-primaria pl-3 text-[13px] text-texto-secundario italic">{anotacao.trecho}</blockquote>
+        <blockquote className="mb-2 border-l-3 border-primaria pl-3 text-[14px] text-texto-secundario italic">{anotacao.trecho}</blockquote>
       )}
       <p className="text-sm leading-relaxed whitespace-pre-wrap text-texto">{anotacao.texto}</p>
       <div className="mt-2 flex items-center gap-3 text-xs text-texto-secundario">
@@ -69,7 +69,7 @@ export function FormularioAnotacao({ material, anotacao, aoFechar, aoSalvar }) {
 
   return (
     <Modal aberto aoFechar={aoFechar} titulo={anotacao ? "Editar anotação" : `Nova anotação · ${material.titulo}`}>
-      <p className="mb-4 text-[13px] text-texto-secundario">Só você vê suas anotações. Nem o professor, nem a coordenação.</p>
+      <p className="mb-4 text-[14px] text-texto-secundario">Só você vê suas anotações. Nem o professor, nem a coordenação.</p>
       <form onSubmit={salvar} className="flex flex-col gap-4">
         <AreaDeTexto rotulo="Trecho do material (opcional)" valor={trecho} aoMudar={setTrecho} linhas={2} maximo={1000}
           placeholder="Cole aqui a passagem a que a anotação se refere" />
@@ -111,7 +111,7 @@ export function PainelAnotacoes({ material, aoFechar, aoMudar }) {
     <>
       <Modal aberto={!editando} aoFechar={aoFechar} largura="max-w-[620px]" rotulo={`Anotações · ${material.titulo}`}>
         <div className="mb-4 flex items-start justify-between gap-3">
-          <h2 className="text-lg font-bold text-navy-900">Anotações · {material.titulo}</h2>
+          <h2 className="text-lg font-semibold text-navy-900">Anotações · {material.titulo}</h2>
           <Botao variante="neutra" onClick={aoFechar} className="py-2">Fechar</Botao>
         </div>
         <Botao onClick={() => setEditando({})}>Nova anotação</Botao>

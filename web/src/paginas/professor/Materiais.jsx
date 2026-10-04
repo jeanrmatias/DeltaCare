@@ -130,10 +130,10 @@ function LinhaMaterial({ material, aoEditar, aoExcluir, aoVer, aoReportar, aoInd
           {agendadoPara && <span className="text-xs text-texto-secundario">libera em {agendadoPara}</span>}
           {material.no_chat === false && <Selo tom="alerta">Fora do chat</Selo>}
         </div>
-        <h3 className="font-bold text-navy-900">{material.titulo}</h3>
+        <h3 className="text-[17px] font-semibold text-navy-900">{material.titulo}</h3>
         {classificacao && <p className="mt-1 text-xs font-medium text-primaria">{classificacao}</p>}
-        {material.descricao && <p className="mt-1.5 text-[13px] text-texto-secundario">{material.descricao}</p>}
-        <p className="mt-1.5 flex flex-wrap gap-x-2 text-[13px]">
+        {material.descricao && <p className="mt-1.5 text-[14px] text-texto-secundario">{material.descricao}</p>}
+        <p className="mt-1.5 flex flex-wrap gap-x-2 text-[14px]">
           {material.tipo === "link" && material.link_url && (
             <a href={material.link_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-primaria hover:underline">Abrir link</a>
           )}
@@ -147,7 +147,7 @@ function LinhaMaterial({ material, aoEditar, aoExcluir, aoVer, aoReportar, aoInd
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         {material.no_chat === false && <Botao pequeno onClick={aoIndexar}>Indexar para o chat</Botao>}
-        <button type="button" onClick={aoReportar} className="px-2 text-[13px] font-semibold text-texto-secundario hover:text-perigo">Reportar</button>
+        <button type="button" onClick={aoReportar} className="px-2 text-[14px] font-semibold text-texto-secundario hover:text-perigo">Reportar</button>
         <Botao variante="neutra" pequeno onClick={aoEditar}>Editar</Botao>
         <Botao variante="perigo" pequeno onClick={aoExcluir}>Excluir</Botao>
       </div>
@@ -240,7 +240,7 @@ function FormularioMaterial({ material, turmas, turmaPadrao, aoFechar, aoSalvar 
           {ehLink ? (
             <Texto rotulo="Link" tipo="url" valor={campos.link_url} aoMudar={mudar("link_url")} placeholder="https://..." obrigatorio />
           ) : !editando && (
-            <label className="flex flex-col gap-1.5 text-[13px] font-medium text-texto">
+            <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto">
               Arquivo
               <input type="file" onChange={(e) => setArquivo(e.target.files?.[0] || null)} className="text-sm font-normal" />
               <span className="text-xs font-normal text-texto-secundario">Até 15MB. PDF, DOC(X), TXT, ODT, MP4, MOV, WEBM ou MKV, conforme o tipo.</span>

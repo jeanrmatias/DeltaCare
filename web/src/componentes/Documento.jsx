@@ -16,7 +16,7 @@ export function Documento({ titulo, subtitulo, children }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <main className="rounded-cartao bg-superficie px-6 py-8 shadow-cartao sm:px-10">
-        <h1 className="text-2xl font-bold text-navy-900">{titulo}</h1>
+        <h1 className="text-[32px] leading-tight font-semibold tracking-tight text-navy-900">{titulo}</h1>
         <p className="mt-1 text-sm text-texto-secundario">{subtitulo}</p>
         {children}
       </main>
@@ -28,7 +28,7 @@ export function Documento({ titulo, subtitulo, children }) {
 }
 
 export function Titulo({ children }) {
-  return <h2 className="mt-8 mb-2 text-base font-semibold text-navy-900">{children}</h2>
+  return <h2 className="mt-9 mb-2 text-[20px] font-semibold text-navy-900">{children}</h2>
 }
 
 export function Paragrafo({ children }) {

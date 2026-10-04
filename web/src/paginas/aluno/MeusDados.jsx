@@ -38,7 +38,7 @@ export function MeusDados() {
             ))}
           </div>
         </Cartao>
-        <p className="text-[13px] text-texto-secundario">
+        <p className="text-[14px] text-texto-secundario">
           Como a plataforma trata seus dados: <Link to="/privacidade" className="font-semibold text-primaria hover:underline">política de privacidade</Link>.
         </p>
       </div>
@@ -206,10 +206,10 @@ function Pedido({ pedido, aoCancelar }) {
           <span className="text-xs text-texto-secundario">{dataComAno(pedido.criado_em)}</span>
           <Selo tom={status.tom}>{status.rotulo}</Selo>
         </div>
-        <h3 className="text-sm font-bold text-navy-900">{pedido.campo_rotulo ? `${pedido.tipo_rotulo}: ${pedido.campo_rotulo}` : pedido.tipo_rotulo}</h3>
-        {detalhes.map((texto) => <p key={texto} className="mt-1 text-[13px] text-texto-secundario">{texto}</p>)}
+        <h3 className="text-sm font-semibold text-navy-900">{pedido.campo_rotulo ? `${pedido.tipo_rotulo}: ${pedido.campo_rotulo}` : pedido.tipo_rotulo}</h3>
+        {detalhes.map((texto) => <p key={texto} className="mt-1 text-[14px] text-texto-secundario">{texto}</p>)}
       </div>
-      {pedido.status === "pendente" && <Botao variante="neutra" onClick={cancelar} className="shrink-0 py-2 text-[13px]">Cancelar pedido</Botao>}
+      {pedido.status === "pendente" && <Botao variante="neutra" onClick={cancelar} className="shrink-0 py-2 text-[14px]">Cancelar pedido</Botao>}
     </article>
   )
 }

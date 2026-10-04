@@ -12,7 +12,7 @@ export function Rotulado({ rotulo, children, className = "" }) {
   const id = useId()
   return (
     <div className={className}>
-      <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-texto">{rotulo}</label>
+      <label htmlFor={id} className="mb-1.5 block text-[14px] font-medium text-texto">{rotulo}</label>
       {children(id)}
     </div>
   )
@@ -71,5 +71,5 @@ export function Texto({ rotulo, valor, aoMudar, tipo = "text", placeholder, maxi
 /** Linha de mensagem de formulário: vermelha para erro, verde para sucesso. */
 export function MensagemDeFormulario({ texto, sucesso = false }) {
   if (!texto) return null
-  return <p role="alert" className={`mt-3 text-[13px] font-medium ${sucesso ? "text-sucesso" : "text-perigo"}`}>{texto}</p>
+  return <p role="alert" className={`mt-3 text-[14px] font-medium ${sucesso ? "text-sucesso" : "text-perigo"}`}>{texto}</p>
 }

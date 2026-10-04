@@ -159,26 +159,48 @@ function Conversa({ turma }) {
   )
 }
 
+const SOBRESCRITOS = ["¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
+
+/**
+ * Uma fala da conversa. A do aluno, um balão. A do assistente, texto de
+ * página, com um filete na margem — e as fontes como nota de rodapé de livro,
+ * numeradas: é o que diz que a resposta veio do material, e não da cabeça
+ * do modelo.
+ */
 function Bolha({ papel, conteudo, fontes, lacuna }) {
-  const doAluno = papel === "user"
+  if (papel === "user") {
+    return (
+      <div className="max-w-[75%] self-end rounded-bloco rounded-br-sm bg-primaria px-4 py-2.5 text-sm leading-normal whitespace-pre-wrap text-white">
+        {conteudo}
+      </div>
+    )
+  }
 
   return (
-    <div
-      className={`rounded-bloco px-4 py-3 text-sm leading-normal ${
-        doAluno ? "max-w-[70%] self-end bg-primaria whitespace-pre-wrap text-white" : "max-w-[82%] self-start bg-fundo text-texto"
-      }`}
-    >
-      {/* A pergunta do aluno é texto puro; a resposta da IA vem em Markdown. */}
-      {doAluno ? conteudo : <Markdown texto={conteudo} />}
-      {/* O que a pergunta pedia e o material não traz. Fica separado do texto
-          da resposta, sempre igual, para o aluno não confundir "o material
+    <div className="max-w-[88%] self-start border-l-2 border-marca/40 pl-4 text-[16px] leading-relaxed text-texto">
+      {/* A resposta da IA vem em Markdown. */}
+      <Markdown texto={conteudo} />
+      {/* O que a pergunta pedia e o material não traz, como anotação na
+          margem: separado da resposta, para o aluno não confundir "o material
           diz isto" com "isto é tudo". */}
       {lacuna && (
-        <div className="mt-2.5 rounded-campo border-l-3 border-alerta bg-alerta-fundo px-3 py-2 text-[13px]">
-          <strong>O material não traz:</strong> {lacuna}
-        </div>
+        <aside className="mt-3 border-l-2 border-alerta bg-alerta-fundo/70 py-2 pr-3 pl-3 text-[15px] leading-snug">
+          <span className="block font-titulo text-[13px] font-semibold text-[#92400E] italic">O material não traz</span>
+          {lacuna}
+        </aside>
       )}
-      {fontes?.length > 0 && <div className="mt-2 text-[11px] font-semibold opacity-70">Fonte(s): {fontes.join(", ")}</div>}
+      {fontes?.length > 0 && (
+        <footer className="mt-3 text-[13px] leading-snug text-texto-secundario">
+          <span aria-hidden="true" className="mb-1.5 block w-10 border-t border-borda-campo" />
+          {fontes.map((fonte, indice) => (
+            <p key={fonte}>
+              <span aria-hidden="true" className="mr-1 font-titulo">{SOBRESCRITOS[indice] ?? `${indice + 1}.`}</span>
+              <span className="sr-only">Fonte: </span>
+              {fonte}
+            </p>
+          ))}
+        </footer>
+      )}
     </div>
   )
 }
@@ -198,10 +220,10 @@ function Pensando() {
   }, [])
 
   return (
-    <div className="flex items-center gap-2.5 self-start rounded-bloco bg-fundo px-4 py-3 text-[13px] text-texto-secundario" role="status">
+    <div className="flex items-center gap-2.5 self-start rounded-bloco bg-fundo px-4 py-3 text-[14px] text-texto-secundario" role="status">
       <span className="inline-flex gap-1" aria-hidden="true">
         {[0, 1, 2].map((i) => (
-          <span key={i} className="size-1.5 animate-pulse rounded-full bg-primaria motion-reduce:animate-none" style={{ animationDelay: `${i * 0.2}s` }} />
+          <span key={i} className="size-1.5 animate-pulse rounded-full bg-marca motion-reduce:animate-none" style={{ animationDelay: `${i * 0.2}s` }} />
         ))}
       </span>
       Consultando o material da disciplina
@@ -241,10 +263,10 @@ function OfertaProfessor({ pergunta }) {
 
   return (
     <div className="flex max-w-[70%] flex-col items-start gap-2.5 self-start rounded-bloco border border-dashed border-borda px-3.5 py-3">
-      <p className="text-[13px] leading-normal text-texto-secundario">
+      <p className="text-[14px] leading-normal text-texto-secundario">
         Se for uma dúvida da matéria, você pode levá-la ao professor da disciplina.
       </p>
-      <Botao variante="neutra" onClick={levar} className="py-2 text-[13px]">Perguntar a um professor</Botao>
+      <Botao variante="neutra" onClick={levar} className="py-2 text-[14px]">Perguntar a um professor</Botao>
     </div>
   )
 }

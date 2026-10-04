@@ -76,7 +76,7 @@ export function SeletorDataHora({ rotulo, valor, aoMudar, dica }) {
   return (
     <div ref={area} className="relative"
       onKeyDown={(evento) => { if (evento.key === "Escape" && aberto) { evento.stopPropagation(); setAberto(false) } }}>
-      {rotulo && <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-texto">{rotulo}</label>}
+      {rotulo && <label htmlFor={id} className="mb-1.5 block text-[14px] font-medium text-texto">{rotulo}</label>}
       <div className={`flex rounded-campo border bg-superficie focus-within:border-primaria ${invalida ? "border-perigo" : "border-borda"}`}>
         <input id={id} value={texto} onChange={(evento) => digitar(evento.target.value)}
           onBlur={() => selecionada && setTexto(formatarParaCampo(selecionada))}
@@ -100,16 +100,16 @@ export function SeletorDataHora({ rotulo, valor, aoMudar, dica }) {
               className="rounded-campo px-2 py-1 text-lg hover:bg-fundo">›</button>
           </div>
           <div className="grid grid-cols-7 gap-1 text-center">
-            {DIAS_CURTOS.map((d) => <span key={d} className="text-[11px] font-semibold text-texto-secundario">{d}</span>)}
+            {DIAS_CURTOS.map((d) => <span key={d} className="text-[12px] font-semibold text-texto-secundario">{d}</span>)}
             {diasDoMes(mesVisivel).map((dia, i) => dia ? (
               <button key={i} type="button" onClick={() => escolherDia(dia)}
-                className={`rounded-campo py-1.5 text-[13px] ${mesmoDia(dia, selecionada) ? "bg-primaria font-bold text-white"
+                className={`rounded-campo py-1.5 text-[14px] ${mesmoDia(dia, selecionada) ? "bg-primaria font-bold text-white"
                   : mesmoDia(dia, new Date()) ? "border border-primaria text-primaria" : "hover:bg-fundo"}`}>
                 {dia.getDate()}
               </button>
             ) : <span key={i} />)}
           </div>
-          <label className="mt-3 flex items-center gap-2 text-[13px] text-texto">
+          <label className="mt-3 flex items-center gap-2 text-[14px] text-texto">
             Hora
             <input type="time" value={selecionada ? formatarParaCampo(selecionada).slice(11) : ""}
               onChange={(evento) => {

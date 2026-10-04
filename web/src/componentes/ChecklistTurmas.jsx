@@ -16,7 +16,7 @@ export function ChecklistTurmas({ turmas, marcadas, aoMudar, rotulo = "Publicar 
 
   return (
     <fieldset>
-      <legend className="mb-1.5 text-[13px] font-medium text-texto">{rotulo}</legend>
+      <legend className="mb-1.5 text-[14px] font-medium text-texto">{rotulo}</legend>
       {turmas.length === 0 ? <p className="text-sm text-texto-secundario">Você ainda não tem disciplinas atribuídas.</p> : (
         <div className="flex flex-col gap-1.5 rounded-campo border border-borda p-3">
           {turmas.length > 1 && (

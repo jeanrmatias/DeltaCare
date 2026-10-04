@@ -42,14 +42,14 @@ export function Historico() {
 
       <form role="search" onSubmit={(evento) => { evento.preventDefault(); setBusca(digitado.trim()) }}
         className="mb-5 rounded-cartao bg-superficie p-5 shadow-cartao">
-        <label htmlFor="busca-historico" className="mb-2 block text-[13px] font-medium text-texto">Buscar no material, inclusive dentro dos PDFs</label>
+        <label htmlFor="busca-historico" className="mb-2 block text-[14px] font-medium text-texto">Buscar no material, inclusive dentro dos PDFs</label>
         <div className="flex flex-col gap-2.5 sm:flex-row">
           <input id="busca-historico" type="search" value={digitado} autoComplete="off" placeholder="ex.: forame magno"
             onChange={(evento) => { setDigitado(evento.target.value); if (!evento.target.value.trim()) setBusca("") }}
             className="min-w-0 flex-1 rounded-campo border border-borda-campo px-3 py-2.5 text-sm outline-none focus:border-primaria" />
           <Botao tipo="submit">Buscar</Botao>
         </div>
-        {resumo && <p className="mt-2 text-[13px] text-texto-secundario">{resumo}</p>}
+        {resumo && <p className="mt-2 text-[14px] text-texto-secundario">{resumo}</p>}
       </form>
 
       {carregando && <Carregando />}
@@ -64,7 +64,7 @@ export function Historico() {
 
       {semestres.map((semestre) => (
         <section key={semestre.semestre} className="mb-7">
-          <h2 className="mb-3 text-[13px] font-bold tracking-widest text-texto-secundario uppercase">{semestre.semestre}</h2>
+          <h2 className="mb-3 text-[14px] font-semibold tracking-widest text-texto-secundario uppercase">{semestre.semestre}</h2>
           <div className="flex flex-col gap-3">
             {semestre.disciplinas.map((disciplina) => (
               // Com busca, as disciplinas já abrem: o resultado está lá dentro.
@@ -72,7 +72,7 @@ export function Historico() {
                 <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 p-5">
                   <span className="text-texto-secundario transition group-open:rotate-90" aria-hidden="true">›</span>
                   <strong className="text-navy-900">{disciplina.nome}</strong>
-                  <span className="text-[13px] text-texto-secundario">
+                  <span className="text-[14px] text-texto-secundario">
                     Prof. {disciplina.professor_nome} · {disciplina.materiais.length === 1 ? "1 material" : `${disciplina.materiais.length} materiais`}
                   </span>
                 </summary>
@@ -93,7 +93,7 @@ export function Historico() {
   )
 }
 
-const classeAcao = "rounded-campo border px-3.5 py-2 text-[13px] font-semibold transition"
+const classeAcao = "rounded-campo border px-3.5 py-2 text-[14px] font-semibold transition"
 
 function MaterialAntigo({ material, caminho, aoVer }) {
   const [baixando, setBaixando] = useState(false)
@@ -115,14 +115,14 @@ function MaterialAntigo({ material, caminho, aoVer }) {
   return (
     <article className="flex flex-col gap-3 rounded-bloco border border-borda p-4 md:flex-row md:items-start md:justify-between">
       <div className="min-w-0">
-        <span className="rounded-campo bg-fundo px-2 py-0.5 text-[11px] font-bold tracking-wide text-texto-secundario uppercase">
+        <span className="rounded-campo bg-fundo px-2 py-0.5 text-[12px] font-bold tracking-wide text-texto-secundario uppercase">
           {ROTULOS_TIPO_MATERIAL[material.tipo] || material.tipo}
         </span>
-        <h3 className="mt-1.5 font-bold text-navy-900">{material.titulo}</h3>
+        <h3 className="text-[17px] mt-1.5 font-semibold text-navy-900">{material.titulo}</h3>
         {material.classificacao && <p className="mt-1 text-xs font-medium text-primaria">{material.classificacao}</p>}
         {material.trecho ? (
-          <blockquote className="mt-2 border-l-3 border-alerta bg-alerta-fundo px-3 py-1.5 text-[13px] text-texto">{material.trecho}</blockquote>
-        ) : material.descricao && <p className="mt-1.5 text-[13px] text-texto-secundario">{material.descricao}</p>}
+          <blockquote className="mt-2 border-l-3 border-alerta bg-alerta-fundo px-3 py-1.5 text-[14px] text-texto">{material.trecho}</blockquote>
+        ) : material.descricao && <p className="mt-1.5 text-[14px] text-texto-secundario">{material.descricao}</p>}
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         {material.tipo === "link" && material.link_url && (

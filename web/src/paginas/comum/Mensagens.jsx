@@ -105,16 +105,16 @@ function ItemConversa({ conversa, ativa, aoAbrir }) {
   return (
     <button type="button" onClick={aoAbrir} aria-current={ativa || undefined}
       className={`flex w-full items-start gap-2.5 rounded-bloco p-2.5 text-left transition ${ativa ? "bg-fundo" : "hover:bg-fundo"}`}>
-      <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-primaria text-[13px] font-bold text-white">{iniciaisDe(conversa.titulo)}</span>
+      <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-primaria text-[14px] font-bold text-white">{iniciaisDe(conversa.titulo)}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <strong className="truncate text-sm text-texto">{conversa.titulo}</strong>
         <span className="truncate text-xs text-texto-secundario">{conversa.subtitulo}</span>
         <span className="truncate text-xs text-texto-secundario">{previa}</span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-[11px] text-texto-secundario">{quando(conversa.ultima_em)}</span>
+        <span className="text-[12px] text-texto-secundario">{quando(conversa.ultima_em)}</span>
         {conversa.nao_lidas > 0 && (
-          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-perigo px-[5px] text-[11px] font-bold text-white">{conversa.nao_lidas}</span>
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-perigo px-[5px] text-[12px] font-bold text-white">{conversa.nao_lidas}</span>
         )}
       </span>
     </button>
@@ -168,7 +168,7 @@ function Conversa({ conversa, professor, textoInicial, aoMudar, aoEnviar }) {
   return (
     <section className="flex min-h-[60vh] flex-col overflow-hidden rounded-cartao bg-superficie shadow-cartao md:h-[70vh]">
       <header className="border-b border-borda px-5 py-3.5">
-        <h2 className="text-[15px] font-bold text-navy-900">{conversa.titulo}</h2>
+        <h2 className="text-[16px] font-semibold text-navy-900">{conversa.titulo}</h2>
         <p className="text-xs text-texto-secundario">{conversa.subtitulo}</p>
       </header>
 
@@ -180,7 +180,7 @@ function Conversa({ conversa, professor, textoInicial, aoMudar, aoEnviar }) {
           <div key={m.id ?? indice}
             className={`max-w-[75%] rounded-bloco px-3.5 py-2.5 text-sm ${m.minha ? "self-end bg-primaria text-white" : "self-start bg-fundo text-texto"}`}>
             <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.conteudo}</p>
-            <span className="mt-1 block text-right text-[11px] opacity-70">{quando(m.criado_em, true)}</span>
+            <span className="mt-1 block text-right text-[12px] opacity-70">{quando(m.criado_em, true)}</span>
           </div>
         ))}
       </div>
