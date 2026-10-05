@@ -34,8 +34,8 @@ Conferir:
 
 - [ ] <http://127.0.0.1:8000/saude> responde `{"status":"ok"}`.
 - [ ] O Ollama está no ar. Entre como `aluno@deltacare.com` / `demo123`, abra o
-      chat em **Cardiologia I** e pergunte *qual a dose inicial do Cardiolex?*
-      A resposta deve dizer 12,5 mg e citar a Aula 3. Se não responder, as
+      chat em **Cardiologia I** e pergunte *em que situação se usa a dobutamina?*
+      A resposta deve citar a pressão sistólica abaixo de 90 mmHg e a Aula 3. Se não responder, as
       tarefas 4 e 5 não podem ser aplicadas: resolva antes ou remarque.
 - [ ] Saia da conta da Marina.
 
@@ -103,7 +103,7 @@ não leia em voz alta.
 | 1 | *"A secretaria da faculdade te mandou este e-mail e esta senha para o primeiro acesso. Entre na plataforma."* | Entrou e definiu a própria senha |
 | 2 | *"Um colega comentou que uma prova mudou de data. Descubra qual prova e para quando."* | Diz: prova de Cardiologia I, próxima quarta-feira |
 | 3 | *"Você vai estudar insuficiência cardíaca para Cardiologia. Encontre a aula sobre isso e abra para ler. Depois, deixe-a guardada de um jeito que dê para achar rápido da próxima vez."* | Abriu a Aula 3 e marcou como favorita |
-| 4 | *"Na aula aparece um medicamento chamado Cardiolex. Use o assistente da plataforma para descobrir qual é a dose inicial. Depois me diga de onde veio a resposta."* | Diz 12,5 mg **e** aponta o material citado (Aula 3) |
+| 4 | *"Na aula de insuficiência cardíaca aparece a dobutamina. Use o assistente da plataforma para descobrir em que situação ela é usada. Depois me diga de onde veio a resposta."* | Diz hipotensão (sistólica abaixo de 90 mmHg) com sinais de hipoperfusão **e** aponta o material citado (Aula 3) |
 | 5 | *"Agora pergunte ao assistente como se trata uma pneumonia."* — quando a resposta chegar: *"O que aconteceu? Por que você acha que ele respondeu assim?"* | Entende que o assistente só responde com o material da disciplina. "Não funcionou" ou "deu erro" contam como não concluiu |
 | 6 | *"Tem um quiz de insuficiência cardíaca valendo nota. Responda e entregue. Pode consultar o que quiser."* | Entregou o quiz |
 | 7 | *"A plataforma dá pontos para quem estuda. Quanto falta para você subir para o próximo nível?"* | Diz um número de XP ou de faixa coerente com a tela |

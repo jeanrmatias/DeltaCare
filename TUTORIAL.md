@@ -294,8 +294,8 @@ atividade corrigida mostra isso, em vez de gráfico de zeros.
 ### Lacunas do material
 
 O que os alunos perguntam ao assistente e o seu material **não responde**, ou
-responde só em parte, agrupado por assunto. Por exemplo: *"Cardiolex — o
-material cita, mas não diz o que é; 4 alunos"*.
+responde só em parte, agrupado por assunto. Por exemplo: *"dobutamina — o
+material diz quando usar, mas não a dose; 4 alunos"*.
 
 - Você **nunca** vê o texto da pergunta nem quem perguntou.
 - Um assunto só aparece quando **pelo menos dois alunos diferentes**
@@ -372,7 +372,7 @@ disciplina, assunto, tópico, tipo e período.
 
 ### Chat de estudos
 
-Escolha a disciplina no topo e escreva sua dúvida.
+Escolha a disciplina logo acima do campo de pergunta e escreva sua dúvida.
 
 **O que torna esse assistente diferente:** ele responde **apenas** com base
 no material que o professor publicou naquela disciplina. O que não está no
@@ -395,11 +395,16 @@ A resposta leva de 10 a 30 segundos, porque o modelo roda na própria
 instituição. Enquanto isso, aparece um cronômetro; **Parar** interrompe. O
 histórico fica salvo por disciplina.
 
+**Apagar conversa** (ao lado da disciplina) apaga as suas perguntas e as
+respostas daquela disciplina, sem volta. O seu XP não muda, e o assunto das
+dúvidas que o material não respondeu continua contando para o professor —
+como antes, sem o seu nome.
+
 #### Como perguntar bem
 
 - **Pergunte na disciplina certa.** O assistente só lê o material da
-  disciplina escolhida no topo.
-- **Seja específico.** "Qual a dose inicial de Cardiolex?" funciona melhor que
+  disciplina escolhida acima do campo de pergunta.
+- **Seja específico.** "Quando usar a dobutamina?" funciona melhor que
   "fala sobre medicamentos".
 - **Use o termo exato** (nome do protocolo, da escala, do medicamento): a
   busca dá peso a siglas, códigos e números.

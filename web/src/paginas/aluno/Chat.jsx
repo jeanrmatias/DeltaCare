@@ -6,6 +6,7 @@ import { Carregando, EstadoVazio } from "../../componentes/Cartao"
 import { Markdown } from "../../componentes/Markdown"
 import { SeletorDisciplina } from "../../componentes/SeletorDisciplina"
 import { useApi } from "../../hooks/useApi"
+import { useDialogo } from "../../hooks/useDialogo"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 
@@ -18,6 +19,13 @@ export function Chat() {
   const { dados, carregando, erro } = useApi("/aluno/turmas")
   const turmas = dados?.turmas || []
   const [escolhida, setEscolhida] = useState(null)
+  // Trocar de disciplina remonta a conversa (e o seletor, que mora nela): o
+  // foco volta para ele, e quem navega pelo teclado não perde o lugar.
+  const [trocou, setTrocou] = useState(false)
+  function escolher(id) {
+    setTrocou(true)
+    setEscolhida(id)
+  }
 
   // Sem escolha ainda, a primeira (o servidor manda as do semestre antes).
   const turma = turmas.find((t) => t.id === escolhida) ?? turmas[0]
@@ -27,9 +35,7 @@ export function Chat() {
       <Cabecalho
         titulo="Chat de estudos"
         descricao="Tire dúvidas sobre o material que o professor disponibilizou — o assistente só responde com base nele."
-      >
-        {turmas.length > 0 && <SeletorDisciplina turmas={turmas} valor={turma?.id} aoMudar={setEscolhida} />}
-      </Cabecalho>
+      />
 
       {carregando && <Carregando />}
       {erro && <EstadoVazio>{erro}</EstadoVazio>}
@@ -40,7 +46,7 @@ export function Chat() {
       {/* key: trocar de disciplina monta uma conversa nova do zero — o estado
           da anterior (mensagens, resposta em andamento) não vaza para esta. */}
       {turma && (
-        <Conversa key={turma.id} turma={turma} />
+        <Conversa key={turma.id} turma={turma} turmas={turmas} aoMudar={escolher} focarSeletor={trocou} />
       )}
     </div>
   )
@@ -49,7 +55,7 @@ export function Chat() {
 const BOAS_VINDAS =
   "Oi! Pode perguntar qualquer coisa sobre o material liberado nessa disciplina que eu ajudo — só não saio do que o professor disponibilizou."
 
-function Conversa({ turma }) {
+function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
   const historico = useApi(`/chat/historico?turma_id=${turma.id}`)
   const [novas, setNovas] = useState([])
   const [pergunta, setPergunta] = useState("")
@@ -59,6 +65,7 @@ function Conversa({ turma }) {
   const [depois, setDepois] = useState(null)
   const cancelamento = useRef(null)
   const rolagem = useRef(null)
+  const { confirmar, avisar } = useDialogo()
 
   const mensagens = [...(historico.dados?.mensagens || []), ...novas]
 
@@ -115,6 +122,30 @@ function Conversa({ turma }) {
     }
   }
 
+  // Some o texto de verdade (regras/chat_ia.apagar_historico). O que fica é dito
+  // aqui, antes de apagar, e não descoberto depois.
+  async function apagar() {
+    const sim = await confirmar(
+      `Apagar a conversa de ${turma.nome}? Não dá para desfazer.
+
+` +
+      "Somem as suas perguntas e as respostas do assistente. O seu XP não muda, e o assunto das dúvidas " +
+      "que o material não respondeu continua contando para o professor, sem o seu nome.",
+      { titulo: "Apagar conversa", rotulo: "Apagar", perigo: true },
+    )
+    if (!sim) return
+    try {
+      const dados = await (await api(`/chat/historico?turma_id=${turma.id}`, { method: "DELETE" })).json()
+      if (!dados.sucesso) return await avisar(dados.mensagem || "Não foi possível apagar a conversa.", "Algo deu errado")
+      setNovas([])
+      setDepois(null)
+      historico.recarregar()
+    } catch (erro) {
+      console.error("Erro ao apagar a conversa:", erro)
+      await avisar(ERRO_DE_CONEXAO, "Algo deu errado")
+    }
+  }
+
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-cartao bg-superficie shadow-cartao">
       {/* role="log": o leitor de tela anuncia a resposta nova quando ela chega,
@@ -129,12 +160,24 @@ function Conversa({ turma }) {
       </div>
 
       <form onSubmit={perguntar} className="border-t border-borda p-4">
-        {/* Em qual disciplina se está perguntando, à vista: o assistente só lê
-            o material dela, e perguntar do Cardiolex em Anatomia sem perceber
-            dá "não cobre" para algo que a plataforma tem. */}
-        <p className="mb-2 text-xs text-texto-secundario">
-          Perguntando sobre o material de <strong className="text-texto">{turma.nome}</strong>.{" "}
-          {/* Transparência: o aluno sabe o que o professor vê, antes de perguntar. */}
+        {/* A disciplina se escolhe aqui, junto da pergunta, e não no topo da
+            página: o assistente só lê o material dela, e perguntar de
+            insuficiência cardíaca em Anatomia sem perceber dá "não cobre" para
+            algo que a plataforma tem. */}
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <label className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-texto-secundario">
+            Perguntando sobre o material de
+            <SeletorDisciplina turmas={turmas} valor={turma.id} aoMudar={aoMudar} rotulo={null} autoFocus={focarSeletor} />
+          </label>
+          {mensagens.length > 0 && (
+            <button type="button" onClick={apagar} disabled={gerando}
+              className="rounded-campo py-1 text-xs font-medium text-texto-secundario underline-offset-2 hover:text-perigo hover:underline disabled:opacity-50">
+              Apagar conversa
+            </button>
+          )}
+        </div>
+        {/* Transparência: o aluno sabe o que o professor vê, antes de perguntar. */}
+        <p className="mb-3 text-xs text-texto-secundario">
           Quando o material não responde, o professor vê o assunto da dúvida — nunca a pergunta nem o seu nome.
         </p>
         <div className="flex gap-2.5">

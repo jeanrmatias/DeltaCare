@@ -58,6 +58,7 @@ ROTULOS = {
     ("PUT", "/admin/privacidade/solicitacoes/{solicitacao_id}"): "Pedido de privacidade decidido",
     ("POST", "/admin/privacidade/solicitacoes/{solicitacao_id}/reverter"): "Exclusão de conta desfeita",
     ("DELETE", "/materiais/{material_id}"): "Material excluído",
+    ("DELETE", "/chat/historico"): "Conversa com o assistente apagada",
     ("DELETE", "/atividades/{atividade_id}"): "Atividade excluída",
     ("DELETE", "/avisos/{aviso_id}"): "Aviso excluído",
 }

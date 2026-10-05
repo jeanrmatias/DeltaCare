@@ -57,6 +57,9 @@ export function Privacidade() {
       </Paragrafo>
       <Lista>
         <li><strong>Cópia dos dados:</strong> você baixa na hora, sem precisar pedir a ninguém.</li>
+        <li><strong>Apagar a conversa com o assistente</strong>, no próprio chat, por disciplina: suas perguntas e as
+          respostas são apagadas na hora. Continua contando, sem conteúdo, o que já contava — seu XP e o assunto das
+          dúvidas que o material não respondeu, que o professor vê sem o seu nome.</li>
         <li><strong>Correção</strong> de nome, e-mail ou matrícula: a administração confere com o registro acadêmico e responde pela própria plataforma.</li>
         <li><strong>Exclusão da conta:</strong> a administração avalia o pedido. Aprovado, a conta é desativada na hora.</li>
       </Lista>

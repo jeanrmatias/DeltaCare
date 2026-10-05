@@ -12,8 +12,10 @@ Isto monta um semestre plausível de uma faculdade de medicina:
 - mensagens, avisos (um urgente da disciplina, um geral da coordenação),
   uma denúncia aberta, favoritos, uma anotação e um pedido de correção de
   dados esperando a administração;
-- o semestre anterior, com Histologia e um PDF indexado, para Semestres
-  anteriores e a busca dentro do PDF terem o que mostrar.
+- PDFs de verdade em todas as disciplinas (material_demo.py), indexados para
+  o chat e para a busca dentro do PDF;
+- o semestre anterior, com Histologia, para Semestres anteriores ter o que
+  mostrar.
 
 **Tudo passa pelas funções reais do sistema** — as mesmas que as telas
 chamam —, então os dados obedecem às mesmas regras e disparam as mesmas
@@ -21,8 +23,8 @@ notificações. Nada é escrito direto no banco, com uma exceção comentada.
 
 Pode rodar de novo: cada passo confere se já existe antes de criar.
 
-O conteúdo médico é fictício de propósito, como o do PDF de Cardiologia: se o
-assistente responder certo, foi porque leu o material.
+O conteúdo médico é real: as perguntas dos quizzes e as respostas das
+mensagens saem do material_demo.py.
 """
 
 import base64
@@ -30,6 +32,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 from infra.database import abrir_conexao
+from material_demo import POR_DISCIPLINA
 from regras.anotacoes import criar_anotacao
 from regras.aluno import registrar_acesso_material
 from regras.atividades import corrigir_entrega, criar_atividade_em_turmas, enviar_entrega, listar_entregas
@@ -64,26 +67,29 @@ ALUNOS = {
     "pedro.albuquerque@deltacare.com": "Pedro Albuquerque",
 }
 
-TEXTO_HISTOLOGIA = """Histologia - Aula 4
-Tecido Epitelial de Revestimento
-Material do semestre anterior
-
-1. CLASSIFICACAO
-
-Nesta disciplina adotamos a Classificacao Lemos-3 para o epitelio de
-revestimento, que considera o numero de camadas, a forma das celulas da
-camada superficial e a presenca de especializacoes apicais.
-
-2. O EPITELIO ESTRATIFICADO LEMOS-B
-
-O epitelio Lemos-B reveste a mucosa do canal palatino posterior. Tem entre
-quatro e seis camadas de celulas, com superficie de celulas cubicas ciliadas.
-
-3. CRITERIO DE IDENTIFICACAO
-
-Na pratica de microscopia, o Lemos-B e reconhecido pela faixa basal escura
-de 3 a 4 micrometros, visivel na coloracao padrao da disciplina.
-"""
+# O que o seed escreve sobre a Aula 3 de Cardiologia (material_demo.IC_AGUDA).
+# A resposta certa de cada questão fica na mesma posição da versão anterior,
+# que era sobre um remédio inventado: as entregas já feitas continuam com a
+# nota certa no banco que for atualizado.
+QUIZ_IC = [
+    {"enunciado": "Qual fração de ejeção define a insuficiência cardíaca com fração de ejeção reduzida?",
+     "alternativas": ["50% ou mais", "40% ou menos", "De 41% a 49%", "60% ou mais"], "correta": 1},
+    {"enunciado": "Baixa perfusão sem congestão corresponde a qual perfil de Stevenson?",
+     "alternativas": ["A (quente e seco)", "B (quente e úmido)", "C (frio e úmido)", "L (frio e seco)"], "correta": 3},
+    {"enunciado": "Qual diurético é a base do tratamento da congestão na insuficiência cardíaca aguda?",
+     "alternativas": ["Hidroclorotiazida", "Furosemida intravenosa", "Espironolactona", "Acetazolamida"], "correta": 1},
+]
+CASO_ENUNCIADO = ("Descreva a conduta inicial para um paciente com insuficiência cardíaca aguda "
+                  "no perfil frio e úmido (C) de Stevenson.")
+CASO_MARINA = ("Perfil frio e úmido: diurético de alça intravenoso para a congestão e dobutamina para a "
+               "baixa perfusão, com internação em unidade de terapia intensiva.")
+CASO_LUCAS = "Inicio furosemida intravenosa e reavalio a perfusão e a diurese nas primeiras horas."
+CASO_DEVOLUTIVA = "Boa conduta. Faltou citar a monitorização da diurese, da função renal e do potássio."
+MENSAGEM_MARINA = "Professor, no perfil quente e úmido precisa de inotrópico?"
+RESPOSTA_A_MARINA = ("Em geral não: a perfusão está preservada. A base é o diurético intravenoso; "
+                     "o vasodilatador entra se a pressão estiver alta.")
+ANOTACAO_TEXTO = "Revisar os quatro perfis de Stevenson antes da prova."
+ANOTACAO_TRECHO = "Perfil C (frio e úmido)"
 
 
 def _agora():
@@ -180,6 +186,15 @@ def _indexar(material_id: int) -> None:
         print(f"    AVISO: não indexado ({erro}). Suba o Ollama e rode o seed de novo.")
 
 
+def _pdfs_da_disciplina(nome: str, turma_id: int, professor: str) -> list:
+    """Os PDFs de material_demo.POR_DISCIPLINA[nome], criados e indexados."""
+    return [
+        _material_pdf(turma_id, professor, material["titulo"], material["texto"], material["arquivo"],
+                      assunto=material["assunto"], topico=material["topico"])
+        for material in POR_DISCIPLINA[nome]
+    ]
+
+
 def _atividade(turma_id, professor, titulo, **campos) -> int:
     linha = _um("SELECT id FROM atividades WHERE titulo = ? AND turma_id = ?", (titulo, turma_id))
     if linha:
@@ -244,25 +259,23 @@ def popular_semestre(cardiologia_id: int) -> None:
     ciclo = _material(fisiologia, FISIOLOGIA_PROF, "Ciclo cardíaco - esquema", tipo="link",
                       link_url="https://pt.wikipedia.org/wiki/Ciclo_card%C3%ADaco", rascunho=False,
                       assunto="Fisiologia", topico="Coração")
+    # O chat só lê PDF: sem eles, Anatomia e Fisiologia respondiam "a
+    # disciplina ainda não tem texto que eu consiga ler" para tudo.
+    _pdfs_da_disciplina("Cardiologia I", cardiologia_id, PROFESSOR)
+    _pdfs_da_disciplina("Anatomia", anatomia, ANATOMIA_PROF)
+    _pdfs_da_disciplina("Fisiologia", fisiologia, FISIOLOGIA_PROF)
 
     print("\nAtividades:")
     quiz = _atividade(
         cardiologia_id, PROFESSOR, "Quiz - Insuficiência cardíaca", tipo="objetiva", pontos=10,
         prazo=(_agora() + timedelta(days=5)).isoformat(), assunto="Cardiologia",
-        topico="Insuficiencia cardiaca",
-        questoes=[
-            {"enunciado": "Qual a dose inicial de Cardiolex no Protocolo Delta-7?",
-             "alternativas": ["5 mg", "12,5 mg", "25 mg", "37,5 mg"], "correta": 1},
-            {"enunciado": "Paciente frio e seco corresponde a qual estágio?",
-             "alternativas": ["DCM-1", "DCM-2", "DCM-3", "DCM-4"], "correta": 3},
-            {"enunciado": "Abaixo de qual pressão sistólica o Cardiolex é suspenso?",
-             "alternativas": ["80 mmHg", "92 mmHg", "100 mmHg", "110 mmHg"], "correta": 1},
-        ],
+        topico="Insuficiência cardíaca",
+        questoes=QUIZ_IC,
     )
     caso = _atividade(
         cardiologia_id, PROFESSOR, "Relatório de caso clínico", tipo="dissertativa", pontos=10,
         prazo=(_agora() + timedelta(days=10)).isoformat(), anexo="opcional",
-        enunciado="Descreva a conduta para um paciente DCM-3 segundo o Protocolo Delta-7.",
+        enunciado=CASO_ENUNCIADO,
     )
     quiz_cranio = _atividade(
         anatomia, ANATOMIA_PROF, "Quiz - Crânio", tipo="objetiva", pontos=10,
@@ -295,22 +308,20 @@ def popular_semestre(cardiologia_id: int) -> None:
         if respostas_cranio is not None:
             enviar_entrega(aluno, quiz_cranio, respostas_cranio)
 
-    enviar_entrega(ALUNO, caso, "Paciente DCM-3: suporte inotrópico e avaliação para unidade coronariana.")
-    enviar_entrega("lucas.martins@deltacare.com", caso,
-                   "Inicio Cardiolex 12,5 mg em bolus lento e reavalio a Escala DCM-4 em 15 minutos.")
+    enviar_entrega(ALUNO, caso, CASO_MARINA)
+    enviar_entrega("lucas.martins@deltacare.com", caso, CASO_LUCAS)
 
     # A da Marina já corrigida; a do Lucas fica esperando: é ela que aparece
     # em "Para corrigir" na tela inicial do professor.
     for entrega in listar_entregas(caso, PROFESSOR)["entregas"]:
         if entrega["aluno_email"] == ALUNO and entrega["entregue"] and entrega["nota"] is None:
-            corrigir_entrega(entrega["entrega_id"], PROFESSOR, 8,
-                             "Boa conduta. Faltou citar a internação em unidade coronariana.")
+            corrigir_entrega(entrega["entrega_id"], PROFESSOR, 8, CASO_DEVOLUTIVA)
 
     print("\nMensagens, avisos, denúncia:")
     # A última fica sem resposta: é a que aparece como não lida para o professor.
     for autor, texto, aluno in (
-        (ALUNO, "Professor, o Cardiolex pode ser repetido no estágio DCM-2?", None),
-        (PROFESSOR, "Pode, uma única vez após 30 minutos, respeitando a dose máxima de 37,5 mg.", ALUNO),
+        (ALUNO, MENSAGEM_MARINA, None),
+        (PROFESSOR, RESPOSTA_A_MARINA, ALUNO),
         ("ana.rocha@deltacare.com", "Professor, o relatório pode ser entregue em PDF?", None),
     ):
         if not _um("SELECT 1 FROM mensagens WHERE turma_id = ? AND conteudo = ?", (cardiologia_id, texto)):
@@ -338,8 +349,7 @@ def popular_semestre(cardiologia_id: int) -> None:
         "SELECT 1 FROM anotacoes a JOIN users u ON u.id = a.aluno_id WHERE u.email = ? AND a.material_id = ?",
         (ALUNO, aula_cardio),
     ):
-        criar_anotacao(ALUNO, aula_cardio, "Revisar os critérios de interrupção antes da prova.",
-                       "pressao arterial sistolica cair abaixo de 92 mmHg")
+        criar_anotacao(ALUNO, aula_cardio, ANOTACAO_TEXTO, ANOTACAO_TRECHO)
     # Uma aluna que prefere não aparecer, para a tela mostrar o caso.
     definir_visibilidade("julia.fernandes@deltacare.com", aparecer=False)
 
@@ -353,5 +363,4 @@ def popular_semestre(cardiologia_id: int) -> None:
     histologia = _disciplina("Histologia", anterior, ANATOMIA_PROF, med2a)
     for email in (ALUNO, "lucas.martins@deltacare.com", "ana.rocha@deltacare.com"):
         matricular_na_coorte(ADMIN, email, med2a)
-    _material_pdf(histologia, ANATOMIA_PROF, "Aula 4 - Tecido epitelial", TEXTO_HISTOLOGIA,
-                  "histologia_aula4.pdf", assunto="Histologia", topico="Epitelio")
+    _pdfs_da_disciplina("Histologia", histologia, ANATOMIA_PROF)

@@ -143,7 +143,7 @@ from regras.notificacoes import (
     marcar_como_lida,
     marcar_todas_como_lidas,
 )
-from regras.chat_ia import buscar_historico, indexar_material, reindexar_do_professor, responder_pergunta
+from regras.chat_ia import apagar_historico, buscar_historico, indexar_material, reindexar_do_professor, responder_pergunta
 
 configurar_banco()
 
@@ -1358,6 +1358,11 @@ async def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usua
 @app.get("/chat/historico")
 def historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
     return buscar_historico(aluno["email"], turma_id)
+
+
+@app.delete("/chat/historico")
+def apagar_historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
+    return apagar_historico(aluno["email"], turma_id)
 
 
 # ---------------------------- lacunas do material ----------------------------

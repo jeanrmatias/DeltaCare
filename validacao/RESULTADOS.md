@@ -34,7 +34,7 @@ Tempo em min:s.
 | 1 | Primeiro acesso e senha própria | | | | /3 |
 | 2 | Qual prova mudou de data | | | | /3 |
 | 3 | Abrir a aula e guardar como favorita | | | | /3 |
-| 4 | Dose do Cardiolex + de onde veio | | | | /3 |
+| 4 | Quando usar a dobutamina + de onde veio | | | | /3 |
 | 5 | Entende a recusa do assistente | | | | /3 |
 | 6 | Responder e entregar o quiz | | | | /3 |
 | 7 | Quanto falta para o próximo nível | | | | /3 |

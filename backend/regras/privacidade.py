@@ -263,7 +263,8 @@ def exportar_dados(aluno_email: str) -> dict:
             "       CASE c.papel WHEN 'user' THEN 'você' ELSE 'assistente' END AS autor,"
             "       c.conteudo, c.criado_em"
             "  FROM chat_mensagens c JOIN turmas t ON t.id = c.turma_id"
-            " WHERE c.aluno_id = ? ORDER BY c.criado_em"
+            # Apagada pelo aluno não tem mais texto: não há o que entregar.
+            " WHERE c.aluno_id = ? AND c.apagada_em IS NULL ORDER BY c.criado_em"
         ),
         "mensagens_com_professores": todas(
             "SELECT t.nome AS disciplina,"

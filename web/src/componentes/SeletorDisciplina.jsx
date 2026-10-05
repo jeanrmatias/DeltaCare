@@ -8,14 +8,16 @@
  * misturam com as de agora.
  *
  * `comTodas` acrescenta a opção "Todas as disciplinas" (valor vazio).
+ * `rotulo={null}` tira o aria-label, para quando há um <label> visível em volta.
  */
-export function SeletorDisciplina({ turmas, valor, aoMudar, comTodas = false }) {
+export function SeletorDisciplina({ turmas, valor, aoMudar, comTodas = false, rotulo = "Disciplina", autoFocus = false }) {
   const atuais = turmas.filter((t) => t.vigente !== false)
   const anteriores = turmas.filter((t) => t.vigente === false)
 
   return (
     <select
-      aria-label="Disciplina"
+      aria-label={rotulo ?? undefined}
+      autoFocus={autoFocus}
       value={valor ?? ""}
       onChange={(evento) => aoMudar(evento.target.value ? Number(evento.target.value) : null)}
       className="max-w-full rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm text-texto outline-none focus:border-primaria"

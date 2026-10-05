@@ -72,22 +72,25 @@ export function Usuarios() {
       <section className="flex flex-col gap-2.5">
         {filtrados.map((conta) => (
           <article key={conta.email} className="rounded-cartao bg-superficie px-5 py-4 shadow-cartao">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+            {/* Sem flex-wrap: com wrap, um e-mail comprido empurrava o botão
+                para baixo em uns cartões e não em outros. O texto encolhe e
+                quebra; o botão fica sempre no mesmo canto. */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
                 <div className="mb-1 flex flex-wrap items-center gap-2">
                   <Selo tom={conta.tipo === "adm" ? "perigo" : conta.tipo === "professor" ? "alerta" : "neutro"}>{PERFIS[conta.tipo] || conta.tipo}</Selo>
                   {conta.desativado && <Selo tom="perigo">Desativada · anonimiza em {dataComAno(conta.anonimizar_em)}</Selo>}
                   {conta.email === usuario.email && <span className="text-xs font-semibold text-texto-secundario">você</span>}
                 </div>
                 <h3 className="text-[17px] font-semibold text-navy-900">{conta.nome || conta.email}</h3>
-                <p className="text-[14px] text-texto-secundario">{conta.email}</p>
+                <p className="text-[14px] [overflow-wrap:anywhere] text-texto-secundario">{conta.email}</p>
                 <p className="mt-0.5 text-xs font-medium text-primaria">{vinculo(conta)}</p>
               </div>
               {conta.tipo !== "adm" && !conta.desativado && (
-                <Botao variante="neutra" pequeno onClick={() => { setAviso(""); setExcluindo(conta) }}>Excluir</Botao>
+                <Botao variante="neutra" pequeno className="shrink-0" onClick={() => { setAviso(""); setExcluindo(conta) }}>Excluir</Botao>
               )}
               {conta.desativado && conta.exclusao_id && (
-                <Botao variante="neutra" pequeno onClick={() => desfazer(conta)}>Desfazer exclusão</Botao>
+                <Botao variante="neutra" pequeno className="shrink-0" onClick={() => desfazer(conta)}>Desfazer exclusão</Botao>
               )}
             </div>
           </article>

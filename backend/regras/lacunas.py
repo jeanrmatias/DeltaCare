@@ -2,7 +2,7 @@
 
 O assistente sabe, a cada resposta, se o material cobriu a pergunta por
 inteiro, em parte ou nada (regras/chat_ia.py). Aqui isso vira um recado para
-o professor: "o Cardiolex é citado, mas não explicado — 4 alunos perguntaram".
+o professor: "a dobutamina é citada, mas sem a dose — 4 alunos perguntaram".
 É o que fecha o ciclo de um material raso: o assistente não pode completar a
 lacuna, mas o professor pode.
 
@@ -38,7 +38,7 @@ TIPOS = {
 
 
 def chave_do_assunto(assunto: str) -> str:
-    """'O Cardiolex.' e 'cardiolex' são o mesmo assunto."""
+    """'A dobutamina.' e 'dobutamina' são o mesmo assunto."""
     texto = _normalizar_para_busca(assunto or "")
     texto = re.sub(r"[^\w\s-]", " ", texto)
     texto = re.sub(r"^(o|a|os|as|um|uma)\s+", "", texto.strip())

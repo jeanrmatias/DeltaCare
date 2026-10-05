@@ -23,6 +23,7 @@ from regras.materiais import criar_material
 from regras.matriculas import matricular_aluno
 from regras.turmas import criar_turma
 from infra.security import hash_senha
+from material_demo import IC_AGUDA
 
 SENHA_PADRAO = "demo123"
 
@@ -55,67 +56,9 @@ def _semestre_vigente() -> str:
 
 TURMA_SEMESTRE = None  # resolvido em main(), depois de o banco existir
 
-MATERIAL_TITULO = "Aula 3 - Insuficiencia Cardiaca Aguda"
-
-# Conteúdo fictício de propósito: o protocolo, a escala e o medicamento não
-# existem. Isso torna a demonstração honesta — se o assistente responder a dose
-# do "Cardiolex" corretamente, foi porque leu o material, e não porque o modelo
-# já sabia o assunto.
-TEXTO_PDF = """Cardiologia I - Aula 3
-Manejo Inicial da Insuficiencia Cardiaca Aguda
-Prof. responsavel: Delta Care / Semestre 2026.2
-
-1. INTRODUCAO
-
-Este material apresenta o Protocolo Delta-7, adotado nesta disciplina para
-o manejo inicial do paciente com insuficiencia cardiaca aguda descompensada.
-
-2. A ESCALA DCM-4
-
-Estagio DCM-1: paciente quente e seco. Perfusao preservada, sem congestao.
-Conduta: ajuste de medicacao oral e alta precoce com reavaliacao em 72 horas.
-
-Estagio DCM-2: paciente quente e umido. Perfusao preservada, com congestao
-pulmonar. Conduta: diuretico intravenoso e monitorizacao de diurese horaria.
-
-Estagio DCM-3: paciente frio e umido. Baixa perfusao associada a congestao.
-Conduta: suporte inotropico e avaliacao para internacao em unidade coronariana.
-
-Estagio DCM-4: paciente frio e seco. Baixa perfusao sem congestao evidente.
-Conduta: reposicao volemica cautelosa antes de qualquer inotropico.
-
-3. O MEDICAMENTO CARDIOLEX
-
-O Cardiolex e o agente de primeira linha previsto no Protocolo Delta-7 para
-os estagios DCM-2 e DCM-3. A dose inicial recomendada e de 12,5 mg por via
-intravenosa, administrada em bolus lento ao longo de 10 minutos.
-
-A dose pode ser repetida uma unica vez apos 30 minutos, caso nao haja
-resposta clinica adequada. A dose maxima acumulada nas primeiras 24 horas
-nao deve ultrapassar 37,5 mg.
-
-4. CRITERIOS DE INTERRUPCAO
-
-A administracao de Cardiolex deve ser imediatamente interrompida se a pressao
-arterial sistolica cair abaixo de 92 mmHg, ou se a frequencia cardiaca
-ultrapassar 130 batimentos por minuto de forma sustentada.
-
-Nesses casos, o Protocolo Delta-7 orienta a transicao para o esquema de
-resgate descrito na aula 5, com reavaliacao da Escala DCM-4 a cada 15 minutos.
-
-5. MONITORIZACAO
-
-Durante as primeiras 6 horas apos a administracao, recomenda-se:
-- Afericao de pressao arterial a cada 15 minutos na primeira hora.
-- Controle de diurese horaria, com meta minima de 0,5 mL por quilo por hora.
-- Reavaliacao do estagio na Escala DCM-4 a cada 2 horas.
-- Registro de peso corporal diario, sempre no mesmo horario.
-
-6. CONSIDERACOES FINAIS
-
-O Protocolo Delta-7 nao substitui o julgamento clinico individualizado. Os
-valores apresentados sao referencias didaticas desta disciplina.
-"""
+# Conteúdo médico real (material_demo.py): o primeiro PDF da demonstração.
+MATERIAL_TITULO = IC_AGUDA["titulo"]
+TEXTO_PDF = IC_AGUDA["texto"]
 
 
 # =========================================================================
@@ -312,14 +255,14 @@ def criar_material_indexado(turma_id: int) -> None:
             turma_id=turma_id,
             titulo=MATERIAL_TITULO,
             tipo="pdf",
-            descricao="Protocolo Delta-7 e Escala DCM-4 (conteudo ficticio para demonstracao)",
-            assunto="Cardiologia",
-            topico="Insuficiencia cardiaca",
+            descricao="Perfis de Stevenson, classes da NYHA e tratamento inicial",
+            assunto=IC_AGUDA["assunto"],
+            topico=IC_AGUDA["topico"],
             aula="Aula 3",
             semestre=TURMA_SEMESTRE,
             rascunho=False,
             arquivo_base64=conteudo,
-            arquivo_nome="cardiologia_aula3.pdf",
+            arquivo_nome=IC_AGUDA["arquivo"],
         )
 
         os.remove(caminho_pdf)

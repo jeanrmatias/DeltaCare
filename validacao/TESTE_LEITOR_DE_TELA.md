@@ -49,7 +49,7 @@ falou quando algo deu errado — a frase exata é o que diz o que consertar.
 | 1 | Entrar na plataforma | Os campos são anunciados como "E-mail" e "Senha"; um erro de senha é lido sem procurar |
 | 2 | Na primeira tela depois do login, pular o menu | O primeiro `Tab` oferece "Pular para o conteúdo", e `Enter` leva ao título da página |
 | 3 | Descobrir qual prova mudou de data | Chega ao aviso "Prova antecipada" pelos títulos (`H`) e ouve o texto dele |
-| 4 | Abrir o Chat de estudos e perguntar a dose do Cardiolex | O campo é anunciado como "Sua pergunta"; enquanto espera, ouve "Consultando o material" **uma vez** (não a cada segundo); **a resposta é lida sozinha** quando chega, com a fonte |
+| 4 | Abrir o Chat de estudos e perguntar quando se usa a dobutamina | O campo é anunciado como "Sua pergunta"; enquanto espera, ouve "Consultando o material" **uma vez** (não a cada segundo); **a resposta é lida sozinha** quando chega, com a fonte |
 | 5 | Interromper uma resposta no meio | Acha o botão "Parar" pelo `Tab` |
 | 6 | Abrir a aula de insuficiência cardíaca e favoritá-la | O botão da estrela diz o que faz ("Guardar nos favoritos") e é anunciado como botão de alternância, pressionado ou não |
 | 7 | Responder o quiz de insuficiência cardíaca | Cada questão é lida com as alternativas; dá para escolher com as setas e entregar |

@@ -45,16 +45,16 @@ diferentes** perguntaram sobre ele (para não expor ninguém). Na apresentação
 só a Marina pergunta; então dois colegas dela perguntam antes:
 
 1. Entre como `lucas.martins@deltacare.com` / `demo123` → **Chat de estudos**
-   → **Cardiologia I** → pergunte *O que é o Cardiolex?* Saia.
+   → **Cardiologia I** → pergunte *Quando usar a dobutamina e qual a dose?* Saia.
 2. Mesma coisa com `ana.rocha@deltacare.com`.
 3. Entre como `professor@deltacare.com` → **Lacunas do material**. Deve
-   aparecer **Cardiolex** com 2 alunos. Saia.
+   aparecer **dobutamina** com 2 alunos. Saia.
 
 Isso também tira o tempo de carregar o modelo da frente da banca: a primeira
 resposta do dia demora mais (o modelo sobe para a memória); as seguintes
 levam de 10 a 30 segundos.
 
-Se o Cardiolex não aparecer em Lacunas, o modelo considerou a resposta
+Se a dobutamina não aparecer em Lacunas, o modelo considerou a resposta
 completa nas duas vezes. Pergunte de novo com um terceiro aluno
 (`gabriel.teixeira@deltacare.com`).
 
@@ -127,20 +127,23 @@ Não abra Lacunas ainda: ela fecha a apresentação.
    na ordem:
 
    **a) Pergunta que o material responde**
-   > Quais são os quatro estágios da Escala DCM-4 e a conduta de cada um?
+   > Quais são os quatro perfis de Stevenson e a conduta de cada um?
 
-   Costuma vir em tabela. Aponte a fonte citada abaixo da resposta.
-   **Frase-chave:** "O protocolo, a escala e o medicamento são inventados. Se
-   ele acertou, foi porque leu o material — o modelo não tinha como saber."
+   Costuma vir em lista ou tabela. Aponte a fonte citada abaixo da resposta,
+   a Aula 3.
+   **Frase-chave:** "Cada resposta diz de qual aula saiu: o aluno confere no
+   PDF que o professor publicou. É material de verdade, com as referências no
+   fim de cada aula."
 
    **b) Pergunta que o material responde só em parte**
-   > O que é o Cardiolex?
+   > Quando usar a dobutamina e qual a dose?
 
-   O material diz para que o Cardiolex serve e em que dose, mas não o que ele
-   é. O assistente traz o que tem e mostra, abaixo, **"O material não traz:"**
-   o que faltou.
-   **Frase-chave:** "Ele não inventa a classe do remédio, e também não joga
-   fora o que o material tem. Diz o que sabe e o que falta."
+   A Aula 3 diz quando usar (hipotensão, com sistólica abaixo de 90 mmHg, e
+   sinais de hipoperfusão), mas não a dose. O assistente traz o que tem e
+   mostra, abaixo, **"O material não traz:"** o que faltou.
+   **Frase-chave:** "O modelo sabe uma dose de dobutamina de memória. Ele não
+   a dá, porque não está no material que o professor validou — e também não
+   joga fora o que o material tem. Diz o que sabe e o que falta."
 
    **c) Pergunta fora do material**
    > Qual o tratamento cirúrgico da apendicite?
@@ -159,8 +162,8 @@ Não abra Lacunas ainda: ela fecha a apresentação.
 **Objetivo:** mostrar que a recusa não é o fim da linha.
 
 1. Saia e entre como `professor@deltacare.com`.
-2. Abra **Lacunas do material**. **Cardiolex** aparece com 3 alunos e, em "o
-   que falta", o que eles queriam saber.
+2. Abra **Lacunas do material**. **dobutamina** aparece com 3 alunos e, em
+   "o que falta", o que eles queriam saber: a dose.
 3. **Frase-chave:** "O que o assistente não soube responder vira pauta para o
    professor: o que a turma está perguntando e o material não cobre. Sem
    nome de aluno e sem o texto da pergunta — e só quando pelo menos dois

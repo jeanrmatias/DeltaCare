@@ -356,6 +356,11 @@ stateDiagram-v2
   (aluno ou professor), com o motivo registrado; professor com disciplina só
   sai com alguém para assumi-las (`turmas.passar_disciplina` leva junto o
   material e as atividades).
+- **Apagar a conversa:** o aluno apaga, por disciplina, o texto do que
+  perguntou e do que o assistente respondeu (`chat_ia.apagar_historico`). A
+  linha fica sem conteúdo — dia, cobertura e assunto, mais o hash da pergunta
+  (`aluno.chave_da_pergunta`) — para o XP, as lacunas e os relatórios não
+  mudarem depois do fato.
 - **Anonimizar, e não apagar:** o que é pessoal sai (conversas com o
   assistente, anotações, favoritos, mensagens, notificações, sessões); o que é
   registro acadêmico — matrículas, entregas e notas — fica, porque a faculdade

@@ -24,7 +24,7 @@ aplicada (anote o motivo).
 | 1 | Primeiro acesso e senha própria | | | |
 | 2 | Qual prova mudou de data | | | |
 | 3 | Abrir a aula de IC e guardar como favorita | | | |
-| 4 | Dose do Cardiolex pelo assistente + de onde veio | | | |
+| 4 | Quando usar a dobutamina, pelo assistente + de onde veio | | | |
 | 5 | Pneumonia: entende a recusa? | | | |
 | 6 | Responder e entregar o quiz | | | |
 | 7 | Quanto falta para o próximo nível | | | |

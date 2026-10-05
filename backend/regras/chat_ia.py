@@ -380,7 +380,7 @@ PALAVRAS_COMUNS = {
 
 
 def _normalizar_para_busca(texto: str) -> str:
-    """Minúsculas e sem acento, para casar 'Cardiolex' com 'cardiolex'."""
+    """Minúsculas e sem acento, para casar 'Crânio' com 'cranio'."""
     sem_acento = "".join(
         letra for letra in unicodedata.normalize("NFD", texto)
         if unicodedata.category(letra) != "Mn"
@@ -393,7 +393,7 @@ def _termos_distintivos(pergunta: str) -> list:
 
     Ficam de fora as palavras comuns; sobram siglas, códigos, números e
     palavras longas — justamente o que costuma identificar um assunto
-    específico ("ARR-7", "DCM-4", "Cardiolex", "12,5").
+    específico ("CHA2DS2-VASc", "NT-proBNP", "Takotsubo", "0,05").
     """
     candidatos = re.findall(r"[a-z0-9][a-z0-9\-,\.]{2,}", _normalizar_para_busca(pergunta))
 
@@ -657,7 +657,7 @@ def buscar_historico(aluno_email: str, turma_id: int) -> dict:
     cursor.execute(
         '''
         SELECT papel, conteudo, fontes, lacuna, cobertura, criado_em FROM chat_mensagens
-        WHERE aluno_id = ? AND turma_id = ?
+        WHERE aluno_id = ? AND turma_id = ? AND apagada_em IS NULL
         ORDER BY criado_em
         ''',
         (aluno[0], turma_id),
@@ -670,3 +670,56 @@ def buscar_historico(aluno_email: str, turma_id: int) -> dict:
     conexao.close()
 
     return {"sucesso": True, "mensagens": mensagens}
+
+
+# Marca das fontes de uma resposta apagada: só diz que havia fonte (a pergunta
+# pontuou no XP), sem dizer qual material nem qual trecho.
+FONTES_APAGADAS = '["apagada"]'
+
+
+def apagar_historico(aluno_email: str, turma_id: int) -> dict:
+    """O aluno apaga a conversa com o assistente numa disciplina.
+
+    Some de verdade o que ele escreveu e o que o assistente respondeu: texto,
+    fontes citadas e o "o que falta" da resposta. Fica a contagem, sem
+    conteúdo: o dia, se o material respondeu e o assunto em poucas palavras —
+    o mesmo que o professor já via nas lacunas, sem nome e só com 2+ alunos.
+    Assim o XP e a sequência de dias do aluno não mudam, apagar e perguntar de
+    novo não pontua duas vezes (fica o hash da pergunta, ver
+    aluno.chave_da_pergunta) e os relatórios de meses fechados não mudam.
+
+    Quem quer que nem isso fique pede a exclusão da conta (privacidade.py).
+    """
+    from regras.aluno import chave_da_pergunta
+
+    conexao = conectar()
+    try:
+        aluno = buscar_usuario(conexao, aluno_email)
+        if not aluno or aluno[1] != "aluno":
+            return {"sucesso": False, "mensagem": "Aluno não encontrado."}
+        agora = datetime.now(timezone.utc).isoformat()
+        perguntas = conexao.execute(
+            "SELECT id, conteudo FROM chat_mensagens"
+            " WHERE aluno_id = ? AND turma_id = ? AND papel = 'user' AND apagada_em IS NULL",
+            (aluno[0], turma_id),
+        ).fetchall()
+        conexao.executemany(
+            "UPDATE chat_mensagens SET chave = ? WHERE id = ?",
+            [(chave_da_pergunta(conteudo), id_mensagem) for id_mensagem, conteudo in perguntas],
+        )
+        apagadas = conexao.execute(
+            """
+            UPDATE chat_mensagens
+               SET conteudo = '', lacuna = NULL, apagada_em = ?,
+                   fontes = CASE WHEN fontes IS NULL OR trim(fontes) IN ('', '[]') THEN fontes ELSE ? END
+             WHERE aluno_id = ? AND turma_id = ? AND apagada_em IS NULL
+            """,
+            (agora, FONTES_APAGADAS, aluno[0], turma_id),
+        ).rowcount
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    if not apagadas:
+        return {"sucesso": True, "apagadas": 0, "mensagem": "Não havia conversa para apagar."}
+    return {"sucesso": True, "apagadas": apagadas, "mensagem": "Conversa apagada."}

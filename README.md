@@ -65,7 +65,8 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
   sequência de dias de estudo, avisos e as disciplinas com o material recente.
 - **Chat de estudos:** pergunta ao assistente sobre o material das
   disciplinas; a resposta cita de onde veio, e o que não está no material ele
-  recusa, oferecendo levar a dúvida ao professor.
+  recusa, oferecendo levar a dúvida ao professor. O aluno apaga a conversa de
+  uma disciplina quando quiser.
 - **Materiais** e **Atividades** (objetivas, corrigidas na hora, e
   dissertativas, com ou sem arquivo anexo), **Desempenho** por disciplina e
   por tópico.
@@ -79,9 +80,9 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 - **Início** com o que tem para corrigir, mensagens não lidas, avisos e o que
   falta no material.
 - **Lacunas do material:** o que os alunos perguntam ao assistente e o
-  material não responde — por assunto ("Cardiolex: o material cita, mas não
-  explica o que é; 4 alunos"), sem o nome nem o texto da pergunta, e só com
-  assunto de pelo menos dois alunos.
+  material não responde — por assunto ("dobutamina: o material diz quando
+  usar, mas não a dose; 4 alunos"), sem o nome nem o texto da pergunta, e só
+  com assunto de pelo menos dois alunos.
 - **Materiais** (PDF, documento, vídeo, link; rascunho e publicação agendada),
   **Atividades** e correção das entregas, **Calendário**, **Disciplinas**,
   **Chat** com os alunos, **Desempenho** da turma, **Avisos** e **Semestres
@@ -263,18 +264,24 @@ usam:
 - mensagens (uma não lida para o professor), um aviso urgente da disciplina e
   um geral da coordenação, uma denúncia aberta, favorito e anotação, e um
   pedido de correção de dados esperando a administração;
-- o semestre anterior, com a turma **MED 2A** e Histologia, com PDF indexado,
-  para a tela Semestres anteriores e a busca dentro do material.
+- PDFs em todas as disciplinas, indexados para o chat e para a busca
+  dentro do material;
+- o semestre anterior, com a turma **MED 2A** e Histologia, para a tela
+  Semestres anteriores.
 
 Pode rodar mais de uma vez — o que já existe é reaproveitado (há teste para
 isso). Sem o Ollama no ar, tudo é criado e só a indexação dos PDFs fica para
 quando ele subir.
 
-O conteúdo dos PDFs é fictício de propósito (um "Protocolo Delta-7" e um
-medicamento "Cardiolex" que não existem). Assim dá para provar que o
-assistente respondeu lendo o material, e não com conhecimento próprio do
-modelo: pergunte a dose do Cardiolex e depois algo fora do material, como
-tratamento de apendicite — ele deve recusar a segunda.
+Os PDFs são material didático de verdade, com as referências no fim de
+cada aula ([`backend/material_demo.py`](backend/material_demo.py)):
+insuficiência cardíaca aguda, fibrilação atrial, saúde mental e doença
+cardiovascular (Cardiologia I); ossos e base do crânio (Anatomia); ciclo
+cardíaco, resposta ao estresse e sono (Fisiologia); tecido epitelial e
+nervoso (Histologia). Para ver que o assistente se prende ao material: cada
+resposta diz de qual aula saiu; pergunte *quando usar a dobutamina e qual a
+dose* (a aula diz quando, não a dose) e algo fora do material, como o
+tratamento da apendicite — ele traz só o que o material tem e recusa o resto.
 
 **Nunca rode o seed em produção:** ele cria contas com a senha `demo123`, que
 todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
@@ -436,6 +443,7 @@ na tela pública **Privacidade e uso de dados**
 | Pedido | Quem decide | O que acontece |
 |---|---|---|
 | Cópia dos dados | ninguém — sai na hora | Arquivo JSON com cadastro, disciplinas, entregas e notas, acessos, favoritos, anotações, conversas e notificações. Fica registrado que foi entregue. |
+| Apagar a conversa com o assistente | ninguém — no próprio chat | Some o texto das perguntas, das respostas e dos trechos citados daquela disciplina. Fica, sem conteúdo, o que já contava: o dia, se o material respondeu e o assunto (que o professor já via, sem nome) — o XP e os relatórios não mudam. Na pergunta fica só um hash, para apagar e perguntar de novo não pontuar duas vezes. |
 | Correção (nome, e-mail, matrícula) | administração | A tela **Privacidade** mostra o valor de hoje ao lado do pedido; aprovado, troca na hora. |
 | Exclusão da conta | administração | Aprovada, a conta é **desativada** (não entra, sessões encerradas, sai do ranking) e o aluno recebe e-mail. **45 dias depois** é anonimizada. Até lá, a administração pode reverter. |
 | Exclusão pela administração (aluno ou professor que saiu) | administração, por conta própria | O mesmo caminho, já aprovado, com o **motivo registrado** (Usuários → Excluir). Professor com disciplina só sai com alguém para assumi-las: material, atividades e notas passam para o novo professor e continuam com os alunos. |
@@ -542,7 +550,7 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (551 testes):** permissões de cada perfil, visibilidade de
+- **Backend (565 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,

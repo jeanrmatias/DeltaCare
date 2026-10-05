@@ -12,6 +12,7 @@ Misturar as duas visões na mesma função convidaria a um erro de filtro que
 vazaria material não liberado. Aqui a regra do aluno fica isolada e explícita.
 """
 
+import hashlib
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -324,6 +325,14 @@ def _normalizar_pergunta(texto: str) -> str:
     return " ".join(limpo.split())
 
 
+def chave_da_pergunta(texto: str) -> str:
+    """Hash da pergunta normalizada: o que sobra dela quando o aluno apaga a
+    conversa. Basta para reconhecer a mesma pergunta feita de novo, e não dá
+    para ler a pergunta de volta a partir dele. Vazio para pergunta vazia."""
+    normalizada = _normalizar_pergunta(texto)
+    return hashlib.sha256(normalizada.encode()).hexdigest() if normalizada else ""
+
+
 def _perguntas_que_pontuam(cursor, aluno_id: int, turmas=None, desde: str | None = None) -> int:
     """Quantas perguntas do aluno valem XP.
 
@@ -351,6 +360,7 @@ def _perguntas_que_pontuam(cursor, aluno_id: int, turmas=None, desde: str | None
     linhas = cursor.execute(
         """
         SELECT p.conteudo,
+               p.chave,
                substr(p.criado_em, 1, 10),
                (SELECT r.fontes
                   FROM chat_mensagens r
@@ -372,12 +382,14 @@ def _perguntas_que_pontuam(cursor, aluno_id: int, turmas=None, desde: str | None
     por_dia = {}
     total = 0
 
-    for conteudo, dia, fontes in linhas:
+    for conteudo, chave_guardada, dia, fontes in linhas:
         # `fontes` é NULL quando o assistente não citou nada (ver chat_ia).
         if not fontes or fontes.strip() in ("", "[]"):
             continue
 
-        chave = _normalizar_pergunta(conteudo)
+        # Apagada pelo aluno, a pergunta só tem a chave; as outras, o texto.
+        # As duas no mesmo formato: apagar e perguntar de novo não pontua duas vezes.
+        chave = chave_guardada or chave_da_pergunta(conteudo)
         if not chave or chave in ja_contadas:
             continue
 

@@ -7305,6 +7305,212 @@ class TestesSenhaProvisoria(BaseDelta):
         self.assertTrue(self._login(ALUNO, "outra-senha-9")["sucesso"])
 
 
+# =========================================================================
+# O aluno apaga a conversa com o assistente
+
+class TestesApagarConversa(BaseAtividades):
+    """Apagar some com o texto de verdade, e o resto do sistema não percebe:
+    XP, lacunas do professor e relatórios continuam contando."""
+
+    def setUp(self):
+        super().setUp()
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+        self.outra = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]
+        matricular_aluno(ADMIN, ALUNO, self.outra)
+
+    def _id(self, email):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linha = conexao.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        conexao.close()
+        return linha[0]
+
+    def _perguntar(self, texto, aluno=ALUNO, turma_id=None, cobertura="completa", assunto="", lacuna=""):
+        """Uma ida ao chat como o chat_ia grava, sem o modelo ligado."""
+        quando = datetime.now(timezone.utc).isoformat()
+        turma = turma_id or self.turma_id
+        fontes = json.dumps([{"titulo": "Aula 3", "trecho": "Perfil C (frio e úmido)"}]) if cobertura != "nenhuma" else None
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute(
+            "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, criado_em) VALUES (?, ?, 'user', ?, ?)",
+            (self._id(aluno), turma, texto, quando),
+        )
+        conexao.execute(
+            "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, lacuna, cobertura, assunto, criado_em)"
+            " VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?, ?)",
+            (self._id(aluno), turma, f"Resposta sobre {texto}", fontes, lacuna, cobertura, assunto, quando),
+        )
+        conexao.commit()
+        conexao.close()
+
+    def _linhas(self, aluno=ALUNO, turma_id=None):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linhas = conexao.execute(
+            "SELECT * FROM chat_mensagens WHERE aluno_id = ? AND turma_id = ?",
+            (self._id(aluno), turma_id or self.turma_id),
+        ).fetchall()
+        conexao.close()
+        return linhas
+
+    def test_a_conversa_some_da_tela(self):
+        self._perguntar("Qual o perfil frio e úmido?")
+
+        resultado = chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        self.assertEqual((resultado["sucesso"], resultado["apagadas"]), (True, 2))
+        self.assertEqual(chat_ia.buscar_historico(ALUNO, self.turma_id)["mensagens"], [])
+
+    def test_o_texto_sai_do_banco_de_verdade(self):
+        """Esconder da tela não basta: em nenhuma coluna sobra a pergunta, a
+        resposta, o trecho citado ou o que faltava no material."""
+        self._perguntar("Qual o perfil frio e úmido?", cobertura="parcial", assunto="perfis de Stevenson",
+                        lacuna="o material não traz a dose de dobutamina")
+
+        chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        guardado = json.dumps(self._linhas(), ensure_ascii=False)
+        for rastro in ("perfil frio", "Resposta sobre", "Perfil C", "dobutamina"):
+            self.assertNotIn(rastro, guardado)
+
+    def test_so_a_disciplina_escolhida_e_so_o_proprio_aluno(self):
+        self._perguntar("Pergunta de cardiologia")
+        self._perguntar("Quantos ossos tem o crânio?", turma_id=self.outra)
+        self._perguntar("Pergunta do colega", aluno=ALUNO_FORA)
+
+        chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        self.assertEqual(len(chat_ia.buscar_historico(ALUNO, self.outra)["mensagens"]), 2)
+        self.assertEqual(len(chat_ia.buscar_historico(ALUNO_FORA, self.turma_id)["mensagens"]), 2)
+
+    def test_o_xp_nao_muda(self):
+        self._perguntar("Qual o perfil frio e úmido?")
+        self._perguntar("Quantas classes tem a NYHA?")
+        antes = resumo_do_aluno(ALUNO)["progresso"]
+
+        chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        depois = resumo_do_aluno(ALUNO)["progresso"]
+        self.assertEqual((depois["perguntas"], depois["xp"]), (antes["perguntas"], antes["xp"]))
+        self.assertEqual(antes["perguntas"], 2)
+
+    def test_apagar_e_perguntar_de_novo_nao_pontua_duas_vezes(self):
+        self._perguntar("Qual o perfil frio e úmido?")
+        chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        self._perguntar("qual o perfil FRIO e úmido")
+
+        self.assertEqual(resumo_do_aluno(ALUNO)["progresso"]["perguntas"], 1)
+
+    def test_o_professor_continua_vendo_o_assunto_sem_o_que_era_do_aluno(self):
+        from regras.lacunas import listar_lacunas
+
+        self._perguntar("Quantos ossos tem o crânio?", cobertura="nenhuma", assunto="ossos do crânio",
+                        lacuna="a contagem dos ossos da face")
+        self._perguntar("E os ossos do crânio?", aluno=ALUNO_FORA, cobertura="nenhuma", assunto="ossos do crânio",
+                        lacuna="a lista dos ossos do neurocrânio")
+
+        chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        disciplina = next(d for d in listar_lacunas(PROFESSOR)["disciplinas"] if d["id"] == self.turma_id)
+        lacuna = disciplina["lacunas"][0]
+        self.assertEqual((lacuna["assunto"], lacuna["alunos"]), ("ossos do crânio", 2))
+        self.assertEqual(lacuna["o_que_falta"], ["a lista dos ossos do neurocrânio"])
+
+    def test_a_copia_dos_dados_nao_traz_o_que_foi_apagado(self):
+        from regras.privacidade import exportar_dados
+
+        self._perguntar("Pergunta apagada")
+        self._perguntar("Pergunta que fica", turma_id=self.outra)
+        chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        conversas = exportar_dados(ALUNO)["dados"]["conversas_com_o_assistente"]
+
+        self.assertEqual([c["conteudo"] for c in conversas if c["autor"] == "você"], ["Pergunta que fica"])
+
+    def test_apagar_de_novo_nao_quebra(self):
+        self._perguntar("Qual o perfil frio e úmido?")
+        chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        resultado = chat_ia.apagar_historico(ALUNO, self.turma_id)
+
+        self.assertEqual((resultado["sucesso"], resultado["apagadas"]), (True, 0))
+
+    def test_pela_rota_so_o_aluno_e_fica_na_trilha(self):
+        from fastapi.testclient import TestClient
+
+        import main
+        from regras.auditoria import listar
+
+        cliente = TestClient(main.app)
+
+        def cabecalho(email):
+            token = cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+            return {"Authorization": f"Bearer {token}"}
+
+        self._perguntar("Qual o perfil frio e úmido?")
+        rota = f"/chat/historico?turma_id={self.turma_id}"
+
+        self.assertEqual(cliente.delete(rota, headers=cabecalho(PROFESSOR)).status_code, 403)
+        self.assertTrue(cliente.delete(rota, headers=cabecalho(ALUNO)).json()["sucesso"])
+
+        acoes = [(r["acao"], r["quem"]) for r in listar(ADMIN)["registros"]]
+        self.assertIn(("Conversa com o assistente apagada", ALUNO), acoes)
+
+
+# =========================================================================
+# O material em PDF da demonstração
+
+class TestesMaterialDeDemonstracao(unittest.TestCase):
+    """Os PDFs dos seeds são medicina de verdade e cabem no gerador de PDF."""
+
+    def test_o_texto_cabe_na_codificacao_e_na_pagina(self):
+        """WinAnsi não tem "≥" nem setas: o caractere viraria "?" no PDF. E o
+        gerador não quebra linha: linha longa sairia cortada da página."""
+        import material_demo
+
+        for material in material_demo.TODOS:
+            with self.subTest(material=material["titulo"]):
+                material["texto"].encode("cp1252")
+                self.assertLessEqual(max(len(linha) for linha in material["texto"].split("\n")), 84)
+
+    def test_todas_as_disciplinas_da_demonstracao_tem_pdf(self):
+        """O chat só lê PDF: disciplina sem PDF responde "não tenho texto" para tudo."""
+        import material_demo
+        import seed_demo
+
+        self.assertEqual(set(material_demo.POR_DISCIPLINA), {seed_demo.TURMA_NOME, "Anatomia", "Fisiologia", "Histologia"})
+        self.assertTrue(all(material_demo.POR_DISCIPLINA.values()))
+
+    def test_nada_do_conteudo_inventado_de_antes(self):
+        """O exemplo era um remédio, uma escala e um protocolo que não existem."""
+        import material_demo
+        import seed_semestre
+
+        textos = json.dumps([material_demo.TODOS, seed_semestre.QUIZ_IC, seed_semestre.CASO_ENUNCIADO,
+                             seed_semestre.CASO_MARINA, seed_semestre.CASO_LUCAS, seed_semestre.MENSAGEM_MARINA,
+                             seed_semestre.RESPOSTA_A_MARINA], ensure_ascii=False)
+        for inventado in ("Cardiolex", "DCM-", "Delta-7", "Lemos-", "ARR-7"):
+            self.assertNotIn(inventado, textos)
+
+    def test_o_pdf_gerado_devolve_o_texto_com_acento(self):
+        import tempfile
+
+        import material_demo
+        from seed_demo import gerar_pdf
+
+        caminho = os.path.join(tempfile.mkdtemp(), "aula.pdf")
+        gerar_pdf(material_demo.OSSOS_DO_CRANIO["texto"], caminho)
+
+        texto = chat_ia.extrair_texto_pdf(caminho)
+        self.assertIn("NEUROCRÂNIO: 8 OSSOS", texto)
+        self.assertIn("Vômer (1)", texto)
+
+    def test_a_anotacao_do_seed_marca_um_trecho_que_existe(self):
+        import material_demo
+        import seed_semestre
+
+        self.assertIn(seed_semestre.ANOTACAO_TRECHO, material_demo.IC_AGUDA["texto"])
+
+
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")
     print("(o Ollama não precisa estar rodando)\n")

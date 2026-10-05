@@ -760,6 +760,13 @@ def configurar_banco(silencioso: bool = False):
         cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN cobertura TEXT")
     if "assunto" not in colunas_chat:
         cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN assunto TEXT")
+    # O aluno apagou a conversa (regras/chat_ia.apagar_historico): o texto
+    # some, e na pergunta fica só `chave`, o hash dela para o XP reconhecer
+    # repetição.
+    if "apagada_em" not in colunas_chat:
+        cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN apagada_em TEXT")
+    if "chave" not in colunas_chat:
+        cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN chave TEXT")
 
     # Assuntos que o professor marcou como tratados (publicou material sobre
     # eles). Contam de novo só as perguntas feitas depois.
