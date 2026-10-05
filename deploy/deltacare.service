@@ -11,7 +11,7 @@ EnvironmentFile=/etc/deltacare.env
 # Um processo só, de propósito: o banco é SQLite (um escritor por vez) e o
 # limite de chamadas ao modelo de IA vale por processo. Ouve só a máquina
 # local; quem fala com a internet é o Caddy, com HTTPS.
-ExecStart=/opt/deltacare/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
+ExecStart=/opt/deltacare/.venv/bin/uvicorn main:app --app-dir app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=always
 RestartSec=3
 

@@ -18,12 +18,12 @@ https://github.com/jeanrmatias/DeltaCare
 ACESSO PARA TESTE
 
 A solucao possui autenticacao. As contas abaixo sao criadas pelo script
-de dados de demonstracao (backend/seed_demo.py) e usam a mesma senha.
+de dados de demonstracao (backend/scripts/seed_demo.py) e usam a mesma senha.
 
   Administracao   adm@deltacare.com          demo123
   Professor       professor@deltacare.com    demo123
   Aluno           aluno@deltacare.com        demo123
 
 As telas ficam em http://127.0.0.1:8000/app/ depois de subir o backend e
-compilar o React (web: npm install && npm run build). O passo a passo para
+compilar o React (frontend: npm install && npm run build). O passo a passo para
 executar o projeto esta no README.md.

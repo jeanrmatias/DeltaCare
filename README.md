@@ -23,20 +23,20 @@ serviço de terceiros.
 | Matheus Marques De Souza | RM573203 |
 
 - **Repositório:** https://github.com/jeanrmatias/DeltaCare
-- Sprint 3 entregue em 25/09/2026 (ver [`SPRINT_3.md`](SPRINT_3.md)).
+- Sprint 3 entregue em 25/09/2026 (ver [`docs/SPRINT_3.md`](docs/SPRINT_3.md)).
 - **Sprint 4 — entrega em 25/10/2026** (Web Development e Front-End Design):
 
   | O que a sprint pede | Onde está |
   |---|---|
-  | React com componentes, props e hooks nativos | todas as telas, em [`web/src/`](web/src) (o front antigo ficou em `frontend/` como registro) |
-  | Ao menos um hook próprio | `useSessao`, `useApi`, `useDialogo`, `useApagarAnotacao` e `useTituloDaPagina`, em [`web/src/hooks/`](web/src/hooks) |
-  | Rotas públicas e privadas | [`web/src/App.jsx`](web/src/App.jsx) e [`web/src/rotas/RotaPrivada.jsx`](web/src/rotas/RotaPrivada.jsx): login e privacidade públicos; cada área só para o próprio perfil |
-  | Tailwind CSS | tema do projeto em [`web/src/index.css`](web/src/index.css) |
-  | Validação de usabilidade com no mínimo 3 participantes | [`validacao/`](validacao/README.md) e a seção **Validação de usabilidade** abaixo |
+  | React com componentes, props e hooks nativos | todas as telas, em [`frontend/src/`](frontend/src) |
+  | Ao menos um hook próprio | `useSessao`, `useApi`, `useDialogo`, `useApagarAnotacao` e `useTituloDaPagina`, em [`frontend/src/hooks/`](frontend/src/hooks) |
+  | Rotas públicas e privadas | [`frontend/src/App.jsx`](frontend/src/App.jsx) e [`frontend/src/rotas/RotaPrivada.jsx`](frontend/src/rotas/RotaPrivada.jsx): login e privacidade públicos; cada área só para o próprio perfil |
+  | Tailwind CSS | tema do projeto em [`frontend/src/index.css`](frontend/src/index.css) |
+  | Validação de usabilidade com no mínimo 3 participantes | [`docs/validacao/`](docs/validacao/README.md) e a seção **Validação de usabilidade** abaixo |
 
 ### Contas para teste
 
-Criadas pelo `backend/seed_demo.py`, que grava no banco de verdade — não são
+Criadas pelo `backend/scripts/seed_demo.py`, que grava no banco de verdade — não são
 dados de fachada no navegador. Todas usam a senha `demo123` e entram direto,
 sem a troca de senha do primeiro acesso e sem o código por e-mail que conta
 de verdade de professor e administração exige:
@@ -134,10 +134,9 @@ biblioteca de componentes nem de gráficos. O backend tem cinco pacotes no
 (hash de senha, e-mail, banco, leitura de XLSX) vem da biblioteca padrão.
 
 > **O front antigo.** Até a Sprint 3 as telas eram HTML, CSS e JavaScript sem
-> framework, na pasta `frontend/`. Na Sprint 4 todas foram reescritas em
-> React, em `web/`, e é o React que o servidor entrega. O `frontend/` fica no
-> repositório como registro da entrega anterior e ainda roda pelo
-> `frontend/servir.py`.
+> framework. Na Sprint 4 todas foram reescritas em React, que é o que o
+> servidor entrega, e o front antigo saiu do repositório — continua no
+> histórico do git, para quem quiser comparar.
 
 ### Onde e como usamos Inteligência Artificial no desenvolvimento
 
@@ -151,7 +150,7 @@ token foi rejeitado por ser pior em segurança).
 Todo teste novo é conferido reintroduzindo o defeito que ele deveria pegar: se
 o teste continua passando com o defeito, ele não serve e é refeito. Erros
 introduzidos pela IA aconteceram e estão registrados na retrospectiva do
-`SPRINT_3.md`; foi por causa de um deles que passamos a validar o HTML com
+`docs/SPRINT_3.md`; foi por causa de um deles que passamos a validar o HTML com
 parser em vez de expressão regular.
 
 Isso é distinto da IA **dentro do produto**: o assistente de estudos roda em
@@ -178,7 +177,7 @@ navegador.
 1. **Dependências:**
 
    ```
-   pip install -r requirements.txt
+   pip install -r backend/requirements.txt
    ```
 
 2. **Modelos de IA** (com o Ollama rodando):
@@ -196,8 +195,12 @@ navegador.
 
    ```
    cd backend
-   uvicorn main:app
+   uvicorn main:app --app-dir app
    ```
+
+   O código fica em `backend/app/`, e o `--app-dir` diz ao uvicorn onde está
+   o `main.py`. Rode sempre de dentro de `backend/`: o banco e os arquivos
+   enviados ficam ali, ao lado do código e fora dele.
 
    Na primeira execução o banco (`deltacare.db`) é criado sozinho; nas
    seguintes, migrado sozinho. Confira em <http://127.0.0.1:8000/saude>.
@@ -209,7 +212,7 @@ navegador.
 4. **Telas** (React):
 
    ```
-   cd web
+   cd frontend
    npm install      # só na primeira vez
    npm run dev      # recarga instantânea, em http://localhost:5173/app/
    ```
@@ -217,11 +220,11 @@ navegador.
    Para ver como fica em produção, compile (`npm run build`): a própria API
    passa a entregar as telas em <http://127.0.0.1:8000/app/>. As telas
    descobrem sozinhas onde está a API
-   ([`web/src/lib/api.js`](web/src/lib/api.js)): no Vite (5173), na 8000 do
+   ([`frontend/src/lib/api.js`](frontend/src/lib/api.js)): no Vite (5173), na 8000 do
    mesmo computador; em produção, na mesma origem.
 
-5. **Dados de demonstração** (opcional, ver abaixo): `python seed_demo.py`,
-   dentro de `backend/`.
+5. **Dados de demonstração** (opcional, ver abaixo):
+   `python scripts/seed_demo.py`, dentro de `backend/`.
 
 ### Configuração
 
@@ -234,7 +237,7 @@ modelo completo para o servidor está em
 | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
 | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
 | `DELTACARE_FUSO_HORAS` | `-3` | Fuso da instituição em horas, em relação ao UTC (Brasília e Porto Alegre: −3, sem horário de verão). O banco guarda em UTC; o calendário mostra o dia e a hora locais |
-| `DELTACARE_TELAS` | `web/dist` | Pasta das telas compiladas (`npm run build`) que a API entrega em `/app/` |
+| `DELTACARE_TELAS` | `frontend/dist` | Pasta das telas compiladas (`npm run build`) que a API entrega em `/app/` |
 | `DELTACARE_ORIGENS` | portas 5500 e 5173 da máquina local | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Onde está o servidor do modelo. Use o IP, não `localhost`: no Windows, `localhost` tenta o IPv6 antes e soma ~2 s a cada chamada (5 s por pergunta no chat) |
 | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
@@ -249,7 +252,7 @@ modelo completo para o servidor está em
 
 ```
 cd backend
-python seed_demo.py
+python scripts/seed_demo.py
 ```
 
 Monta um semestre plausível de medicina, pelas mesmas funções que as telas
@@ -274,7 +277,7 @@ isso). Sem o Ollama no ar, tudo é criado e só a indexação dos PDFs fica para
 quando ele subir.
 
 Os PDFs são material didático de verdade, com as referências no fim de
-cada aula ([`backend/material_demo.py`](backend/material_demo.py)):
+cada aula ([`backend/scripts/material_demo.py`](backend/scripts/material_demo.py)):
 insuficiência cardíaca aguda, fibrilação atrial, saúde mental e doença
 cardiovascular (Cardiologia I); ossos e base do crânio (Anatomia); ciclo
 cardíaco, resposta ao estresse e sono (Fisiologia); tecido epitelial e
@@ -289,7 +292,7 @@ todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
 
 ### Sem o seed
 
-1. O primeiro admin nasce pelo `criar_admin.py`: não existe cadastro público,
+1. O primeiro admin nasce pelo `scripts/criar_admin.py`: não existe cadastro público,
    e `POST /admin/usuarios` exige um admin já logado.
 2. Como admin: crie a turma (ex.: MED 3A), as disciplinas com seus
    professores e as contas dos alunos (uma a uma ou pela planilha), e
@@ -305,7 +308,7 @@ todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
 - **Sessão por token.** O login devolve um token (validade de 12 horas),
   enviado em `Authorization: Bearer`. Nenhuma rota aceita identidade vinda do
   cliente: quem está chamando é deduzido do token
-  ([`backend/infra/sessoes.py`](backend/infra/sessoes.py)). Antes disso, o
+  ([`backend/app/infra/sessoes.py`](backend/app/infra/sessoes.py)). Antes disso, o
   backend acreditava no e-mail enviado pelo front, e bastava trocá-lo para agir
   em nome de outra pessoa.
 - **Cada perfil na sua porta.** As rotas exigem o perfil certo, e as regras
@@ -314,7 +317,7 @@ todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
 - **Senha** guardada como PBKDF2-SHA256 com salt individual (260 mil
   iterações). Toda senha nova tem **8 caracteres ou mais** e não pode ser uma
   das conhecidas ("12345678", "medicina123") nem o próprio e-mail ou nome
-  ([`backend/regras/senhas.py`](backend/regras/senhas.py)). Sem troca
+  ([`backend/app/regras/senhas.py`](backend/app/regras/senhas.py)). Sem troca
   periódica forçada nem "maiúscula, número e símbolo": a recomendação atual
   (NIST SP 800-63B) desaconselha as duas, porque produzem senhas
   previsíveis.
@@ -337,7 +340,7 @@ todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
   no perfil, pede a senha atual e encerra as outras sessões abertas da conta.
 - **Banco que não trava:** toda conexão aberta durante uma requisição é
   fechada ao fim dela, mesmo que a rota tenha quebrado no meio
-  ([`backend/infra/database.py`](backend/infra/database.py)).
+  ([`backend/app/infra/database.py`](backend/app/infra/database.py)).
 - **Privado pela ausência de rota:** anotações e entregas não têm rota para a
   administração. Não é a tela que esconde; é o servidor que não entrega.
 - **Trilha de auditoria:** toda ação da administração, as exclusões de
@@ -347,9 +350,9 @@ todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
   entrada da API, para nenhuma rota nova escapar. Senha, código e arquivo
   nunca entram. Só a administração consulta (menu **Auditoria**), não há como
   apagar pela API, e cada registro sai sozinho depois de 1 ano
-  ([`backend/regras/auditoria.py`](backend/regras/auditoria.py)).
+  ([`backend/app/regras/auditoria.py`](backend/app/regras/auditoria.py)).
 - **Cabeçalhos de segurança** em toda resposta, pela própria API
-  ([`backend/infra/cabecalhos.py`](backend/infra/cabecalhos.py)):
+  ([`backend/app/infra/cabecalhos.py`](backend/app/infra/cabecalhos.py)):
   Content-Security-Policy nas telas (só script do próprio servidor — um XSS
   que escapasse não rodaria), proibição de abrir o site dentro de outro
   (clickjacking), `nosniff`, `Referrer-Policy` e `Permissions-Policy`. O
@@ -418,7 +421,7 @@ Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
   fundo (4,44), o vermelho das mensagens de erro (3,76), o verde (3,30) e o
   contorno dos campos (1,35, para um mínimo de 3). Cada um foi escurecido só
   até passar, no mesmo matiz. Um teste lê os tokens do
-  [`web/src/index.css`](web/src/index.css) e confere os pares usados nas telas.
+  [`frontend/src/index.css`](frontend/src/index.css) e confere os pares usados nas telas.
 - **Teclado.** Anel de foco visível em tudo que recebe Tab, fora das camadas
   do Tailwind para nenhum `outline-none` apagá-lo, e o atalho **Pular para o
   conteúdo** antes do menu lateral.
@@ -429,16 +432,16 @@ Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
   segundo; o título da aba muda com a página.
 - **O que ainda não foi feito:** o teste com leitor de tela real (NVDA) e
   com usuários com deficiência. O roteiro está pronto em
-  [`validacao/TESTE_LEITOR_DE_TELA.md`](validacao/TESTE_LEITOR_DE_TELA.md).
+  [`validacao/TESTE_LEITOR_DE_TELA.md`](docs/validacao/TESTE_LEITOR_DE_TELA.md).
 
 ## Privacidade (LGPD)
 
 **A administração acadêmica é a encarregada pelo tratamento de dados (DPO)**,
 por decisão da instituição. O aluno exerce os direitos de titular pela tela
 **Meus dados** (link no perfil); as regras estão em
-[`backend/regras/privacidade.py`](backend/regras/privacidade.py), e a política
+[`backend/app/regras/privacidade.py`](backend/app/regras/privacidade.py), e a política
 na tela pública **Privacidade e uso de dados**
-([`web/src/paginas/publicas/Privacidade.jsx`](web/src/paginas/publicas/Privacidade.jsx)).
+([`frontend/src/paginas/publicas/Privacidade.jsx`](frontend/src/paginas/publicas/Privacidade.jsx)).
 
 | Pedido | Quem decide | O que acontece |
 |---|---|---|
@@ -452,7 +455,7 @@ na tela pública **Privacidade e uso de dados**
 ele não encontra a resposta no material o professor vê o **assunto** da dúvida
 (em poucas palavras, resumido pelo modelo) e quantos alunos perguntaram —
 nunca o texto nem quem perguntou, e só a partir de dois alunos diferentes por
-assunto ([`backend/regras/lacunas.py`](backend/regras/lacunas.py)). O aluno é
+assunto ([`backend/app/regras/lacunas.py`](backend/app/regras/lacunas.py)). O aluno é
 avisado disso no próprio chat e na política de privacidade.
 
 A anonimização apaga nome, e-mail, matrícula, anotações, favoritos,
@@ -464,7 +467,7 @@ O professor apaga o próprio conteúdo (material, atividade, aviso); a
 administração **não** despublica material de professor.
 
 **Relatórios** mostram números da turma, nunca aluno identificado
-([`backend/regras/relatorios.py`](backend/regras/relatorios.py)).
+([`backend/app/regras/relatorios.py`](backend/app/regras/relatorios.py)).
 
 Antes de uso com dados reais, a instituição precisa aprovar formalmente a
 política e publicar o contato da administração para assuntos de dados.
@@ -480,12 +483,12 @@ a API **e** as telas (em `/app/`); na frente, o
    ```
    git clone <repositório> /opt/deltacare
    cd /opt/deltacare && python3 -m venv .venv
-   .venv/bin/pip install -r requirements.txt
-   cd web && npm ci && npm run build
+   .venv/bin/pip install -r backend/requirements.txt
+   cd frontend && npm ci && npm run build
    ```
-   O `npm run build` gera `web/dist/`, que a API entrega em `/app/`. Sem ele,
-   `/app/` responde dizendo que as telas não estão compiladas. (Dá para
-   compilar em outra máquina e copiar só o `web/dist/`: o servidor não precisa
+   O `npm run build` gera `frontend/dist/`, que a API entrega em `/app/`. Sem
+   ele, `/app/` responde dizendo que as telas não estão compiladas. (Dá para
+   compilar em outra máquina e copiar só o `frontend/dist/`: o servidor não precisa
    do Node para rodar, só para compilar.)
 2. **Modelo de IA:** instale o [Ollama](https://ollama.com) no servidor (ele
    sobe como serviço) e baixe os dois modelos com
@@ -504,7 +507,7 @@ a API **e** as telas (em `/app/`); na frente, o
    ```
    cd /opt/deltacare/backend
    set -a; . /etc/deltacare.env; set +a
-   ../.venv/bin/python criar_admin.py
+   ../.venv/bin/python scripts/criar_admin.py
    ```
 5. **Serviço:** copie `deploy/deltacare.service` para
    `/etc/systemd/system/` e `systemctl enable --now deltacare`. Um processo
@@ -514,8 +517,8 @@ a API **e** as telas (em `/app/`); na frente, o
    se renova sozinho.
 7. **Rotinas diárias** (crontab do usuário `deltacare`):
    ```
-   30 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python backup.py >> /var/log/deltacare-backup.log 2>&1
-   45 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python anonimizar_vencidas.py >> /var/log/deltacare-lgpd.log 2>&1
+   30 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python scripts/backup.py >> /var/log/deltacare-backup.log 2>&1
+   45 3 * * * cd /opt/deltacare/backend && set -a && . /etc/deltacare.env && set +a && ../.venv/bin/python scripts/anonimizar_vencidas.py >> /var/log/deltacare-lgpd.log 2>&1
    ```
    O `backup.py` copia o banco pela API do SQLite (cópia consistente com o
    sistema no ar), confere a cópia e guarda as últimas 14. **Leve as cópias
@@ -529,28 +532,24 @@ a API **e** as telas (em `/app/`); na frente, o
    senha para uma conta sua: se o e-mail não chegar, o SMTP está errado (o
    log do serviço diz o motivo).
 
-**Atualizar:** backup, `git pull`, `pip install -r requirements.txt`,
-`npm ci && npm run build` em `web/` e `systemctl restart deltacare`. O banco
+**Atualizar:** backup, `git pull`, `pip install -r backend/requirements.txt`,
+`npm ci && npm run build` em `frontend/` e `systemctl restart deltacare`. O banco
 migra sozinho na subida.
 
 ## Testes
 
 ```
 cd backend
-python rodar_testes.py   # regras e rotas, em paralelo (~45s)
-python testes.py         # os mesmos, em série
-python contrato_front.py # toda chamada das telas tem rota no back?
+python testes/rodar_testes.py      # regras e rotas, em paralelo (~50s)
+python testes/testes.py            # os mesmos, em série
+python scripts/contrato_front.py   # toda chamada das telas tem rota no back?
 
-cd ../web
-npm test                 # telas React: rotas por perfil e componentes
-npm run lint             # regras do React (hooks, componentes)
-
-cd ../frontend           # o front antigo, enquanto ficar no repositório
-node testes.mjs
-python testar_html.py
+cd ../frontend
+npm test                           # telas React: rotas por perfil e componentes
+npm run lint                       # regras do React (hooks, componentes)
 ```
 
-- **Backend (565 testes):** permissões de cada perfil, visibilidade de
+- **Backend (563 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,
@@ -570,8 +569,8 @@ python testar_html.py
   notificações, o atalho "Pular para o conteúdo", o **contraste das cores
   do tema** (lido do `index.css`) e que toda janela tem nome para o leitor
   de tela.
-- **Contrato front↔back:** lê as chamadas à API das telas React (e do front
-  antigo) e confere com as rotas do backend, verbo incluído — inclusive as
+- **Contrato front↔back:** lê as chamadas à API das telas React e confere
+  com as rotas do backend, verbo incluído — inclusive as
   feitas por atalhos da tela (`chamar(...)`) e por caminho guardado em
   variável. Pega a tela que chama uma rota que não existe antes de alguém
   clicar.
@@ -592,65 +591,72 @@ gravidade de 0 a 4) e a nota SUS. As sessões rodam num banco separado
 (`DELTACARE_DB=validacao.db`), com uma conta fictícia por participante.
 Ninguém é identificado no registro.
 
-Tudo em [`validacao/`](validacao/README.md): o plano, o
-[roteiro](validacao/ROTEIRO.md) com a preparação da máquina, a
-[ficha de observação](validacao/FICHA_DE_OBSERVACAO.md), o
-[termo de consentimento](validacao/TERMO_DE_CONSENTIMENTO.md), o
-[questionário SUS](validacao/QUESTIONARIO_SUS.md) e os
-[resultados](validacao/RESULTADOS.md), preenchidos depois das sessões.
+Tudo em [`docs/validacao/`](docs/validacao/README.md): o plano, o
+[roteiro](docs/validacao/ROTEIRO.md) com a preparação da máquina, a
+[ficha de observação](docs/validacao/FICHA_DE_OBSERVACAO.md), o
+[termo de consentimento](docs/validacao/TERMO_DE_CONSENTIMENTO.md), o
+[questionário SUS](docs/validacao/QUESTIONARIO_SUS.md) e os
+[resultados](docs/validacao/RESULTADOS.md), preenchidos depois das sessões.
 
 ## Estrutura
 
 ```
-backend/
-  main.py                  - API: rotas, perfis e o middleware de conexões
-  seed_demo.py             - dados de demonstração (chama o seed_semestre.py)
-  seed_semestre.py         - o semestre de demonstração completo
-  criar_admin.py           - primeiro admin numa instalação nova
-  backup.py                - cópia conferida do banco e dos arquivos enviados
-  anonimizar_vencidas.py   - LGPD: anonimiza exclusões vencidas (1x por dia)
-  testes.py                - testes do backend
-  rodar_testes.py          - os mesmos testes, em paralelo
-  contrato_front.py        - confere o front contra as rotas
+backend/                   - a API (Python). Rode tudo de dentro desta pasta:
+                             o banco (deltacare.db) e uploads/ ficam aqui
+  requirements.txt
+  app/                     - o sistema
+    main.py                  rotas, perfis e middlewares; entrega as telas em /app/
 
-  infra/                   - o que o sistema USA
-    database.py              esquema, migrações e caminho único do banco
-    sessoes.py               token de sessão
-    security.py              hash de senha (PBKDF2)
-    email.py                 envio por SMTP, em segundo plano
-    arquivos.py              gravação dos uploads
-    vetores.py               os vetores do chat em binário, normalizados
-    cabecalhos.py            cabeçalhos de segurança (CSP, clickjacking...)
+    infra/                   o que o sistema USA
+      database.py              esquema, migrações e caminho único do banco
+      sessoes.py               token de sessão
+      security.py              hash de senha (PBKDF2)
+      email.py                 envio por SMTP, em segundo plano
+      arquivos.py              gravação dos uploads
+      vetores.py               os vetores do chat em binário, normalizados
+      cabecalhos.py            cabeçalhos de segurança (CSP, clickjacking...)
 
-  regras/                  - o que o sistema DECIDE
-    autenticacao.py          login, contas, recuperação de senha
-    coortes.py               turma de alunos e exceções por disciplina
-    turmas.py                disciplinas, professores, usuários
-    matriculas.py            matrículas
-    semestres.py             semestre vigente e histórico
-    materiais.py             material na visão do professor
-    aluno.py                 material na visão do aluno, XP e nível
-    atividades.py            atividades, entregas e correção
-    desempenho.py            notas, evolução e erro por tópico
-    calendario.py            prazos e liberações do mês
-    ranking.py               ranking da turma pelo XP do semestre
-    mensagens.py             conversa aluno ↔ professor
-    avisos.py                avisos de professor e coordenação
-    notificacoes.py          notificações geradas por eventos reais
-    favoritos.py             material guardado pelo aluno
-    anotacoes.py             caderno privado do aluno
-    denuncias.py             conteúdo reportado
-    conteudo.py              supervisão do conteúdo pela administração
-    privacidade.py           LGPD: cópia, correção, exclusão, anonimização
-    relatorios.py            a turma ao vivo e por mês; dificuldade por disciplina
-    senhas.py                a régua de toda senha nova
-    auditoria.py             a trilha de auditoria
-    importacao.py            planilha CSV/XLSX
-    chat_ia.py               RAG: indexação, busca híbrida e resposta
+    regras/                  o que o sistema DECIDE
+      autenticacao.py          login, contas, recuperação de senha
+      coortes.py               turma de alunos e exceções por disciplina
+      turmas.py                disciplinas, professores, usuários
+      matriculas.py            matrículas
+      semestres.py             semestre vigente e histórico
+      materiais.py             material na visão do professor
+      aluno.py                 material na visão do aluno, XP e nível
+      atividades.py            atividades, entregas e correção
+      desempenho.py            notas, evolução e erro por tópico
+      calendario.py            prazos e liberações do mês
+      ranking.py               ranking da turma pelo XP do semestre
+      mensagens.py             conversa aluno ↔ professor
+      avisos.py                avisos de professor e coordenação
+      notificacoes.py          notificações geradas por eventos reais
+      favoritos.py             material guardado pelo aluno
+      anotacoes.py             caderno privado do aluno
+      denuncias.py             conteúdo reportado
+      conteudo.py              supervisão do conteúdo pela administração
+      privacidade.py           LGPD: cópia, correção, exclusão, anonimização
+      relatorios.py            a turma ao vivo e por mês; dificuldade por disciplina
+      senhas.py                a régua de toda senha nova
+      auditoria.py             a trilha de auditoria
+      importacao.py            planilha CSV/XLSX
+      chat_ia.py               RAG: indexação, busca híbrida e resposta
 
-deploy/                    - serviço systemd, Caddyfile e modelo de configuração
+  scripts/                 - o que se roda à mão ou agendado
+    seed_demo.py             dados de demonstração (chama o seed_semestre.py)
+    seed_semestre.py         o semestre de demonstração completo
+    material_demo.py         os PDFs de exemplo: medicina de verdade, com referências
+    criar_admin.py           primeiro admin numa instalação nova
+    backup.py                cópia conferida do banco e dos arquivos enviados
+    anonimizar_vencidas.py   LGPD: anonimiza exclusões vencidas (1x por dia)
+    contrato_front.py        confere as chamadas das telas contra as rotas
+    _app.py                  põe app/ no caminho de import dos scripts
 
-web/                       - as telas (React), entregues pela API em /app/
+  testes/
+    testes.py                testes do backend
+    rodar_testes.py          os mesmos testes, em paralelo
+
+frontend/                  - as telas (React), entregues pela API em /app/
   src/App.jsx                todas as rotas, públicas e privadas
   src/rotas/                 RotaPrivada (perfil certo, ou volta ao login)
   src/sessao/, src/dialogos/ Contexts da sessão e dos diálogos
@@ -663,17 +669,18 @@ web/                       - as telas (React), entregues pela API em /app/
   src/index.css              o tema do Tailwind (o design system)
   testes/                    as telas renderizadas no Node, sem navegador
 
-frontend/                  - o front da Sprint 3 (HTML, CSS e JS sem framework),
-                             mantido como registro; roda pelo servir.py (5500)
+docs/                      - tutorial, arquitetura, roteiro da apresentação,
+                             entrega da Sprint 3 e validacao/ (teste de
+                             usabilidade: plano, roteiro, ficha, termo, SUS e
+                             resultados)
 
-validacao/                 - teste de usabilidade: plano, roteiro, ficha,
-                             termo, SUS e resultados
+deploy/                    - serviço systemd, Caddyfile e modelo de configuração
 ```
 
 A pasta de páginas da administração chama-se `admin`, mas o `tipo` no banco é
 `adm` — os dois já estiveram trocados no front antigo e quebraram o
 redirecionamento do login. No React, a ligação entre os dois fica num lugar
-só (`INICIO_DO_PERFIL`, em `web/src/lib/usuario.js`).
+só (`INICIO_DO_PERFIL`, em `frontend/src/lib/usuario.js`).
 
 ## Limitações conhecidas
 
@@ -690,19 +697,16 @@ só (`INICIO_DO_PERFIL`, em `web/src/lib/usuario.js`).
   índice vetorial (`sqlite-vec` ou `pgvector`).
 - Professor e administração não têm a tela Meus dados: os pedidos deles sobre
   dados pessoais seguem pela secretaria.
-- O front antigo (`frontend/`) não tem a tela de troca da senha provisória
-  nem a do código de acesso: conta recém-criada, professor e administração
-  entram pelo `/app/`.
 
 ## Documentos relacionados
 
-- [`SPRINT_3.md`](SPRINT_3.md) — entrega da Sprint 3: backlog com as user
+- [`docs/SPRINT_3.md`](docs/SPRINT_3.md) — entrega da Sprint 3: backlog com as user
   stories e critérios de aceite, decisões de experiência, incremento e
   retrospectiva.
-- [`validacao/`](validacao/README.md) — teste de usabilidade da Sprint 4:
+- [`docs/validacao/`](docs/validacao/README.md) — teste de usabilidade da Sprint 4:
   plano, roteiro, ficha, termo, SUS e resultados.
-- [`TUTORIAL.md`](TUTORIAL.md) — como usar a plataforma, perfil por perfil.
-- [`ARQUITETURA.md`](ARQUITETURA.md) — diagramas, fluxo de autenticação, RAG,
+- [`docs/TUTORIAL.md`](docs/TUTORIAL.md) — como usar a plataforma, perfil por perfil.
+- [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) — diagramas, fluxo de autenticação, RAG,
   modelo de dados e matriz de permissões.
-- [`ROTEIRO_DEMO.md`](ROTEIRO_DEMO.md) — passo a passo da apresentação, com as
+- [`docs/ROTEIRO_DEMO.md`](docs/ROTEIRO_DEMO.md) — passo a passo da apresentação, com as
   perguntas a fazer no chat e plano B se algum serviço cair.

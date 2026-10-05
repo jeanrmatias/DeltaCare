@@ -1,0 +1,243 @@
+@import "tailwindcss";
+
+/*
+ * O design system do Delta Care, agora como tema do Tailwind.
+ *
+ * Os valores vieram do tokens.css do front antigo: a migração para React não
+ * pode mudar a cara do produto. Cada variável daqui vira classe utilitária —
+ * `--color-primaria` vira `bg-primaria`, `text-primaria`, `border-primaria`;
+ * `--radius-cartao` vira `rounded-cartao`. Os nomes ficam em português, como
+ * o resto do projeto.
+ *
+ * **As cores são as da marca do hospital, e não mudam.** O que o redesign
+ * da Sprint 4 mudou foi a tipografia e as superfícies (direção "editorial
+ * clínico": títulos em serifada de leitura, contorno fino no lugar de
+ * sombra, cantos menores).
+ *
+ * Contraste (WCAG AA): alguns tons da marca não passam em texto pequeno — o
+ * azul (4,45:1 no branco), o cinza das descrições sobre o fundo (4,44), o
+ * vermelho (3,76), o verde (3,30). Por isso há dois de cada:
+ * - `marca-*`: a cor **exata** da marca, nas superfícies sem texto pequeno em
+ *   cima — logo, barras, gráficos, ícones, anel de foco (o mínimo ali é 3:1);
+ * - `primaria`, `texto-secundario`, `perigo`, `sucesso`: o mesmo matiz
+ *   escurecido só até passar 4,5:1, em texto e botões.
+ * O teste testes/contraste.test.js confere os dois grupos.
+ */
+@theme {
+  /* Texto em Source Sans 3; títulos e números em Literata, uma serifada de
+     leitura — cara de material de estudo, e não de painel de sistema. */
+  --font-sans: "Source Sans 3", "Segoe UI", sans-serif;
+  --font-titulo: "Literata", Georgia, serif;
+  --font-numero: "Literata", Georgia, serif;
+
+  /* A Source Sans é menor que a Inter no mesmo tamanho (olho menor): a
+     escala sobe um degrau para o texto continuar tão legível quanto antes. */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.1875rem;
+
+  --color-marca: #2F70F2;
+  --color-marca-cinza: #64748B;
+  --color-marca-perigo: #EF4444;
+  --color-marca-sucesso: #16A34A;
+
+  --color-navy-900: #0D1D3A;
+  --color-navy-800: #102542;
+  --color-navy-700: #14294A;
+  --color-navy-600: #1B3A66;
+
+  --color-primaria: #2263E5;
+  --color-primaria-escura: #1C54C4;
+
+  --color-fundo: #F4F7FE;
+  --color-superficie: #FFFFFF;
+  --color-texto: #1E293B;
+  --color-texto-secundario: #5B6B82;
+  --color-texto-inverso: #E7ECFB;
+  /* Borda de cartão e divisória: decorativa, pode ser clara. */
+  --color-borda: #D8DEE9;
+  /* Contorno de campo: é ele que mostra onde se digita, e precisa de 3:1. */
+  --color-borda-campo: #7F8DA5;
+
+  --color-perigo: #C81B1B;
+  --color-perigo-fundo: #FEE2E2;
+  --color-sucesso: #15803D;
+  --color-sucesso-fundo: #DCFCE7;
+  --color-alerta: #F59E0B;
+  /* O amarelo como ícone (a estrela do favorito) precisa de 3:1 no branco. */
+  --color-alerta-forte: #D97706;
+  --color-alerta-fundo: #FEF3C7;
+
+  /* Cantos menores e contorno fino: a sombra suave em tudo, com canto de
+     16px, era a assinatura de painel genérico. */
+  --radius-campo: 6px;
+  --radius-bloco: 8px;
+  --radius-cartao: 10px;
+
+  --shadow-cartao: 0 0 0 1px var(--color-borda);
+
+  /* A troca de tela: um esmaecer curto, subindo 6px. Leve de propósito —
+     fluidez, não espetáculo; quem pede menos movimento no sistema não vê. */
+  --animate-entrar: entrar 220ms ease-out both;
+
+  @keyframes entrar {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-fundo text-texto font-sans antialiased;
+  }
+
+  /* Títulos na serifada; números alinhados em coluna (tabela, XP, notas). */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titulo);
+    letter-spacing: -0.01em;
+  }
+
+  .font-numero,
+  td,
+  strong {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * As listas de escolha (<select>) com a cara do Delta Care.
+   *
+   * A lista aberta sempre foi desenhada pelo sistema, sem CSS. O Chrome e o
+   * Edge (135 em diante) passaram a deixar estilizar com
+   * `appearance: base-select`; nos outros navegadores fica a lista nativa —
+   * que no iPhone é a roda de seleção, o melhor que há ali. Por isso tudo
+   * fica dentro do @supports: quem não entende não perde nada.
+   */
+  @supports (appearance: base-select) {
+    select,
+    ::picker(select) {
+      appearance: base-select;
+    }
+
+    select {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font: inherit;
+      cursor: pointer;
+      /* Fechado, uma linha só, como o nativo: "Anatomia · 2026/2 · Prof. B…". */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* A lista aberta, sim, mostra o nome inteiro. */
+    option {
+      white-space: normal;
+    }
+
+    select::picker-icon {
+      color: var(--color-texto-secundario);
+      transition: rotate 200ms ease;
+    }
+
+    select:open::picker-icon {
+      rotate: 180deg;
+    }
+
+    ::picker(select) {
+      margin-block: 6px;
+      padding: 6px;
+      border: 1px solid var(--color-borda);
+      border-radius: var(--radius-bloco);
+      background: var(--color-superficie);
+      box-shadow: 0 12px 32px rgb(13 29 58 / 0.16);
+      opacity: 0;
+      translate: 0 -4px;
+      transition:
+        opacity 160ms ease,
+        translate 160ms ease,
+        display 160ms allow-discrete,
+        overlay 160ms allow-discrete;
+    }
+
+    select:open::picker(select) {
+      opacity: 1;
+      translate: 0 0;
+    }
+
+    @starting-style {
+      select:open::picker(select) {
+        opacity: 0;
+        translate: 0 -4px;
+      }
+    }
+
+    option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-campo);
+      font-size: 0.875rem;
+      color: var(--color-texto);
+      transition: background-color 120ms ease;
+    }
+
+    option:hover,
+    option:focus-visible {
+      background: var(--color-fundo);
+      outline: none;
+    }
+
+    option:checked {
+      background: rgb(34 99 229 / 0.1);
+      color: var(--color-primaria);
+      font-weight: 600;
+    }
+
+    option::checkmark {
+      color: var(--color-primaria);
+    }
+
+    /* "Semestres anteriores" e outros grupos: rótulo discreto, em cima. */
+    optgroup {
+      padding-top: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-texto-secundario);
+    }
+
+    optgroup option {
+      font-weight: 400;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    select::picker-icon,
+    ::picker(select),
+    option {
+      transition: none;
+    }
+  }
+}
+
+/*
+ * Foco visível em tudo que se alcança pelo teclado. Fora de @layer de
+ * propósito: estilo sem camada vence as utilitárias, então nenhum
+ * `outline-none` esquecido num campo apaga o foco de quem navega com Tab.
+ * `:focus-visible` só aparece no teclado — o clique do mouse não ganha anel.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-marca);
+  outline-offset: 2px;
+}
