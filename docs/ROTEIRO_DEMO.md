@@ -123,14 +123,15 @@ Não abra Lacunas ainda: ela fecha a apresentação.
 1. Saia e entre como `aluno@deltacare.com`.
 2. No início, aponte o **nível e a faixa** do semestre (bronze, prata, ouro,
    platina) e o aviso urgente **Prova antecipada**.
-3. Abra o **Chat de estudos**, em **Cardiologia I**, e faça as três perguntas
-   na ordem:
+3. Abra o **Chat de estudos**. Ele abre no **modo automático** (todas as
+   disciplinas): não escolha nada e faça as três perguntas na ordem:
 
    **a) Pergunta que o material responde**
    > Quais são os quatro perfis de Stevenson e a conduta de cada um?
 
-   Costuma vir em lista ou tabela. Aponte a fonte citada abaixo da resposta,
-   a Aula 3.
+   Costuma vir em lista ou tabela. Aponte **CARDIOLOGIA I** no topo da
+   resposta e a fonte citada abaixo, a Aula 3: ninguém disse de qual
+   disciplina era a pergunta — o assistente achou.
    **Frase-chave:** "Cada resposta diz de qual aula saiu: o aluno confere no
    PDF que o professor publicou. É material de verdade, com as referências no
    fim de cada aula."

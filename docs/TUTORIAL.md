@@ -372,11 +372,14 @@ disciplina, assunto, tópico, tipo e período.
 
 ### Chat de estudos
 
-Escolha a disciplina logo acima do campo de pergunta e escreva sua dúvida.
+Escreva sua dúvida. O chat abre no **modo automático**: você não precisa
+dizer de qual disciplina ela é — ele procura no material de todas as suas
+disciplinas, e a resposta mostra no topo de qual veio. Para perguntar só a
+uma disciplina, escolha-a logo acima do campo de pergunta.
 
 **O que torna esse assistente diferente:** ele responde **apenas** com base
-no material que o professor publicou naquela disciplina. O que não está no
-material, ele não responde — mesmo que o modelo soubesse.
+no material que os professores publicaram. O que não está no material, ele
+não responde — mesmo que o modelo soubesse.
 
 A resposta pode vir de três jeitos:
 
@@ -389,21 +392,25 @@ A resposta pode vir de três jeitos:
   você escolhe a conversa.
 
 O que o material não cobriu chega ao professor como **lacuna** — sem o seu
-nome e sem o texto da pergunta.
+nome e sem o texto da pergunta. No modo automático, só quando o material
+respondeu em parte (aí se sabe de qual disciplina era a dúvida); quando não
+respondeu nada, escolha a disciplina e pergunte de novo, se quiser que o
+professor veja.
 
 A resposta leva de 10 a 30 segundos, porque o modelo roda na própria
 instituição. Enquanto isso, aparece um cronômetro; **Parar** interrompe. O
-histórico fica salvo por disciplina.
+histórico fica salvo: um para o modo automático e um por disciplina.
 
 **Apagar conversa** (ao lado da disciplina) apaga as suas perguntas e as
-respostas daquela disciplina, sem volta. O seu XP não muda, e o assunto das
+respostas da conversa que está aberta, sem volta. O seu XP não muda, e o assunto das
 dúvidas que o material não respondeu continua contando para o professor —
 como antes, sem o seu nome.
 
 #### Como perguntar bem
 
-- **Pergunte na disciplina certa.** O assistente só lê o material da
-  disciplina escolhida acima do campo de pergunta.
+- **No automático, uma disciplina por pergunta.** Ele acha a disciplina
+  pela resposta; uma pergunta que mistura duas matérias fica com a que
+  respondeu melhor.
 - **Seja específico.** "Quando usar a dobutamina?" funciona melhor que
   "fala sobre medicamentos".
 - **Use o termo exato** (nome do protocolo, da escala, do medicamento): a

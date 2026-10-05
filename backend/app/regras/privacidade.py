@@ -259,10 +259,12 @@ def exportar_dados(aluno_email: str) -> dict:
             "  FROM anotacoes WHERE aluno_id = ? ORDER BY criado_em"
         ),
         "conversas_com_o_assistente": todas(
-            "SELECT t.nome AS disciplina,"
+            # LEFT JOIN: pergunta do modo automático que nenhum material
+            # respondeu não tem disciplina, e continua sendo dado do aluno.
+            "SELECT coalesce(t.nome, 'Automático (sem disciplina)') AS disciplina,"
             "       CASE c.papel WHEN 'user' THEN 'você' ELSE 'assistente' END AS autor,"
             "       c.conteudo, c.criado_em"
-            "  FROM chat_mensagens c JOIN turmas t ON t.id = c.turma_id"
+            "  FROM chat_mensagens c LEFT JOIN turmas t ON t.id = c.turma_id"
             # Apagada pelo aluno não tem mais texto: não há o que entregar.
             " WHERE c.aluno_id = ? AND c.apagada_em IS NULL ORDER BY c.criado_em"
         ),

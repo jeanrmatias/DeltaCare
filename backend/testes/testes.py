@@ -7486,6 +7486,190 @@ class TestesMaterialDeDemonstracao(unittest.TestCase):
         self.assertIn(seed_semestre.ANOTACAO_TRECHO, material_demo.IC_AGUDA["texto"])
 
 
+# =========================================================================
+# Chat no modo automático: procura em todas as disciplinas do aluno
+
+class TestesChatAutomatico(BaseDelta):
+    """O aluno não escolhe a disciplina: o chat procura em todas as dele e
+    descobre de qual era a pergunta pelas fontes que a resposta usou."""
+
+    def setUp(self):
+        super().setUp()
+        self.histologia = criar_turma(ADMIN, PROFESSOR2, "Histologia", "2026.2")["turma"]["id"]
+        self.anatomia = criar_turma(ADMIN, PROFESSOR2, "Anatomia", "2026.2")["turma"]["id"]
+        for email in (ALUNO, ALUNO_FORA):
+            matricular_aluno(ADMIN, email, self.histologia)
+        matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id)
+        # Anatomia: ALUNO não está matriculado.
+        self._material(self.turma_id, PROFESSOR, "Aula 3", "Perfil C, frio e umido: diuretico e inotropico.")
+        self._material(self.histologia, PROFESSOR2, "Aula 6", "O pericario contem o nucleo e os corpusculos de Nissl.")
+        self._material(self.anatomia, PROFESSOR2, "Aula 2", "O cranio tem 22 ossos.")
+        self._material(self.histologia, PROFESSOR2, "Rascunho", "Texto que o aluno ainda nao pode ver.", rascunho=True)
+        self.schemas = []
+
+    def _material(self, turma_id, professor, titulo, texto, rascunho=False):
+        material_id = criar_material(professor_email=professor, turma_id=turma_id, titulo=titulo, tipo="link",
+                                     link_url="https://exemplo.com", rascunho=rascunho)["material_id"]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
+                        (material_id, 0, texto, json.dumps(embedding_falso(texto))))
+        conexao.commit()
+        conexao.close()
+
+    def _perguntar(self, resposta, aluno=ALUNO, turma_id=None, pergunta="o que e o pericario?"):
+        def modelo(mensagens, schema=None):
+            self.schemas.append(schema)
+            return dict(resposta)
+        return chat_ia.responder_pergunta(aluno, turma_id, pergunta,
+                                          gerar_embedding_fn=embedding_falso, gerar_resposta_fn=modelo)
+
+    def _linhas(self, aluno=ALUNO):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linhas = conexao.execute(
+            "SELECT c.papel, c.turma_id, c.automatico FROM chat_mensagens c JOIN users u ON u.id = c.aluno_id"
+            " WHERE u.email = ? ORDER BY c.id", (aluno,)).fetchall()
+        conexao.close()
+        return linhas
+
+    def test_procura_em_todas_as_disciplinas_do_aluno_e_so_nelas(self):
+        self._perguntar({"resposta": "x", "fontes_usadas": [], "cobertura": "nenhuma", "lacuna": "", "assunto": ""})
+
+        fontes_possiveis = set(self.schemas[0]["properties"]["fontes_usadas"]["items"]["enum"])
+        self.assertEqual(fontes_possiveis, {"Cardiologia · Aula 3", "Histologia · Aula 6"})
+
+    def test_a_pergunta_fica_na_disciplina_de_onde_veio_a_resposta(self):
+        resultado = self._perguntar({"resposta": "Contem o nucleo.", "fontes_usadas": ["Histologia · Aula 6"],
+                                     "cobertura": "completa", "lacuna": "", "assunto": "pericario"})
+
+        self.assertEqual(resultado["disciplina"], "Histologia")
+        self.assertEqual(resultado["fontes"], ["Histologia · Aula 6"])
+        self.assertEqual(self._linhas(), [("user", self.histologia, 1), ("assistant", self.histologia, 1)])
+
+    def test_sem_fonte_a_pergunta_nao_vai_para_disciplina_nenhuma(self):
+        """Era o erro do piloto: a pergunta de crânio ia parar em Cardiologia."""
+        resultado = self._perguntar({"resposta": "O material nao cobre.", "fontes_usadas": ["Cardiologia · Aula 3"],
+                                     "cobertura": "nenhuma", "lacuna": "os ossos", "assunto": "cranio"},
+                                    pergunta="quantos ossos tem o cranio?")
+
+        self.assertIsNone(resultado["disciplina"])
+        self.assertEqual(self._linhas(), [("user", None, 1), ("assistant", None, 1)])
+
+    def test_a_lacuna_vai_so_para_o_professor_da_disciplina_certa(self):
+        from regras.lacunas import listar_lacunas
+
+        parcial = {"resposta": "Contem o nucleo.", "fontes_usadas": ["Histologia · Aula 6"],
+                   "cobertura": "parcial", "lacuna": "a funcao do pericario", "assunto": "pericario"}
+        nenhuma = {"resposta": "Nao cobre.", "fontes_usadas": [], "cobertura": "nenhuma",
+                   "lacuna": "os ossos", "assunto": "cranio"}
+        for aluno in (ALUNO, ALUNO_FORA):
+            self._perguntar(parcial, aluno=aluno)
+            self._perguntar(nenhuma, aluno=aluno, pergunta="quantos ossos tem o cranio?")
+
+        def assuntos(professor):
+            return {(d["nome"], l["assunto"]) for d in listar_lacunas(professor)["disciplinas"] for l in d["lacunas"]}
+
+        self.assertEqual(assuntos(PROFESSOR2), {("Histologia", "pericario")})
+        self.assertEqual(assuntos(PROFESSOR), set())
+
+    def test_fonte_com_o_prefixo_do_contexto_ainda_vale(self):
+        """Visto com o gpt-oss: "Material: Anatomia · Aula 2 - ...", apesar do
+        schema. Ao pé da letra, a resposta certa saía sem fonte e sem disciplina."""
+        resultado = self._perguntar({"resposta": "Contem o nucleo.", "fontes_usadas": ["Material: histologia · AULA 6"],
+                                     "cobertura": "completa", "lacuna": "", "assunto": "pericario"})
+
+        self.assertEqual((resultado["fontes"], resultado["disciplina"]), (["Histologia · Aula 6"], "Histologia"))
+
+    def test_fonte_inventada_nao_chega_ao_aluno(self):
+        resultado = self._perguntar({"resposta": "Contem o nucleo.", "fontes_usadas": ["Histologia · Aula 99"],
+                                     "cobertura": "completa", "lacuna": "", "assunto": "pericario"})
+
+        self.assertEqual((resultado["fontes"], resultado["disciplina"]), ([], None))
+
+    def test_a_conversa_do_automatico_e_separada_das_por_disciplina(self):
+        self._perguntar({"resposta": "No automatico.", "fontes_usadas": ["Histologia · Aula 6"],
+                         "cobertura": "completa", "lacuna": "", "assunto": "pericario"})
+        self._perguntar({"resposta": "Na disciplina.", "fontes_usadas": ["Aula 6"],
+                         "cobertura": "completa", "lacuna": "", "assunto": "pericario"}, turma_id=self.histologia)
+
+        automatico = chat_ia.buscar_historico(ALUNO)["mensagens"]
+        disciplina = chat_ia.buscar_historico(ALUNO, self.histologia)["mensagens"]
+
+        self.assertEqual([m["conteudo"] for m in automatico if m["papel"] == "assistant"], ["No automatico."])
+        self.assertEqual(automatico[-1]["disciplina"], "Histologia")
+        self.assertEqual([m["conteudo"] for m in disciplina if m["papel"] == "assistant"], ["Na disciplina."])
+        self.assertIsNone(disciplina[-1]["disciplina"])
+
+    def test_a_resposta_com_fonte_conta_xp_como_na_disciplina(self):
+        self._perguntar({"resposta": "Contem o nucleo.", "fontes_usadas": ["Histologia · Aula 6"],
+                         "cobertura": "completa", "lacuna": "", "assunto": "pericario"})
+
+        self.assertEqual(resumo_do_aluno(ALUNO)["progresso"]["perguntas"], 1)
+
+    def test_apagar_o_automatico_nao_mexe_nas_conversas_por_disciplina(self):
+        self._perguntar({"resposta": "No automatico.", "fontes_usadas": ["Histologia · Aula 6"],
+                         "cobertura": "completa", "lacuna": "", "assunto": "pericario"})
+        self._perguntar({"resposta": "Na disciplina.", "fontes_usadas": ["Aula 6"],
+                         "cobertura": "completa", "lacuna": "", "assunto": "pericario"}, turma_id=self.histologia)
+
+        self.assertEqual(chat_ia.apagar_historico(ALUNO)["apagadas"], 2)
+
+        self.assertEqual(chat_ia.buscar_historico(ALUNO)["mensagens"], [])
+        self.assertEqual(len(chat_ia.buscar_historico(ALUNO, self.histologia)["mensagens"]), 2)
+
+    def test_a_copia_dos_dados_traz_a_pergunta_sem_disciplina(self):
+        from regras.privacidade import exportar_dados
+
+        self._perguntar({"resposta": "Nao cobre.", "fontes_usadas": [], "cobertura": "nenhuma",
+                         "lacuna": "", "assunto": "cranio"}, pergunta="quantos ossos tem o cranio?")
+
+        conversas = exportar_dados(ALUNO)["dados"]["conversas_com_o_assistente"]
+
+        self.assertIn(("Automático (sem disciplina)", "quantos ossos tem o cranio?"),
+                      [(c["disciplina"], c["conteudo"]) for c in conversas])
+
+    def test_aluno_sem_disciplina_ouve_isso_e_o_modelo_nem_e_chamado(self):
+        criar_conta_staff(ADMIN, "calouro@teste.com", SENHA, "aluno", nome="Calouro", provisoria=False)
+
+        resultado = self._perguntar({"resposta": "x", "fontes_usadas": [], "cobertura": "nenhuma"}, aluno="calouro@teste.com")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertEqual(self.schemas, [])
+
+    def test_pela_rota_a_disciplina_e_opcional(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+        token = cliente.post("/login", json={"email": ALUNO, "senha": SENHA}).json()["token"]
+        resposta = cliente.get("/chat/historico", headers={"Authorization": f"Bearer {token}"})
+
+        self.assertEqual((resposta.status_code, resposta.json()["sucesso"]), (200, True))
+
+    def test_banco_antigo_passa_a_aceitar_pergunta_sem_disciplina(self):
+        """A migração recria a tabela sem o NOT NULL e não perde nenhuma linha."""
+        from infra.database import _turma_do_chat_pode_ficar_vazia
+
+        caminho = os.path.join(tempfile.mkdtemp(), "antigo.db")
+        conexao = sqlite3.connect(caminho)
+        conexao.execute("CREATE TABLE chat_mensagens (id INTEGER PRIMARY KEY AUTOINCREMENT, aluno_id INTEGER NOT NULL,"
+                        " turma_id INTEGER NOT NULL, papel TEXT NOT NULL, conteudo TEXT NOT NULL, fontes TEXT,"
+                        " criado_em TEXT NOT NULL, automatico INTEGER NOT NULL DEFAULT 0)")
+        conexao.executemany("INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, criado_em) VALUES (?, ?, ?, ?, ?)",
+                            [(1, 1, "user", "Qual o perfil C?", "2026-10-01"), (1, 1, "assistant", "Frio e umido.", "2026-10-01")])
+        conexao.commit()
+
+        _turma_do_chat_pode_ficar_vazia(conexao)
+        _turma_do_chat_pode_ficar_vazia(conexao)  # a segunda vez não faz nada
+
+        colunas = {nome: nao_nulo for _, nome, _, nao_nulo, *_ in conexao.execute("PRAGMA table_info(chat_mensagens)")}
+        self.assertEqual(colunas["turma_id"], 0)
+        self.assertEqual(conexao.execute("SELECT conteudo FROM chat_mensagens ORDER BY id").fetchall(),
+                         [("Qual o perfil C?",), ("Frio e umido.",)])
+        self.assertIn("idx_chat_aluno_turma", [linha[1] for linha in conexao.execute("PRAGMA index_list(chat_mensagens)")])
+        conexao.close()
+
+
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")
     print("(o Ollama não precisa estar rodando)\n")

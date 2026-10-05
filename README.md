@@ -24,7 +24,8 @@ serviço de terceiros.
 
 - **Repositório:** https://github.com/jeanrmatias/DeltaCare
 - Sprint 3 entregue em 25/09/2026 (ver [`docs/SPRINT_3.md`](docs/SPRINT_3.md)).
-- **Sprint 4 — entrega em 25/10/2026** (Web Development e Front-End Design):
+- **Sprint 4 — entrega em 25/10/2026** (Web Development e Front-End Design;
+  documento da entrega em [`docs/SPRINT_4.md`](docs/SPRINT_4.md)):
 
   | O que a sprint pede | Onde está |
   |---|---|
@@ -64,9 +65,10 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 - **Início:** nível e faixa do semestre (bronze, prata, ouro, platina),
   sequência de dias de estudo, avisos e as disciplinas com o material recente.
 - **Chat de estudos:** pergunta ao assistente sobre o material das
-  disciplinas; a resposta cita de onde veio, e o que não está no material ele
-  recusa, oferecendo levar a dúvida ao professor. O aluno apaga a conversa de
-  uma disciplina quando quiser.
+  disciplinas — no modo automático, o padrão, sem escolher a disciplina: ele
+  procura em todas e diz de qual veio a resposta. A resposta cita a fonte, e o
+  que não está no material ele recusa, oferecendo levar a dúvida ao professor.
+  O aluno apaga a conversa quando quiser.
 - **Materiais** e **Atividades** (objetivas, corrigidas na hora, e
   dissertativas, com ou sem arquivo anexo), **Desempenho** por disciplina e
   por tópico.
@@ -549,7 +551,7 @@ npm test                           # telas React: rotas por perfil e componentes
 npm run lint                       # regras do React (hooks, componentes)
 ```
 
-- **Backend (563 testes):** permissões de cada perfil, visibilidade de
+- **Backend (576 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,
@@ -559,7 +561,7 @@ npm run lint                       # regras do React (hooks, componentes)
   integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (63 testes):** as telas são renderizadas no Node, sem
+- **Telas React (64 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de
@@ -670,7 +672,7 @@ frontend/                  - as telas (React), entregues pela API em /app/
   testes/                    as telas renderizadas no Node, sem navegador
 
 docs/                      - tutorial, arquitetura, roteiro da apresentação,
-                             entrega da Sprint 3 e validacao/ (teste de
+                             entregas das Sprints 3 e 4 e validacao/ (teste de
                              usabilidade: plano, roteiro, ficha, termo, SUS e
                              resultados)
 
@@ -691,15 +693,22 @@ só (`INICIO_DO_PERFIL`, em `frontend/src/lib/usuario.js`).
 - **A implantação (systemd e Caddy) ainda não rodou num servidor real.**
 - Arquivos enviados ficam no disco do servidor, não num serviço de storage.
 - O chat indexa só PDF (vídeo e link ficam de fora).
-- **A busca do chat percorre todos os trechos da disciplina** a cada
-  pergunta, em Python: 190 ms com 30 PDFs, 570 ms com 100 (medido, vetores de
-  768 dimensões). Serve a uma disciplina; um acervo muito maior pediria um
-  índice vetorial (`sqlite-vec` ou `pgvector`).
+- **A busca do chat percorre todos os trechos** a cada pergunta, em Python:
+  190 ms com 30 PDFs, 570 ms com 100 (medido, vetores de 768 dimensões). No
+  modo automático, são os trechos de todas as disciplinas do aluno. Serve a um
+  curso; um acervo muito maior pediria um índice vetorial (`sqlite-vec` ou
+  `pgvector`).
+- **No modo automático, a pergunta que nenhum material respondeu não vai para
+  as Lacunas de professor nenhum** — não há como saber de qual disciplina ela
+  era sem chutar. Quem quer que o professor veja escolhe a disciplina.
 - Professor e administração não têm a tela Meus dados: os pedidos deles sobre
   dados pessoais seguem pela secretaria.
 
 ## Documentos relacionados
 
+- [`docs/SPRINT_4.md`](docs/SPRINT_4.md) — entrega da Sprint 4: requisitos e onde
+  estão, backlog, decisões de experiência, validação de usabilidade e
+  retrospectiva.
 - [`docs/SPRINT_3.md`](docs/SPRINT_3.md) — entrega da Sprint 3: backlog com as user
   stories e critérios de aceite, decisões de experiência, incremento e
   retrospectiva.

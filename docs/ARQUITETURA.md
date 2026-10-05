@@ -108,7 +108,8 @@ sequenceDiagram
 ## 3. Chat de IA (RAG)
 
 O fluxo que sustenta o diferencial do produto: o assistente responde apenas
-com base no material que o professor liberou na disciplina.
+com base no material que o professor liberou na disciplina — ou, no modo
+automático, nas disciplinas do aluno, todas de uma vez.
 
 ```mermaid
 graph TD
@@ -153,11 +154,23 @@ Somar um bônus para trechos que contêm literalmente os termos distintivos da
 pergunta (siglas, códigos, números) levou o trecho certo para a 1ª posição.
 
 **As fontes são validadas pelo sistema, não declaradas pelo modelo.** O schema
-JSON passado ao Ollama restringe o decodificador, e o `enum` limita as fontes
-aos títulos dos materiais realmente recuperados. O modelo não consegue inventar
-uma fonte nem grafar o título de outro jeito. Se ainda assim a saída vier fora
-do formato, ela é aproveitada como texto, mas **nunca** recebe fonte — uma
-recusa não pode contar XP como se fosse resposta do material.
+JSON passado ao Ollama pede, com um `enum`, só os títulos dos materiais
+realmente recuperados. O modelo nem sempre obedece: o gpt-oss já devolveu
+"Material: Anatomia · Aula 2 - ...", com o prefixo do contexto. Por isso cada
+fonte declarada é conferida contra os materiais recuperados
+(`chat_ia._fontes_reconhecidas`: sem o prefixo, sem caixa e acento) e trocada
+pelo título exato; o que não corresponde a nada é descartado — fonte inventada
+não chega ao aluno. Se a saída vier fora do formato, ela é aproveitada como
+texto, mas **nunca** recebe fonte — uma recusa não pode contar XP como se
+fosse resposta do material.
+
+**O modo automático descobre a disciplina pela resposta.** A busca roda nos
+trechos de todas as disciplinas do aluno, com a disciplina no nome de cada
+fonte ("Histologia · Aula 6"). A pergunta fica na disciplina do trecho mais
+bem colocado entre as fontes que a resposta usou — é lá que conta no XP, nas
+lacunas e nos relatórios. Sem fonte, fica sem disciplina (`turma_id` vazio):
+chutar a do trecho mais parecido já mandou, no piloto, uma pergunta de crânio
+para Cardiologia.
 
 **A cobertura é um campo, não uma frase.** O modelo declara se o material
 cobriu a pergunta por inteiro, em parte ou nada, e o que faltou (`lacuna`). A

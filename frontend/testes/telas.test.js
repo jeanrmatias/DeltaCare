@@ -16,7 +16,7 @@ import { MemoryRouter } from "react-router"
 import { createServer } from "vite"
 
 let vite
-let App, SessaoProvider, DialogosProvider, CartaoProgresso, Markdown
+let App, SessaoProvider, DialogosProvider, CartaoProgresso, Markdown, SeletorDisciplina
 
 before(async () => {
   vite = await createServer({ server: { middlewareMode: true }, appType: "custom", logLevel: "error" })
@@ -25,6 +25,7 @@ before(async () => {
   ;({ DialogosProvider } = await vite.ssrLoadModule("/src/dialogos/DialogosProvider.jsx"))
   ;({ CartaoProgresso } = await vite.ssrLoadModule("/src/paginas/aluno/CartaoProgresso.jsx"))
   ;({ Markdown } = await vite.ssrLoadModule("/src/componentes/Markdown.jsx"))
+  ;({ SeletorDisciplina } = await vite.ssrLoadModule("/src/componentes/SeletorDisciplina.jsx"))
 })
 
 after(() => vite?.close())
@@ -225,4 +226,15 @@ test("todo item de menu leva a uma rota que existe", async () => {
     logado(sessoes[perfil])
     for (const item of itens) assert.notEqual(tituloEm(item.caminho), "Página não encontrada", `${perfil}: ${item.caminho}`)
   }
+})
+
+test("chat: sem disciplina escolhida, o seletor fica no modo automático", () => {
+  // O chat passa valor={turma?.id}: sem escolha, undefined, e a opção vazia
+  // (todas as disciplinas) é a marcada — e não a primeira disciplina.
+  const turmas = [{ id: 7, nome: "Histologia", semestre: "2026/1", professor_nome: "Beatriz Lemos" }]
+  const saida = html(h(SeletorDisciplina, { turmas, valor: undefined, aoMudar() {}, comTodas: true,
+    rotuloTodas: "todas as minhas disciplinas (automático)", rotulo: null }))
+
+  assert.match(saida, /<option value="" selected="">todas as minhas disciplinas \(automático\)<\/option>/)
+  assert.doesNotMatch(saida, /aria-label=/)
 })

@@ -1,6 +1,7 @@
 import contextvars
 import json
 import os
+import re
 import sqlite3
 
 from infra.security import hash_senha
@@ -111,6 +112,46 @@ class FecharConexoesDaRequisicao:
             _CONEXOES_DA_REQUISICAO.reset(marca)
             for conexao in abertas:
                 conexao.close()
+
+
+def _turma_do_chat_pode_ficar_vazia(conexao) -> None:
+    """`chat_mensagens.turma_id` passa a aceitar NULL: é a pergunta do modo
+    automático que o material de nenhuma disciplina respondeu. Pôr ela numa
+    disciplina qualquer seria acusar uma lacuna que não é daquela disciplina —
+    o erro do teste piloto, que mandou uma pergunta de crânio para Cardiologia.
+
+    O SQLite não tira o NOT NULL de uma coluna: a tabela é recriada uma vez,
+    com o mesmo esquema sem essa restrição, e as linhas copiadas. Banco novo já
+    nasce assim (o CREATE acima) e não passa por aqui.
+    """
+    colunas = conexao.execute("PRAGMA table_info(chat_mensagens)").fetchall()
+    if not any(nome == "turma_id" and nao_nulo for _, nome, _, nao_nulo, *_ in colunas):
+        return
+
+    esquema = conexao.execute("SELECT sql FROM sqlite_master WHERE name = 'chat_mensagens'").fetchone()[0]
+    novo = re.sub(r"turma_id\s+INTEGER\s+NOT\s+NULL", "turma_id INTEGER", esquema, count=1)
+    novo = novo.replace("chat_mensagens", "chat_mensagens_nova", 1)
+    antes = conexao.execute("SELECT COUNT(*) FROM chat_mensagens").fetchone()[0]
+
+    # Chave estrangeira desligada durante a troca, como manda a documentação
+    # do SQLite; o PRAGMA só vale fora de transação, daí o commit antes.
+    conexao.commit()
+    conexao.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conexao.execute(novo)
+        conexao.execute("INSERT INTO chat_mensagens_nova SELECT * FROM chat_mensagens")
+        depois = conexao.execute("SELECT COUNT(*) FROM chat_mensagens_nova").fetchone()[0]
+        if depois != antes:
+            raise RuntimeError(f"chat_mensagens: {antes} linhas, a cópia ficou com {depois}")
+        conexao.execute("DROP TABLE chat_mensagens")
+        conexao.execute("ALTER TABLE chat_mensagens_nova RENAME TO chat_mensagens")
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_chat_aluno_turma ON chat_mensagens (aluno_id, turma_id)")
+        conexao.commit()
+    except Exception:
+        conexao.rollback()
+        raise
+    finally:
+        conexao.execute("PRAGMA foreign_keys=ON")
 
 
 def configurar_banco(silencioso: bool = False):
@@ -355,7 +396,7 @@ def configurar_banco(silencioso: bool = False):
         CREATE TABLE IF NOT EXISTS chat_mensagens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             aluno_id INTEGER NOT NULL,
-            turma_id INTEGER NOT NULL,
+            turma_id INTEGER,  -- vazio: modo automático sem disciplina
             papel TEXT NOT NULL,
             conteudo TEXT NOT NULL,
             fontes TEXT,
@@ -767,6 +808,11 @@ def configurar_banco(silencioso: bool = False):
         cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN apagada_em TEXT")
     if "chave" not in colunas_chat:
         cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN chave TEXT")
+    # Pergunta feita no modo automático (o chat procura em todas as disciplinas
+    # do aluno — regras/chat_ia.py). É uma conversa à parte das por disciplina.
+    if "automatico" not in colunas_chat:
+        cursor.execute("ALTER TABLE chat_mensagens ADD COLUMN automatico INTEGER NOT NULL DEFAULT 0")
+    _turma_do_chat_pode_ficar_vazia(conexao)
 
     # Assuntos que o professor marcou como tratados (publicou material sobre
     # eles). Contam de novo só as perguntas feitas depois.

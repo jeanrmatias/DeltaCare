@@ -472,7 +472,8 @@ class MatriculaRequest(BaseModel):
 
 
 class PerguntaRequest(BaseModel):
-    turma_id: int
+    # Sem disciplina: o modo automático, que procura em todas as do aluno.
+    turma_id: Optional[int] = None
     pergunta: str
 
 
@@ -1355,12 +1356,12 @@ async def perguntar_chat_rota(dados: PerguntaRequest, aluno: dict = Depends(usua
 
 
 @app.get("/chat/historico")
-def historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
+def historico_chat_rota(turma_id: Optional[int] = None, aluno: dict = Depends(usuario_aluno)):
     return buscar_historico(aluno["email"], turma_id)
 
 
 @app.delete("/chat/historico")
-def apagar_historico_chat_rota(turma_id: int, aluno: dict = Depends(usuario_aluno)):
+def apagar_historico_chat_rota(turma_id: Optional[int] = None, aluno: dict = Depends(usuario_aluno)):
     return apagar_historico(aluno["email"], turma_id)
 
 

@@ -444,10 +444,14 @@ def _status_material(rascunho: int, data_liberacao) -> str:
     return "publicado"
 
 
-def buscar_trechos_relevantes(turma_id: int, pergunta: str, gerar_embedding_fn=gerar_embedding, top_k: int = TOP_K) -> list:
+def buscar_trechos_relevantes(turma_id, pergunta: str, gerar_embedding_fn=gerar_embedding, top_k: int = TOP_K) -> list:
     """Busca os trechos de material mais relevantes pra pergunta, só entre
     os materiais já PUBLICADOS (não rascunho, e já liberados se agendados)
     da turma — o aluno nunca vê rascunho nem material agendado pro futuro.
+
+    `turma_id` é uma disciplina ou uma lista delas (o modo automático busca
+    em todas as do aluno, de uma vez: os trechos competem entre si, e o mais
+    parecido com a pergunta ganha, venha de onde vier).
 
     Custo, medido com vetores de 768 dimensões: a busca percorre todos os
     trechos da disciplina a cada pergunta. Com o vetor em JSON e o bônus
@@ -458,22 +462,28 @@ def buscar_trechos_relevantes(turma_id: int, pergunta: str, gerar_embedding_fn=g
     pergunta_vetor = normalizar(gerar_embedding_fn(pergunta))
     termos = _termos_distintivos(pergunta)
 
+    turma_ids = [int(t) for t in turma_id] if isinstance(turma_id, (list, tuple, set)) else [int(turma_id)]
+    if not turma_ids:
+        return []
+    marcas = ",".join("?" for _ in turma_ids)
+
     conexao = conectar()
     try:
         linhas = conexao.execute(
-            '''
-            SELECT c.texto, c.vetor, c.embedding, m.titulo, m.id, m.rascunho, m.data_liberacao
+            f'''
+            SELECT c.texto, c.vetor, c.embedding, m.titulo, m.id, m.rascunho, m.data_liberacao, m.turma_id, t.nome
             FROM material_chunks c
             JOIN materiais m ON m.id = c.material_id
-            WHERE m.turma_id = ? AND m.rascunho = 0
+            JOIN turmas t ON t.id = m.turma_id
+            WHERE m.turma_id IN ({marcas}) AND m.rascunho = 0
             ''',
-            (turma_id,),
+            turma_ids,
         ).fetchall()
     finally:
         conexao.close()
 
     candidatos = []
-    for texto, vetor, embedding_json, titulo_material, material_id, rascunho, data_liberacao in linhas:
+    for texto, vetor, embedding_json, titulo_material, material_id, rascunho, data_liberacao, turma, disciplina in linhas:
         # O rascunho já saiu no SQL. O agendado fica aqui de propósito: a regra
         # trata data sem fuso e data malformada, e o SQLite compararia as duas
         # como texto — seria trocar 30ms por um material aparecendo antes da
@@ -485,7 +495,7 @@ def buscar_trechos_relevantes(turma_id: int, pergunta: str, gerar_embedding_fn=g
         trecho = desempacotar(vetor) if vetor else normalizar(json.loads(embedding_json))
         # Os dois vetores têm norma 1: o produto escalar já é o cosseno.
         similaridade = sum(map(operator.mul, pergunta_vetor, trecho))
-        candidatos.append((similaridade, texto, titulo_material, material_id))
+        candidatos.append((similaridade, texto, titulo_material, material_id, turma, disciplina))
 
     # O bônus literal (_pontuar_trecho) soma no máximo PESO_BUSCA_LITERAL.
     # Então um trecho com similaridade abaixo da k-ésima melhor menos esse
@@ -504,60 +514,130 @@ def buscar_trechos_relevantes(turma_id: int, pergunta: str, gerar_embedding_fn=g
             "similaridade": similaridade,
             "material": titulo_material,
             "material_id": material_id,
+            "turma_id": turma,
+            "disciplina": disciplina,
         }
-        for similaridade, texto, titulo_material, material_id in candidatos
+        for similaridade, texto, titulo_material, material_id, turma, disciplina in candidatos
     ]
     pontuados.sort(key=lambda c: c["pontuacao"], reverse=True)
     return pontuados[:top_k]
 
 
-def montar_contexto(trechos: list) -> str:
+def rotulo_da_fonte(trecho: dict, automatico: bool = False) -> str:
+    """Como o material aparece para o modelo e, nas fontes, para o aluno. No
+    modo automático leva a disciplina na frente: o aluno vê de onde veio a
+    resposta, e duas disciplinas com uma "Aula 3" não se confundem."""
+    return f"{trecho['disciplina']} · {trecho['material']}" if automatico else trecho["material"]
+
+
+def montar_contexto(trechos: list, automatico: bool = False) -> str:
     if not trechos:
         return "(Nenhum trecho de material relevante foi encontrado para esta turma.)"
-    partes = [f"[Material: {t['material']}]\n{t['texto']}" for t in trechos]
+    partes = [f"[Material: {rotulo_da_fonte(t, automatico)}]\n{t['texto']}" for t in trechos]
     return "\n\n---\n\n".join(partes)
 
 
-def _salvar_mensagem(aluno_id: int, turma_id: int, papel: str, conteudo: str, fontes: list = None,
-                     lacuna: str = "", cobertura: str = None, assunto: str = "") -> None:
+def _salvar_mensagem(aluno_id: int, turma_id, papel: str, conteudo: str, fontes: list = None,
+                     lacuna: str = "", cobertura: str = None, assunto: str = "", automatico: bool = False) -> None:
     conexao = conectar()
     agora = datetime.now(timezone.utc).isoformat()
     cursor = conexao.cursor()
     cursor.execute(
-        "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, lacuna, cobertura, assunto, criado_em)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, fontes, lacuna, cobertura, assunto, criado_em, automatico)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (aluno_id, turma_id, papel, conteudo, json.dumps(fontes) if fontes else None, lacuna or None,
-         cobertura, (assunto or "")[:80] or None, agora),
+         cobertura, (assunto or "")[:80] or None, agora, int(automatico)),
     )
     conexao.commit()
     conexao.close()
 
 
+def _fontes_reconhecidas(declaradas: list, recuperados: list) -> list:
+    """As fontes que o modelo declarou, trocadas pelo rótulo exato do material.
+
+    O schema (montar_schema_resposta) restringe as fontes aos rótulos reais,
+    mas o modelo nem sempre obedece: visto com o gpt-oss, a fonte veio como
+    "Material: Anatomia · Aula 2 - Ossos do crânio", com o prefixo do
+    contexto. Comparada ao pé da letra, não batia com nada — a resposta saía
+    sem fonte, sem XP e, no modo automático, sem disciplina.
+
+    Aqui, tirado o prefixo, a comparação ignora caixa e acento; e o título sem
+    a disciplina na frente vale quando um único material recuperado termina
+    com ele. O que não corresponde a material nenhum continua de fora: fonte
+    inventada não chega ao aluno.
+    """
+    por_chave = {_normalizar_para_busca(rotulo): rotulo for rotulo in recuperados}
+    reconhecidas = set()
+    for fonte in declaradas:
+        limpa = re.sub(r"^\s*\[?\s*material\s*:\s*", "", str(fonte), flags=re.I).strip().rstrip("]").strip()
+        chave = _normalizar_para_busca(limpa)
+        if chave in por_chave:
+            reconhecidas.add(por_chave[chave])
+            continue
+        candidatos = [rotulo for c, rotulo in por_chave.items() if chave and c.endswith(" · " + chave)]
+        if len(candidatos) == 1:
+            reconhecidas.add(candidatos[0])
+    return sorted(reconhecidas)
+
+
+def _disciplinas_do_aluno(aluno_id: int) -> list:
+    """As disciplinas em que o aluno está matriculado, de qualquer semestre: a
+    mesma regra que libera o chat de cada uma (matriculas.aluno_matriculado_na_turma)."""
+    conexao = conectar()
+    ids = [linha[0] for linha in conexao.execute("SELECT turma_id FROM matriculas WHERE aluno_id = ?", (aluno_id,))]
+    conexao.close()
+    return ids
+
+
+def _disciplina_da_resposta(trechos: list, fontes: list) -> tuple:
+    """No modo automático, de qual disciplina era a pergunta: a do trecho mais
+    bem colocado na busca entre os materiais que o modelo disse ter usado.
+
+    Sem fonte (o material não respondeu), de nenhuma: (None, None). Chutar a
+    disciplina do trecho mais parecido seria pôr a lacuna na tela do professor
+    errado — o que o teste piloto mostrou acontecer quando o palpite vinha de
+    uma palavra solta no material de outra disciplina.
+    """
+    for trecho in trechos:  # já em ordem de pontuação
+        if rotulo_da_fonte(trecho, automatico=True) in fontes:
+            return trecho["turma_id"], trecho["disciplina"]
+    return None, None
+
+
 def responder_pergunta(
     aluno_email: str,
-    turma_id: int,
+    turma_id,
     pergunta: str,
     gerar_embedding_fn=gerar_embedding,
     gerar_resposta_fn=gerar_resposta_chat,
 ) -> dict:
+    """Responde com o material de uma disciplina, ou — com `turma_id=None` —
+    no modo automático: busca em todas as disciplinas do aluno e descobre de
+    qual a pergunta era pelas fontes que a resposta usou."""
     from regras.matriculas import aluno_matriculado_na_turma
 
     pergunta = pergunta.strip()
     if not pergunta:
         return {"sucesso": False, "mensagem": "Digite uma pergunta."}
 
-    if not aluno_matriculado_na_turma(aluno_email, turma_id):
-        return {"sucesso": False, "mensagem": "Você não está matriculado nessa turma."}
-
+    automatico = turma_id is None
     conexao = conectar()
     aluno = buscar_usuario(conexao, aluno_email)
     conexao.close()
+
+    if automatico:
+        disciplinas = _disciplinas_do_aluno(aluno[0]) if aluno else []
+        if not disciplinas:
+            return {"sucesso": False, "mensagem": "Você ainda não está matriculado em nenhuma disciplina."}
+    elif not aluno_matriculado_na_turma(aluno_email, turma_id):
+        return {"sucesso": False, "mensagem": "Você não está matriculado nessa turma."}
 
     # A IA roda num serviço separado (Ollama). Se ele estiver fora do ar, o
     # aluno recebe uma mensagem clara em vez de um erro 500 — e a pergunta
     # dele não é perdida do histórico por causa disso.
     try:
-        trechos = buscar_trechos_relevantes(turma_id, pergunta, gerar_embedding_fn=gerar_embedding_fn)
+        trechos = buscar_trechos_relevantes(disciplinas if automatico else turma_id, pergunta,
+                                            gerar_embedding_fn=gerar_embedding_fn)
 
         # Disciplina sem nenhum texto que o assistente leia (só links e vídeos,
         # ou nada publicado): não há o que perguntar ao modelo. Chamá-lo
@@ -566,12 +646,16 @@ def responder_pergunta(
         if not trechos:
             return _sem_material_legivel(aluno[0], turma_id, pergunta)
 
-        contexto = montar_contexto(trechos)
-        materiais_recuperados = sorted({t["material"] for t in trechos})
+        contexto = montar_contexto(trechos, automatico)
+        materiais_recuperados = sorted({rotulo_da_fonte(t, automatico) for t in trechos})
 
+        pedido = f"Material disponível:\n\n{contexto}\n\nPergunta do aluno: {pergunta}"
+        if automatico:
+            pedido = ("Os trechos vêm de várias disciplinas do aluno, e cada um diz de qual. "
+                      "Use só os que tratam do assunto da pergunta.\n\n" + pedido)
         mensagens = [
             {"role": "system", "content": PROMPT_SISTEMA},
-            {"role": "user", "content": f"Material disponível:\n\n{contexto}\n\nPergunta do aluno: {pergunta}"},
+            {"role": "user", "content": pedido},
         ]
 
         resultado_modelo = gerar_resposta_fn(mensagens, montar_schema_resposta(materiais_recuperados))
@@ -585,11 +669,10 @@ def responder_pergunta(
     resposta_texto = resultado_modelo["resposta"]
     fontes_declaradas = resultado_modelo["fontes_usadas"]
 
-    # O schema restringe as fontes aos títulos reais. `None` só vem de um
-    # modelo chamado sem schema (testes antigos): aí cita o que a busca trouxe.
-    # Resposta fora do formato chega com lista vazia — ver
+    # `None` só vem de um modelo chamado sem schema (testes antigos): aí cita o
+    # que a busca trouxe. Resposta fora do formato chega com lista vazia — ver
     # _resposta_fora_do_formato.
-    fontes = materiais_recuperados if fontes_declaradas is None else sorted(set(fontes_declaradas))
+    fontes = materiais_recuperados if fontes_declaradas is None else _fontes_reconhecidas(fontes_declaradas, materiais_recuperados)
 
     # Cobertura fora do formato (resposta de um modelo sem schema) é deduzida
     # das fontes, como era antes do campo existir.
@@ -602,14 +685,20 @@ def responder_pergunta(
         # pergunta contar XP (regras/aluno.py).
         fontes = []
 
-    _salvar_mensagem(aluno[0], turma_id, "user", pergunta)
+    # No automático, a pergunta passa a ser da disciplina de onde a resposta
+    # veio: é lá que ela conta no XP, nas lacunas e nos relatórios.
+    disciplina = None
+    if automatico:
+        turma_id, disciplina = _disciplina_da_resposta(trechos, fontes)
+
+    _salvar_mensagem(aluno[0], turma_id, "user", pergunta, automatico=automatico)
     # A lacuna é gravada: ela não está no texto da resposta, e sem ela uma
     # resposta parcial, relida amanhã no histórico, pareceria completa. Grava
     # também na cobertura "nenhuma": para o aluno é redundante ("não cobre"),
     # mas para o professor é o que falta (regras/lacunas.py).
     lacuna = lacuna if cobertura in ("parcial", "nenhuma") else ""
     _salvar_mensagem(aluno[0], turma_id, "assistant", resposta_texto, fontes=fontes, lacuna=lacuna,
-                     cobertura=cobertura, assunto=resultado_modelo.get("assunto") or "")
+                     cobertura=cobertura, assunto=resultado_modelo.get("assunto") or "", automatico=automatico)
 
     resultado = {
         "sucesso": True,
@@ -618,34 +707,52 @@ def responder_pergunta(
         "cobertura": cobertura,
         # Na tela do aluno, a lacuna só aparece na resposta parcial.
         "lacuna": lacuna if cobertura == "parcial" else "",
+        # Só no automático: de qual disciplina a resposta saiu (None se de nenhuma).
+        "disciplina": disciplina,
     }
     return resultado
 
 
-def _sem_material_legivel(aluno_id: int, turma_id: int, pergunta: str) -> dict:
-    conexao = conectar()
-    nome = conexao.execute("SELECT nome FROM turmas WHERE id = ?", (int(turma_id),)).fetchone()[0]
-    conexao.close()
-
-    resposta = (
-        f"O material de {nome} ainda não tem nenhum texto que eu consiga ler: "
-        "respondo a partir dos PDFs que o professor publica, e esta disciplina "
-        "ainda não tem nenhum (links e vídeos eu não leio)."
-    )
-    _salvar_mensagem(aluno_id, turma_id, "user", pergunta)
+def _sem_material_legivel(aluno_id: int, turma_id, pergunta: str) -> dict:
+    automatico = turma_id is None
+    if automatico:
+        resposta = (
+            "Nenhuma das suas disciplinas tem ainda um texto que eu consiga ler: "
+            "respondo a partir dos PDFs que os professores publicam (links e vídeos eu não leio)."
+        )
+    else:
+        conexao = conectar()
+        nome = conexao.execute("SELECT nome FROM turmas WHERE id = ?", (int(turma_id),)).fetchone()[0]
+        conexao.close()
+        resposta = (
+            f"O material de {nome} ainda não tem nenhum texto que eu consiga ler: "
+            "respondo a partir dos PDFs que o professor publica, e esta disciplina "
+            "ainda não tem nenhum (links e vídeos eu não leio)."
+        )
+    _salvar_mensagem(aluno_id, turma_id, "user", pergunta, automatico=automatico)
     # "sem_material", e não "nenhuma": para o professor é outro recado — não
     # é um tema que falta, é a disciplina que não tem nada que o assistente leia.
-    _salvar_mensagem(aluno_id, turma_id, "assistant", resposta, fontes=[], cobertura="sem_material")
+    _salvar_mensagem(aluno_id, turma_id, "assistant", resposta, fontes=[], cobertura="sem_material",
+                     automatico=automatico)
     return {
         "sucesso": True,
         "resposta": resposta,
         "fontes": [],
         "cobertura": "nenhuma",
         "lacuna": "",
+        "disciplina": None,
     }
 
 
-def buscar_historico(aluno_email: str, turma_id: int) -> dict:
+def _filtro_da_conversa(turma_id) -> tuple:
+    """Qual conversa: a de uma disciplina, ou (turma_id=None) a do modo
+    automático, que é uma só e reúne perguntas de várias disciplinas."""
+    if turma_id is None:
+        return "automatico = 1", []
+    return "turma_id = ? AND automatico = 0", [int(turma_id)]
+
+
+def buscar_historico(aluno_email: str, turma_id=None) -> dict:
     conexao = conectar()
     aluno = buscar_usuario(conexao, aluno_email)
 
@@ -653,19 +760,24 @@ def buscar_historico(aluno_email: str, turma_id: int) -> dict:
         conexao.close()
         return {"sucesso": False, "mensagem": "Aluno não encontrado.", "mensagens": []}
 
+    filtro, valores = _filtro_da_conversa(turma_id)
+    # Na consulta com JOIN, as colunas do filtro precisam do prefixo da tabela.
+    filtro = filtro.replace("automatico", "c.automatico").replace("turma_id", "c.turma_id")
     cursor = conexao.cursor()
     cursor.execute(
-        '''
-        SELECT papel, conteudo, fontes, lacuna, cobertura, criado_em FROM chat_mensagens
-        WHERE aluno_id = ? AND turma_id = ? AND apagada_em IS NULL
-        ORDER BY criado_em
+        f'''
+        SELECT c.papel, c.conteudo, c.fontes, c.lacuna, c.cobertura, c.criado_em, c.automatico, t.nome
+        FROM chat_mensagens c LEFT JOIN turmas t ON t.id = c.turma_id
+        WHERE c.aluno_id = ? AND c.apagada_em IS NULL AND {filtro}
+        ORDER BY c.criado_em, c.id
         ''',
-        (aluno[0], turma_id),
+        [aluno[0], *valores],
     )
     mensagens = [
         {"papel": p, "conteudo": c, "fontes": json.loads(f) if f else [],
-         "lacuna": (l or "") if cob == "parcial" else "", "criado_em": e}
-        for p, c, f, l, cob, e in cursor.fetchall()
+         "lacuna": (l or "") if cob == "parcial" else "", "criado_em": e,
+         "disciplina": nome if automatico and p == "assistant" else None}
+        for p, c, f, l, cob, e, automatico, nome in cursor.fetchall()
     ]
     conexao.close()
 
@@ -677,8 +789,9 @@ def buscar_historico(aluno_email: str, turma_id: int) -> dict:
 FONTES_APAGADAS = '["apagada"]'
 
 
-def apagar_historico(aluno_email: str, turma_id: int) -> dict:
-    """O aluno apaga a conversa com o assistente numa disciplina.
+def apagar_historico(aluno_email: str, turma_id=None) -> dict:
+    """O aluno apaga a conversa com o assistente numa disciplina (ou, com
+    `turma_id=None`, a do modo automático).
 
     Some de verdade o que ele escreveu e o que o assistente respondeu: texto,
     fontes citadas e o "o que falta" da resposta. Fica a contagem, sem
@@ -698,10 +811,11 @@ def apagar_historico(aluno_email: str, turma_id: int) -> dict:
         if not aluno or aluno[1] != "aluno":
             return {"sucesso": False, "mensagem": "Aluno não encontrado."}
         agora = datetime.now(timezone.utc).isoformat()
+        filtro, valores = _filtro_da_conversa(turma_id)
         perguntas = conexao.execute(
             "SELECT id, conteudo FROM chat_mensagens"
-            " WHERE aluno_id = ? AND turma_id = ? AND papel = 'user' AND apagada_em IS NULL",
-            (aluno[0], turma_id),
+            f" WHERE aluno_id = ? AND {filtro} AND papel = 'user' AND apagada_em IS NULL",
+            [aluno[0], *valores],
         ).fetchall()
         conexao.executemany(
             "UPDATE chat_mensagens SET chave = ? WHERE id = ?",
@@ -712,9 +826,9 @@ def apagar_historico(aluno_email: str, turma_id: int) -> dict:
             UPDATE chat_mensagens
                SET conteudo = '', lacuna = NULL, apagada_em = ?,
                    fontes = CASE WHEN fontes IS NULL OR trim(fontes) IN ('', '[]') THEN fontes ELSE ? END
-             WHERE aluno_id = ? AND turma_id = ? AND apagada_em IS NULL
-            """,
-            (agora, FONTES_APAGADAS, aluno[0], turma_id),
+             WHERE aluno_id = ? AND {filtro} AND apagada_em IS NULL
+            """.format(filtro=filtro),
+            (agora, FONTES_APAGADAS, aluno[0], *valores),
         ).rowcount
         conexao.commit()
     finally:

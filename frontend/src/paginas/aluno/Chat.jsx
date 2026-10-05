@@ -11,13 +11,16 @@ import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 
 /**
- * Chat de estudos. O assistente só responde com base no material liberado
- * na disciplina escolhida — isso é garantido no backend (chat_ia.py), não
- * aqui.
+ * Chat de estudos. O assistente só responde com base no material liberado —
+ * de uma disciplina escolhida ou, no modo automático (o padrão), de todas as
+ * do aluno, e aí ele mesmo descobre de qual era a pergunta. Isso é garantido
+ * no backend (chat_ia.py), não aqui.
  */
 export function Chat() {
   const { dados, carregando, erro } = useApi("/aluno/turmas")
   const turmas = dados?.turmas || []
+  // null é o modo automático: o aluno não precisa saber de qual disciplina é
+  // a dúvida para perguntar.
   const [escolhida, setEscolhida] = useState(null)
   // Trocar de disciplina remonta a conversa (e o seletor, que mora nela): o
   // foco volta para ele, e quem navega pelo teclado não perde o lugar.
@@ -27,8 +30,7 @@ export function Chat() {
     setEscolhida(id)
   }
 
-  // Sem escolha ainda, a primeira (o servidor manda as do semestre antes).
-  const turma = turmas.find((t) => t.id === escolhida) ?? turmas[0]
+  const turma = turmas.find((t) => t.id === escolhida) ?? null
 
   return (
     <div className="flex min-h-[70vh] flex-col md:h-[calc(100dvh-2.5rem)]">
@@ -45,8 +47,8 @@ export function Chat() {
 
       {/* key: trocar de disciplina monta uma conversa nova do zero — o estado
           da anterior (mensagens, resposta em andamento) não vaza para esta. */}
-      {turma && (
-        <Conversa key={turma.id} turma={turma} turmas={turmas} aoMudar={escolher} focarSeletor={trocou} />
+      {turmas.length > 0 && (
+        <Conversa key={turma?.id ?? "automatico"} turma={turma} turmas={turmas} aoMudar={escolher} focarSeletor={trocou} />
       )}
     </div>
   )
@@ -54,9 +56,13 @@ export function Chat() {
 
 const BOAS_VINDAS =
   "Oi! Pode perguntar qualquer coisa sobre o material liberado nessa disciplina que eu ajudo — só não saio do que o professor disponibilizou."
+const BOAS_VINDAS_AUTOMATICO =
+  "Oi! Pergunte sobre qualquer disciplina sua: eu procuro no material de todas e digo de qual veio a resposta — só não saio do que os professores disponibilizaram."
 
 function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
-  const historico = useApi(`/chat/historico?turma_id=${turma.id}`)
+  // Sem disciplina (turma null), a conversa do modo automático.
+  const consulta = turma ? `?turma_id=${turma.id}` : ""
+  const historico = useApi(`/chat/historico${consulta}`)
   const [novas, setNovas] = useState([])
   const [pergunta, setPergunta] = useState("")
   const [gerando, setGerando] = useState(false)
@@ -75,7 +81,8 @@ function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
     rolagem.current?.scrollTo({ top: rolagem.current.scrollHeight })
   }, [mensagens.length, gerando, depois])
 
-  const adicionar = (papel, conteudo, fontes = [], lacuna = "") => setNovas((atual) => [...atual, { papel, conteudo, fontes, lacuna }])
+  const adicionar = (papel, conteudo, fontes = [], lacuna = "", disciplina = null) =>
+    setNovas((atual) => [...atual, { papel, conteudo, fontes, lacuna, disciplina }])
 
   function perguntar(evento) {
     evento.preventDefault()
@@ -94,13 +101,13 @@ function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
     try {
       const resposta = await api("/chat/perguntar", {
         method: "POST",
-        body: JSON.stringify({ turma_id: turma.id, pergunta: texto }),
+        body: JSON.stringify({ turma_id: turma?.id ?? null, pergunta: texto }),
         signal: cancelamento.current.signal,
       })
       const dados = await resposta.json()
 
       if (dados.sucesso) {
-        adicionar("assistant", dados.resposta, dados.fontes, dados.lacuna)
+        adicionar("assistant", dados.resposta, dados.fontes, dados.lacuna, dados.disciplina)
         // Coberta só em parte ou nada: o material tem uma lacuna, e quem pode
         // preenchê-la é o professor. Sem o campo (resposta antiga), vale a
         // regra de antes: sem fonte citada, não cobriu.
@@ -126,16 +133,14 @@ function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
   // aqui, antes de apagar, e não descoberto depois.
   async function apagar() {
     const sim = await confirmar(
-      `Apagar a conversa de ${turma.nome}? Não dá para desfazer.
-
-` +
+      `Apagar a conversa ${turma ? `de ${turma.nome}` : "do modo automático"}? Não dá para desfazer.\n\n` +
       "Somem as suas perguntas e as respostas do assistente. O seu XP não muda, e o assunto das dúvidas " +
       "que o material não respondeu continua contando para o professor, sem o seu nome.",
       { titulo: "Apagar conversa", rotulo: "Apagar", perigo: true },
     )
     if (!sim) return
     try {
-      const dados = await (await api(`/chat/historico?turma_id=${turma.id}`, { method: "DELETE" })).json()
+      const dados = await (await api(`/chat/historico${consulta}`, { method: "DELETE" })).json()
       if (!dados.sucesso) return await avisar(dados.mensagem || "Não foi possível apagar a conversa.", "Algo deu errado")
       setNovas([])
       setDepois(null)
@@ -150,24 +155,27 @@ function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-cartao bg-superficie shadow-cartao">
       {/* role="log": o leitor de tela anuncia a resposta nova quando ela chega,
           sem o aluno ter que ir procurá-la na lista. */}
-      <div ref={rolagem} role="log" aria-label={`Conversa sobre ${turma.nome}`}
+      <div ref={rolagem} role="log" aria-label={`Conversa sobre ${turma?.nome ?? "todas as suas disciplinas"}`}
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
         {historico.carregando && <Carregando />}
-        {historico.dados && mensagens.length === 0 && <Bolha papel="assistant" conteudo={BOAS_VINDAS} />}
+        {historico.dados && mensagens.length === 0 && (
+          <Bolha papel="assistant" conteudo={turma ? BOAS_VINDAS : BOAS_VINDAS_AUTOMATICO} />
+        )}
         {mensagens.map((mensagem, indice) => <Bolha key={indice} {...mensagem} />)}
-        {gerando && <Pensando />}
+        {gerando && <Pensando automatico={!turma} />}
         {depois && <OfertaProfessor pergunta={depois.pergunta} />}
       </div>
 
       <form onSubmit={perguntar} className="border-t border-borda p-4">
         {/* A disciplina se escolhe aqui, junto da pergunta, e não no topo da
-            página: o assistente só lê o material dela, e perguntar de
-            insuficiência cardíaca em Anatomia sem perceber dá "não cobre" para
-            algo que a plataforma tem. */}
+            página. O padrão é procurar em todas: escolher uma é para quem quer
+            restringir — e perguntar de insuficiência cardíaca em Anatomia sem
+            perceber dava "não cobre" para algo que a plataforma tem. */}
         <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <label className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-texto-secundario">
             Perguntando sobre o material de
-            <SeletorDisciplina turmas={turmas} valor={turma.id} aoMudar={aoMudar} rotulo={null} autoFocus={focarSeletor} />
+            <SeletorDisciplina turmas={turmas} valor={turma?.id} aoMudar={aoMudar} rotulo={null} autoFocus={focarSeletor}
+              comTodas rotuloTodas="todas as minhas disciplinas (automático)" />
           </label>
           {mensagens.length > 0 && (
             <button type="button" onClick={apagar} disabled={gerando}
@@ -178,13 +186,15 @@ function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
         </div>
         {/* Transparência: o aluno sabe o que o professor vê, antes de perguntar. */}
         <p className="mb-3 text-xs text-texto-secundario">
-          Quando o material não responde, o professor vê o assunto da dúvida — nunca a pergunta nem o seu nome.
+          {turma
+            ? "Quando o material não responde, o professor vê o assunto da dúvida — nunca a pergunta nem o seu nome."
+            : "Quando o material responde só em parte, o professor da disciplina vê o assunto da dúvida — nunca a pergunta nem o seu nome."}
         </p>
         <div className="flex gap-2.5">
         <input
           value={pergunta}
           onChange={(evento) => setPergunta(evento.target.value)}
-          placeholder={`Sua pergunta sobre ${turma.nome}...`}
+          placeholder={turma ? `Sua pergunta sobre ${turma.nome}...` : "Sua pergunta, de qualquer disciplina..."}
           aria-label="Sua pergunta"
           autoComplete="off"
           disabled={gerando}
@@ -205,12 +215,12 @@ function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
 const SOBRESCRITOS = ["¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
 
 /**
- * Uma fala da conversa. A do aluno, um balão. A do assistente, texto de
- * página, com um filete na margem — e as fontes como nota de rodapé de livro,
- * numeradas: é o que diz que a resposta veio do material, e não da cabeça
- * do modelo.
+ * Uma fala da conversa, num balão. A do assistente traz as fontes como nota de
+ * rodapé de livro, numeradas: é o que diz que a resposta veio do material, e
+ * não da cabeça do modelo. No modo automático, no topo, a disciplina de onde
+ * a resposta saiu.
  */
-function Bolha({ papel, conteudo, fontes, lacuna }) {
+function Bolha({ papel, conteudo, fontes, lacuna, disciplina }) {
   if (papel === "user") {
     return (
       <div className="max-w-[75%] self-end rounded-bloco rounded-br-sm bg-primaria px-4 py-2.5 text-sm leading-normal whitespace-pre-wrap text-white">
@@ -219,8 +229,15 @@ function Bolha({ papel, conteudo, fontes, lacuna }) {
     )
   }
 
+  // Balão como o do aluno, espelhado: a ponta do lado de quem fala. Sem ele, a
+  // resposta (que era só um fio na margem) parecia texto solto na página.
   return (
-    <div className="max-w-[88%] self-start border-l-2 border-marca/40 pl-4 text-[16px] leading-relaxed text-texto">
+    <div className="max-w-[85%] self-start rounded-bloco rounded-bl-sm border border-borda bg-fundo px-4 py-3 text-[15px] leading-relaxed text-texto">
+      {disciplina && (
+        <p className="mb-1 text-xs font-semibold tracking-wide text-primaria uppercase">
+          <span className="sr-only">Resposta do material de </span>{disciplina}
+        </p>
+      )}
       {/* A resposta da IA vem em Markdown. */}
       <Markdown texto={conteudo} />
       {/* O que a pergunta pedia e o material não traz, como anotação na
@@ -252,7 +269,7 @@ function Bolha({ papel, conteudo, fontes, lacuna }) {
  * "Pensando", com cronômetro. O modelo roda local e leva de 10 a 20 segundos:
  * sem sinal de progresso, parece travado, e o aluno manda a pergunta de novo.
  */
-function Pensando() {
+function Pensando({ automatico = false }) {
   const [segundos, setSegundos] = useState(0)
 
   useEffect(() => {
@@ -269,7 +286,7 @@ function Pensando() {
           <span key={i} className="size-1.5 animate-pulse rounded-full bg-marca motion-reduce:animate-none" style={{ animationDelay: `${i * 0.2}s` }} />
         ))}
       </span>
-      Consultando o material da disciplina
+      {automatico ? "Procurando no material das suas disciplinas" : "Consultando o material da disciplina"}
       {/* aria-hidden: dentro de um role="status", o cronômetro seria lido em
           voz alta a cada segundo. */}
       {segundos >= 3 && <span aria-hidden="true" className="tabular-nums opacity-60">{segundos}s</span>}
