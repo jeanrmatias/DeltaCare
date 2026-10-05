@@ -44,6 +44,17 @@ export function interpretarDataDigitada(texto, agora = new Date()) {
 
 const dois = (n) => String(n).padStart(2, "0")
 
+/**
+ * O dia escolhido no calendário ("2026-10-20", vindo da URL) numa hora
+ * daquele dia, em ISO — para abrir o formulário já com a data. Qualquer outra
+ * coisa na URL vira null: o formulário não abre com data inventada.
+ */
+export function dataDoCalendario(dia, hora) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia || "")) return null
+  const data = new Date(`${dia}T${hora}:00`)
+  return Number.isNaN(data.getTime()) ? null : data.toISOString()
+}
+
 export function formatarParaCampo(data) {
   if (!data) return ""
   return `${dois(data.getDate())}/${dois(data.getMonth() + 1)}/${data.getFullYear()} ${dois(data.getHours())}:${dois(data.getMinutes())}`

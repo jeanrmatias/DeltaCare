@@ -14,6 +14,7 @@ import { useDialogo } from "../../hooks/useDialogo"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 import { baixarArquivo, podeVisualizar } from "../../lib/arquivos"
+import { dataDoCalendario } from "../../lib/datas"
 import { ROTULOS_TIPO_MATERIAL, STATUS_DO_MATERIAL } from "../../lib/formatos"
 
 /**
@@ -29,7 +30,12 @@ export function MateriaisProfessor() {
   const turma = lista.some((t) => t.id === turmaDaUrl) ? turmaDaUrl : lista[0]?.id ?? null
 
   const materiais = useApi(turma ? `/materiais?turma_id=${turma}` : null)
-  const [formulario, setFormulario] = useState(null) // null: fechado; {}: novo; material: editar
+  // null: fechado; {}: novo; material: editar. Vindo do calendário
+  // (?agendar=AAAA-MM-DD), já abre novo, com a liberação naquele dia às 8h.
+  const [formulario, setFormulario] = useState(() => {
+    const liberacao = dataDoCalendario(parametros.get("agendar"), "08:00")
+    return liberacao ? { data_liberacao: liberacao } : null
+  })
   const [janela, setJanela] = useState(null)
   const { confirmar, avisar } = useDialogo()
 
@@ -76,8 +82,11 @@ export function MateriaisProfessor() {
         <EstadoVazio>Você ainda não tem disciplinas. A administração é quem cria e atribui disciplinas.</EstadoVazio>
       )}
 
-      {formulario && (
-        <FormularioMaterial key={formulario.id ?? "novo"} material={formulario.id ? formulario : null} turmas={lista} turmaPadrao={turma}
+      {/* Só depois de as disciplinas chegarem: aberto direto pelo calendário,
+          o formulário nasceria antes da lista, sem a disciplina marcada. */}
+      {formulario && lista.length > 0 && (
+        <FormularioMaterial key={formulario.id ?? "novo"} material={formulario.id ? formulario : null} liberacaoInicial={formulario.data_liberacao}
+          turmas={lista} turmaPadrao={turma}
           aoFechar={() => setFormulario(null)}
           aoSalvar={async (aviso) => {
             setFormulario(null); materiais.recarregar(); turmas.recarregar()
@@ -172,12 +181,12 @@ function lerComoBase64(arquivo) {
   })
 }
 
-function FormularioMaterial({ material, turmas, turmaPadrao, aoFechar, aoSalvar }) {
+function FormularioMaterial({ material, liberacaoInicial, turmas, turmaPadrao, aoFechar, aoSalvar }) {
   const editando = Boolean(material)
   const [campos, setCampos] = useState({
     titulo: material?.titulo || "", descricao: material?.descricao || "", tipo: material?.tipo || "pdf",
     link_url: material?.link_url || "", assunto: material?.assunto || "", topico: material?.topico || "",
-    aula: material?.aula || "", semestre: material?.semestre || "", data_liberacao: material?.data_liberacao || null,
+    aula: material?.aula || "", semestre: material?.semestre || "", data_liberacao: material?.data_liberacao || liberacaoInicial || null,
   })
   // Quem abriu o formulário estando numa disciplina espera publicar nela.
   const [marcadas, setMarcadas] = useState(turmaPadrao ? [turmaPadrao] : [])

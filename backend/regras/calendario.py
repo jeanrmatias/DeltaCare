@@ -18,26 +18,49 @@ os alunos reclamam.
 """
 
 import calendar
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timedelta, timezone
 
 from regras.turmas import buscar_usuario, conectar, turma_pertence_ao_professor
+
+# O fuso da instituição. O banco guarda tudo em UTC; o calendário mostra o dia
+# e a hora de quem está na faculdade. Sem isto, um prazo às 23:59 de 20/10 em
+# Porto Alegre (02:59 de 21/10 em UTC) aparecia no dia 21, e um material
+# publicado às 19:53 aparecia às 22:53. Deslocamento fixo: o Brasil não tem
+# horário de verão desde 2019, e o fuso por nome (zoneinfo) pede um pacote a
+# mais no Windows.
+FUSO = timezone(timedelta(hours=int(os.environ.get("DELTACARE_FUSO_HORAS", "-3"))))
 
 
 def _agora() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _local(texto):
+    """Data do banco no fuso da instituição. Sem fuso gravado = UTC (é como o
+    sistema grava). Só data, ou ilegível: None."""
+    texto = str(texto or "")
+    if len(texto) < 16:
+        return None
+    try:
+        data = datetime.fromisoformat(texto.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (data if data.tzinfo else data.replace(tzinfo=timezone.utc)).astimezone(FUSO)
+
+
 def _dia(texto) -> str | None:
-    """Só a parte da data (AAAA-MM-DD) de um campo do banco."""
+    """O dia (AAAA-MM-DD) no fuso da instituição."""
     if not texto:
         return None
-    return str(texto)[:10]
+    local = _local(texto)
+    return local.strftime("%Y-%m-%d") if local else str(texto)[:10]
 
 
 def _hora(texto) -> str:
-    """HH:MM, ou vazio quando o campo só tem data."""
-    texto = str(texto or "")
-    return texto[11:16] if len(texto) >= 16 else ""
+    """HH:MM no fuso da instituição, ou vazio quando o campo só tem data."""
+    local = _local(texto)
+    return local.strftime("%H:%M") if local else ""
 
 
 def _limites_do_mes(ano: int, mes: int) -> tuple:

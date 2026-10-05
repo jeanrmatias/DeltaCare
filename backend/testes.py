@@ -1797,8 +1797,28 @@ class TestesCalendario(BaseAtividades):
     evento que nao aparece no mes certo, ou que aparece sem dever."""
 
     def _mes_de_hoje(self):
-        hoje = datetime.now(timezone.utc)
+        # No fuso da instituição, como o calendário: em UTC, nas três horas de
+        # virada do mês, o evento de agora cairia no mês vizinho.
+        from regras.calendario import FUSO
+
+        hoje = datetime.now(FUSO)
         return hoje.year, hoje.month
+
+    def test_prazo_da_noite_fica_no_dia_certo(self):
+        """23:59 de 20/10 em Porto Alegre é 02:59 de 21/10 em UTC — e era no
+        dia 21 que o calendário mostrava a entrega."""
+        criar_atividade_em_turmas(PROFESSOR, [self.turma_id], titulo="Estudo dirigido DCM-4", tipo="dissertativa",
+                                  rascunho=False, prazo="2026-10-21T02:59:00.000Z")
+
+        prazo = [e for e in eventos_do_mes(PROFESSOR, 2026, 10)["eventos"] if e["tipo"] == "prazo"][0]
+
+        self.assertEqual((prazo["dia"], prazo["hora"]), ("2026-10-20", "23:59"))
+
+    def test_dois_prazos_na_mesma_noite_avisam_no_dia_certo(self):
+        for titulo, prazo in (("Quiz A", "2026-10-21T01:00:00+00:00"), ("Quiz B", "2026-10-20T15:00:00+00:00")):
+            criar_atividade_em_turmas(PROFESSOR, [self.turma_id], titulo=titulo, tipo="dissertativa", rascunho=False, prazo=prazo)
+
+        self.assertEqual(eventos_do_mes(PROFESSOR, 2026, 10)["resumo"]["dias_com_dois_prazos"], ["2026-10-20"])
 
     def _dias(self, resultado):
         return {e["dia"] for e in resultado["eventos"]}

@@ -92,7 +92,21 @@ export function Calendario() {
 
           <Cartao titulo={dia ? rotuloLongo(dia) : "Nada neste mês"}>
             {carregando && <Carregando />}
-            {!dia && dados && <p className="text-sm text-texto-secundario">Nenhum material, atividade ou prazo neste mês.</p>}
+            {!dia && dados && <p className="text-sm text-texto-secundario">Nenhum material, atividade ou prazo neste mês. Escolha um dia para marcar.</p>}
+            {/* Marcar a partir do dia: abre o formulário já com a data. Dia que
+                passou não ganha atalho — prazo no passado nasce atrasado. */}
+            {dia && dia >= hoje && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                <Link to={`/professor/atividades?nova=${dia}${turma ? `&turma=${turma}` : ""}`}
+                  className="rounded-campo bg-primaria px-3 py-2 text-[14px] font-semibold text-white transition hover:bg-primaria-escura">
+                  Nova atividade com prazo neste dia
+                </Link>
+                <Link to={`/professor/materiais?agendar=${dia}${turma ? `&turma=${turma}` : ""}`}
+                  className="rounded-campo border border-borda bg-superficie px-3 py-2 text-[14px] font-semibold text-texto transition hover:bg-fundo">
+                  Agendar material para este dia
+                </Link>
+              </div>
+            )}
             {dia && !(porDia[dia] || []).length && <p className="text-sm text-texto-secundario">Nada marcado para este dia.</p>}
             <div className="flex flex-col gap-2.5">
               {(porDia[dia] || []).map((evento, i) => (

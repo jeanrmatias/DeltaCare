@@ -232,6 +232,7 @@ modelo completo para o servidor está em
 |---|---|---|
 | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
 | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
+| `DELTACARE_FUSO_HORAS` | `-3` | Fuso da instituição em horas, em relação ao UTC (Brasília e Porto Alegre: −3, sem horário de verão). O banco guarda em UTC; o calendário mostra o dia e a hora locais |
 | `DELTACARE_TELAS` | `web/dist` | Pasta das telas compiladas (`npm run build`) que a API entrega em `/app/` |
 | `DELTACARE_ORIGENS` | portas 5500 e 5173 da máquina local | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Onde está o servidor do modelo. Use o IP, não `localhost`: no Windows, `localhost` tenta o IPv6 antes e soma ~2 s a cada chamada (5 s por pergunta no chat) |
@@ -541,7 +542,7 @@ node testes.mjs
 python testar_html.py
 ```
 
-- **Backend (549 testes):** permissões de cada perfil, visibilidade de
+- **Backend (551 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,
@@ -551,7 +552,7 @@ python testar_html.py
   integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (62 testes):** as telas são renderizadas no Node, sem
+- **Telas React (63 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de

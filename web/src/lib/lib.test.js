@@ -72,3 +72,12 @@ test("iniciais: primeira e última palavra", () => {
   assert.equal(iniciaisDe("Pedro"), "PE")
   assert.equal(iniciaisDe(""), "--")
 })
+
+test("o dia do calendário vira a hora certa daquele dia, e lixo na URL não abre nada", async () => {
+  const { dataDoCalendario, formatarParaCampo } = await import("./datas.js")
+  assert.equal(formatarParaCampo(new Date(dataDoCalendario("2026-10-20", "23:59"))), "20/10/2026 23:59")
+  assert.equal(formatarParaCampo(new Date(dataDoCalendario("2026-10-20", "08:00"))), "20/10/2026 08:00")
+  for (const lixo of [null, "", "amanhã", "2026-13-45", "20/10/2026", "2026-10-20T03:00"]) {
+    assert.equal(dataDoCalendario(lixo, "08:00"), null, String(lixo))
+  }
+})

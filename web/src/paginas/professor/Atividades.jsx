@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useSearchParams } from "react-router"
 
 import { Botao } from "../../componentes/Botao"
 import { Carregando, Cartao, EstadoVazio } from "../../componentes/Cartao"
@@ -12,6 +13,7 @@ import { useDialogo } from "../../hooks/useDialogo"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 import { baixarArquivo } from "../../lib/arquivos"
+import { dataDoCalendario } from "../../lib/datas"
 import { dataEHora, STATUS_DO_MATERIAL } from "../../lib/formatos"
 
 /**
@@ -25,10 +27,16 @@ import { dataEHora, STATUS_DO_MATERIAL } from "../../lib/formatos"
 export function AtividadesProfessor() {
   const turmas = useApi("/turmas")
   const lista = turmas.dados?.turmas || []
-  const [escolhida, setEscolhida] = useState(null)
+  // Vindo do calendário (?nova=AAAA-MM-DD&turma=N): o formulário já abre,
+  // com o prazo naquele dia, às 23:59, e na disciplina que estava filtrada.
+  const [parametros] = useSearchParams()
+  const [escolhida, setEscolhida] = useState(() => Number(parametros.get("turma")) || null)
   const turma = escolhida ?? lista[0]?.id ?? null
   const atividades = useApi(turma ? `/atividades?turma_id=${turma}` : null)
-  const [formulario, setFormulario] = useState(null)
+  const [formulario, setFormulario] = useState(() => {
+    const prazo = dataDoCalendario(parametros.get("nova"), "23:59")
+    return prazo ? { prazo } : null
+  })
   const [corrigindo, setCorrigindo] = useState(null)
   const { confirmar, avisar } = useDialogo()
 
@@ -62,8 +70,11 @@ export function AtividadesProfessor() {
       {turmas.erro && <EstadoVazio>{turmas.erro}</EstadoVazio>}
       {turmas.dados && lista.length === 0 && <EstadoVazio>Você ainda não tem disciplinas. A administração é quem cria e atribui disciplinas.</EstadoVazio>}
 
-      {formulario && (
-        <FormularioAtividade key={formulario.id ?? "nova"} atividade={formulario.id ? formulario : null} turmas={lista} turmaPadrao={turma}
+      {/* Só depois de as disciplinas chegarem: aberto direto pelo calendário,
+          o formulário nasceria antes da lista, sem a disciplina marcada. */}
+      {formulario && lista.length > 0 && (
+        <FormularioAtividade key={formulario.id ?? "nova"} atividade={formulario.id ? formulario : null} prazoInicial={formulario.prazo}
+          turmas={lista} turmaPadrao={turma}
           aoFechar={() => setFormulario(null)} aoSalvar={() => { setFormulario(null); atividades.recarregar() }} />
       )}
 
@@ -122,12 +133,12 @@ const ANEXOS = [
   { valor: "obrigatorio", rotulo: "Arquivo obrigatório" },
 ]
 
-function FormularioAtividade({ atividade, turmas, turmaPadrao, aoFechar, aoSalvar }) {
+function FormularioAtividade({ atividade, prazoInicial, turmas, turmaPadrao, aoFechar, aoSalvar }) {
   const editando = Boolean(atividade)
   const [campos, setCampos] = useState({
     titulo: atividade?.titulo || "", enunciado: atividade?.enunciado || "", tipo: atividade?.tipo || "objetiva",
     anexo: atividade?.anexo || "nenhum", pontos: String(atividade?.pontos ?? 10), assunto: atividade?.assunto || "",
-    topico: atividade?.topico || "", data_liberacao: atividade?.data_liberacao || null, prazo: atividade?.prazo || null,
+    topico: atividade?.topico || "", data_liberacao: atividade?.data_liberacao || null, prazo: atividade?.prazo || prazoInicial || null,
   })
   const [marcadas, setMarcadas] = useState(turmaPadrao ? [turmaPadrao] : [])
   const [questoes, setQuestoes] = useState([questaoVazia()])
