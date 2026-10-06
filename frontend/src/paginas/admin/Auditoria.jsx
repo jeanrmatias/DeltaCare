@@ -14,7 +14,7 @@ const PERIODOS = [["1", "Últimas 24 horas"], ["7", "Últimos 7 dias"], ["30", "
  *
  * Só leitura — não há como apagar ou editar um registro pela plataforma.
  * Senha, código de verificação e arquivo nunca aparecem: o servidor os tira
- * antes de gravar (backend/regras/auditoria.py).
+ * antes de gravar (backend/app/regras/auditoria.py).
  */
 export function Auditoria() {
   const [filtros, setFiltros] = useState({ acao: "", busca: "", dias: "30", so_falhas: false })

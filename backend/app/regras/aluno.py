@@ -16,6 +16,7 @@ import hashlib
 import re
 from datetime import datetime, timedelta, timezone
 
+from infra import fuso
 from regras.turmas import buscar_usuario, conectar
 
 
@@ -361,7 +362,7 @@ def _perguntas_que_pontuam(cursor, aluno_id: int, turmas=None, desde: str | None
         """
         SELECT p.conteudo,
                p.chave,
-               substr(p.criado_em, 1, 10),
+               date(p.criado_em, ?),
                (SELECT r.fontes
                   FROM chat_mensagens r
                  WHERE r.aluno_id = p.aluno_id
@@ -375,7 +376,7 @@ def _perguntas_que_pontuam(cursor, aluno_id: int, turmas=None, desde: str | None
         """ + filtro + """
          ORDER BY p.id
         """,
-        [aluno_id] + valores,
+        [fuso.AJUSTE_SQL, aluno_id] + valores,
     ).fetchall()
 
     ja_contadas = set()
@@ -413,8 +414,8 @@ def _pontos_de_atividades(cursor, aluno_id: int, turmas=None, desde: str | None 
     """
     filtro, valores = _filtro_de_turmas("a.turma_id", turmas)
     if desde:
-        filtro += " AND substr(e.enviado_em, 1, 10) >= ?"
-        valores = valores + [desde]
+        filtro += " AND date(e.enviado_em, ?) >= ?"
+        valores = valores + [fuso.AJUSTE_SQL, desde]
     linhas = cursor.execute(
         """
         SELECT e.nota, a.pontos
@@ -439,7 +440,8 @@ def _pontos_de_atividades(cursor, aluno_id: int, turmas=None, desde: str | None 
 
 
 def _dias_com_atividade(cursor, aluno_id: int, turmas=None) -> set:
-    """Dias (AAAA-MM-DD) em que o aluno perguntou, abriu material ou entregou.
+    """Dias (AAAA-MM-DD) em que o aluno perguntou, abriu material ou entregou,
+    no fuso da instituição (infra/fuso.py): estudar às 22h conta no dia.
 
     Com `turmas`, só conta o dia em que a atividade foi numa dessas
     disciplinas — senão abrir material antigo no histórico daria dia ativo no
@@ -450,18 +452,19 @@ def _dias_com_atividade(cursor, aluno_id: int, turmas=None) -> set:
     f_ent, v_ent = _filtro_de_turmas("a.turma_id", turmas)
 
     consulta = (
-        "SELECT DISTINCT substr(criado_em, 1, 10) FROM chat_mensagens "
+        "SELECT DISTINCT date(criado_em, ?) FROM chat_mensagens "
         "WHERE aluno_id = ? AND papel = 'user'" + f_chat + " "
         "UNION "
-        "SELECT DISTINCT substr(ac.criado_em, 1, 10) FROM acessos_material ac "
+        "SELECT DISTINCT date(ac.criado_em, ?) FROM acessos_material ac "
         "JOIN materiais m ON m.id = ac.material_id "
         "WHERE ac.aluno_id = ?" + f_mat + " "
         "UNION "
-        "SELECT DISTINCT substr(e.enviado_em, 1, 10) FROM entregas e "
+        "SELECT DISTINCT date(e.enviado_em, ?) FROM entregas e "
         "JOIN atividades a ON a.id = e.atividade_id "
         "WHERE e.aluno_id = ? AND e.enviado_em IS NOT NULL" + f_ent
     )
-    parametros = [aluno_id] + v_chat + [aluno_id] + v_mat + [aluno_id] + v_ent
+    ajuste = fuso.AJUSTE_SQL
+    parametros = [ajuste, aluno_id] + v_chat + [ajuste, aluno_id] + v_mat + [ajuste, aluno_id] + v_ent
     return {
         linha[0]
         for linha in cursor.execute(consulta, parametros).fetchall()
@@ -495,8 +498,8 @@ def xp_no_periodo(cursor, aluno_id: int, turmas=None, desde: str | None = None) 
     )
     parametros = [aluno_id] + valores
     if desde:
-        consulta += " WHERE substr(primeira, 1, 10) >= ?"
-        parametros.append(desde)
+        consulta += " WHERE date(primeira, ?) >= ?"
+        parametros += [fuso.AJUSTE_SQL, desde]
     materiais = cursor.execute(consulta, parametros).fetchone()[0]
 
     entregas, _, xp_das_notas = _pontos_de_atividades(cursor, aluno_id, turmas, desde)
@@ -593,7 +596,7 @@ def _calcular_progresso(aluno_id: int) -> dict:
         + xp_das_notas
     )
 
-    hoje = datetime.now(timezone.utc).date()
+    hoje = fuso.hoje()
 
     # Últimos dias para o gráfico, do mais antigo para o mais recente.
     acompanhamento = []

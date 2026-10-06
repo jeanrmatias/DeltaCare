@@ -625,6 +625,7 @@ def responder_pergunta(
     aluno = buscar_usuario(conexao, aluno_email)
     conexao.close()
 
+    disciplinas = []
     if automatico:
         disciplinas = _disciplinas_do_aluno(aluno[0]) if aluno else []
         if not disciplinas:

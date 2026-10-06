@@ -23,6 +23,7 @@ leitura de um mês, e é a mesma régua do XP.
 
 from datetime import datetime, timedelta, timezone
 
+from infra import fuso
 from regras.aluno import xp_no_periodo
 from regras.desempenho import _erros_por_topico, _percentual
 from regras.semestres import semestre_vigente
@@ -57,8 +58,8 @@ def _quando(texto):
 
 
 def _mes(texto) -> str | None:
-    data = _quando(texto)
-    return data.strftime("%Y-%m") if data else None
+    """O mês no fuso da instituição: a noite do dia 31 é do mês 31."""
+    return fuso.mes(texto)
 
 
 def _rotulo_do_mes(chave: str) -> str:
@@ -186,7 +187,7 @@ def _situacao_das_entregas(registros, turma_ids: set, agora: datetime):
                 situacao = "nao_entregues"
             else:
                 continue  # ainda dá tempo: não é nada ainda
-            situacoes.append((turma_id, prazo.strftime("%Y-%m"), situacao))
+            situacoes.append((turma_id, _mes(prazo_texto), situacao))
     return situacoes
 
 
@@ -227,13 +228,13 @@ def relatorio_mensal(email: str, coorte_id: int) -> dict:
         # Os meses: do primeiro registro até hoje. Mês sem nada no meio aparece
         # (zerado); antes do primeiro registro, não — seria só ruído.
         datas = [_mes(q) for *_, q in _eventos_de_estudo(registros)]
-        datas += [_quando(a[4]).strftime("%Y-%m") for a in registros["atividades"] if _quando(a[4]) and _quando(a[4]) < agora]
+        datas += [_mes(a[4]) for a in registros["atividades"] if _quando(a[4]) and _quando(a[4]) < agora]
         datas = sorted(d for d in datas if d)
         if not datas:
             return {"sucesso": True, "turma": turma, "disciplinas": [{"id": i, "nome": n} for i, n in disciplinas], "meses": []}
         meses = []
         ano, mes = map(int, datas[0].split("-"))
-        fim = agora.strftime("%Y-%m")
+        fim = agora.astimezone(fuso.FUSO).strftime("%Y-%m")
         while f"{ano:04d}-{mes:02d}" <= max(fim, datas[-1]):
             meses.append(f"{ano:04d}-{mes:02d}")
             ano, mes = (ano + 1, 1) if mes == 12 else (ano, mes + 1)
@@ -268,7 +269,7 @@ def relatorio_mensal(email: str, coorte_id: int) -> dict:
                 continue
             for chave in (turma_id, "total"):
                 ativos.setdefault((m, chave), set()).add(aluno)
-                dias.setdefault((m, chave), set()).add((aluno, str(quando)[:10]))
+                dias.setdefault((m, chave), set()).add((aluno, fuso.dia(quando)))
         abertos = {}
         for aluno, turma_id, material_id, criado_em, _ in registros["acessos"]:
             m = _mes(criado_em)

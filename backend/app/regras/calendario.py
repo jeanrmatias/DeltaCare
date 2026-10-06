@@ -18,35 +18,21 @@ os alunos reclamam.
 """
 
 import calendar
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
+from infra.fuso import FUSO, local as _local  # noqa: F401  (FUSO: os testes e o resto do módulo)
 from regras.turmas import buscar_usuario, conectar, turma_pertence_ao_professor
 
-# O fuso da instituição. O banco guarda tudo em UTC; o calendário mostra o dia
-# e a hora de quem está na faculdade. Sem isto, um prazo às 23:59 de 20/10 em
-# Porto Alegre (02:59 de 21/10 em UTC) aparecia no dia 21, e um material
-# publicado às 19:53 aparecia às 22:53. Deslocamento fixo: o Brasil não tem
-# horário de verão desde 2019, e o fuso por nome (zoneinfo) pede um pacote a
-# mais no Windows.
-FUSO = timezone(timedelta(hours=int(os.environ.get("DELTACARE_FUSO_HORAS", "-3"))))
+# O fuso da instituição (infra/fuso.py). O banco guarda tudo em UTC; o
+# calendário mostra o dia e a hora de quem está na faculdade. Sem isto, um
+# prazo às 23:59 de 20/10 em Porto Alegre (02:59 de 21/10 em UTC) aparecia no
+# dia 21, e um material publicado às 19:53 aparecia às 22:53. Deslocamento
+# fixo: o Brasil não tem horário de verão desde 2019, e o fuso por nome
+# (zoneinfo) pede um pacote a mais no Windows.
 
 
 def _agora() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _local(texto):
-    """Data do banco no fuso da instituição. Sem fuso gravado = UTC (é como o
-    sistema grava). Só data, ou ilegível: None."""
-    texto = str(texto or "")
-    if len(texto) < 16:
-        return None
-    try:
-        data = datetime.fromisoformat(texto.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (data if data.tzinfo else data.replace(tzinfo=timezone.utc)).astimezone(FUSO)
 
 
 def _dia(texto) -> str | None:

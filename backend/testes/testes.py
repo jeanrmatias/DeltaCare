@@ -81,7 +81,7 @@ from regras.atividades import (  # noqa: E402
     obter_atividade_do_aluno,
     salvar_progresso,
 )
-from regras.calendario import eventos_do_mes  # noqa: E402
+from regras.calendario import FUSO, eventos_do_mes  # noqa: E402
 from regras.mensagens import (  # noqa: E402
     abrir_conversa,
     enviar_mensagem,
@@ -570,7 +570,7 @@ class TestesChat(BaseDelta):
 # Integridade do banco ao excluir
 # =========================================================================
 
-class TestesExclusao(BaseDelta):
+class TestesExclusaoEmCascata(BaseDelta):
 
     def _contar(self, tabela):
         conexao = sqlite3.connect(CAMINHO_DB)
@@ -1101,7 +1101,7 @@ class TestesAtividadeProfessor(BaseAtividades):
         self.assertEqual(atividade["pendentes"], 0)
 
 
-class TestesCorrecao(BaseAtividades):
+class TestesCorrecaoDeEntregas(BaseAtividades):
 
     def _entrega_id(self, atividade_id):
         return listar_entregas(atividade_id, PROFESSOR)["entregas"][0]["entrega_id"]
@@ -1802,6 +1802,10 @@ class TestesCalendario(BaseAtividades):
     """O calendario junta o que ja existe espalhado. O risco e de omissao:
     evento que nao aparece no mes certo, ou que aparece sem dever."""
 
+    # As datas dos testes nascem no fuso da instituição, como as que o
+    # professor digita. Em UTC, entre 0h e 3h, a data já virou e a local não:
+    # o teste esperava o dia seguinte e falhava só de madrugada.
+
     def _mes_de_hoje(self):
         # No fuso da instituição, como o calendário: em UTC, nas três horas de
         # virada do mês, o evento de agora cairia no mês vizinho.
@@ -1855,7 +1859,7 @@ class TestesCalendario(BaseAtividades):
 
     def test_material_agendado_cai_no_dia_da_liberacao(self):
         """O material pertence ao dia em que o aluno vai ve-lo."""
-        futuro = datetime.now(timezone.utc) + timedelta(days=3)
+        futuro = datetime.now(FUSO) + timedelta(days=3)
         self.criar_material_simples("Agendado", data_liberacao=futuro.isoformat())
 
         eventos = eventos_do_mes(PROFESSOR, futuro.year, futuro.month)["eventos"]
@@ -1867,7 +1871,7 @@ class TestesCalendario(BaseAtividades):
 
     def test_atividade_com_prazo_gera_dois_eventos(self):
         """Liberacao e prazo sao coisas diferentes em dias diferentes."""
-        prazo = datetime.now(timezone.utc) + timedelta(days=5)
+        prazo = datetime.now(FUSO) + timedelta(days=5)
         self.criar_objetiva(titulo="Quiz", prazo=prazo.isoformat())
 
         ano, mes = self._mes_de_hoje()
@@ -1880,7 +1884,7 @@ class TestesCalendario(BaseAtividades):
             self.assertIn("prazo", tipos)
 
     def test_prazo_aparece_no_mes_do_prazo(self):
-        prazo = datetime.now(timezone.utc) + timedelta(days=40)
+        prazo = datetime.now(FUSO) + timedelta(days=40)
         self.criar_objetiva(titulo="Com prazo longe", prazo=prazo.isoformat())
 
         eventos = eventos_do_mes(PROFESSOR, prazo.year, prazo.month)["eventos"]
@@ -1891,7 +1895,7 @@ class TestesCalendario(BaseAtividades):
 
     def test_evento_de_outro_mes_fica_de_fora(self):
         self.criar_material_simples("Deste mes")
-        outro = datetime.now(timezone.utc) + timedelta(days=70)
+        outro = datetime.now(FUSO) + timedelta(days=70)
 
         eventos = eventos_do_mes(PROFESSOR, outro.year, outro.month)["eventos"]
         self.assertEqual(eventos, [])
@@ -1920,7 +1924,7 @@ class TestesCalendario(BaseAtividades):
 
     def test_avisa_quando_ha_dois_prazos_no_mesmo_dia(self):
         """E o aviso que o professor nao tem hoje: duas entregas no mesmo dia."""
-        prazo = datetime.now(timezone.utc) + timedelta(days=6)
+        prazo = datetime.now(FUSO) + timedelta(days=6)
         self.criar_objetiva(titulo="Quiz A", prazo=prazo.isoformat())
         self.criar_objetiva(titulo="Quiz B", prazo=prazo.isoformat())
 
@@ -1929,7 +1933,7 @@ class TestesCalendario(BaseAtividades):
         self.assertIn(prazo.date().isoformat(), resumo["dias_com_dois_prazos"])
 
     def test_um_prazo_no_dia_nao_gera_aviso(self):
-        prazo = datetime.now(timezone.utc) + timedelta(days=6)
+        prazo = datetime.now(FUSO) + timedelta(days=6)
         self.criar_objetiva(titulo="Quiz unico", prazo=prazo.isoformat())
 
         resumo = eventos_do_mes(PROFESSOR, prazo.year, prazo.month)["resumo"]
@@ -1937,7 +1941,7 @@ class TestesCalendario(BaseAtividades):
 
     def test_eventos_vem_ordenados_por_dia(self):
         self.criar_material_simples("Hoje")
-        depois = datetime.now(timezone.utc) + timedelta(days=4)
+        depois = datetime.now(FUSO) + timedelta(days=4)
         self.criar_material_simples("Depois", data_liberacao=depois.isoformat())
 
         ano, mes = self._mes_de_hoje()
@@ -7668,6 +7672,84 @@ class TestesChatAutomatico(BaseDelta):
                          [("Qual o perfil C?",), ("Frio e umido.",)])
         self.assertIn("idx_chat_aluno_turma", [linha[1] for linha in conexao.execute("PRAGMA index_list(chat_mensagens)")])
         conexao.close()
+
+
+# =========================================================================
+# A própria suíte
+
+class TestesDaSuite(unittest.TestCase):
+
+    def test_nenhuma_classe_de_teste_tem_nome_repetido(self):
+        """Duas classes com o mesmo nome: a segunda apaga a primeira, e os
+        testes dela param de rodar sem aviso. Aconteceu com TestesExclusao e
+        TestesCorrecao — sete testes ficaram parados até uma análise estática
+        notar."""
+        import re
+        from collections import Counter
+
+        with open(__file__, encoding="utf-8") as arquivo:
+            nomes = re.findall(r"^class (\w+)", arquivo.read(), re.M)
+        repetidos = [nome for nome, vezes in Counter(nomes).items() if vezes > 1]
+
+        self.assertGreater(len(nomes), 50)
+        self.assertEqual(repetidos, [])
+
+
+# =========================================================================
+# Dia e mês no fuso da instituição
+
+class TestesFusoDaInstituicao(BaseDelta):
+    """O banco grava em UTC; o dia é o do relógio de quem está na faculdade.
+    Às 22h30 de 05/10 em Porto Alegre já é 06/10 em UTC."""
+
+    NOITE_DE_DOMINGO = "2026-10-06T01:30:00+00:00"   # 05/10, 22h30 no fuso -3
+    SEGUNDA_A_TARDE = "2026-10-06T15:00:00+00:00"    # 06/10, 12h
+
+    def _pergunta(self, quando, turma_id=None):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        aluno_id = conexao.execute("SELECT id FROM users WHERE email = ?", (ALUNO,)).fetchone()[0]
+        conexao.execute("INSERT INTO chat_mensagens (aluno_id, turma_id, papel, conteudo, criado_em) VALUES (?, ?, 'user', ?, ?)",
+                        (aluno_id, turma_id or self.turma_id, f"pergunta de {quando}", quando))
+        conexao.commit()
+        conexao.close()
+        return aluno_id
+
+    def test_o_dia_e_o_do_relogio_da_instituicao(self):
+        from infra import fuso
+
+        self.assertEqual(fuso.dia(self.NOITE_DE_DOMINGO), "2026-10-05")
+        self.assertEqual(fuso.dia("2026-10-06T01:30:00"), "2026-10-05")  # sem fuso gravado = UTC
+        self.assertEqual(fuso.dia("2026-10-06"), "2026-10-06")           # data pura passa como está
+        self.assertEqual(fuso.mes("2026-11-01T02:00:00+00:00"), "2026-10")
+
+    def test_estudar_a_noite_conta_no_dia_e_nao_no_seguinte(self):
+        """Em UTC, as duas idas caíam no mesmo dia (06/10) e o domingo sumia
+        da sequência de quem estuda à noite."""
+        from regras.aluno import _dias_com_atividade
+
+        aluno_id = self._pergunta(self.NOITE_DE_DOMINGO)
+        self._pergunta(self.SEGUNDA_A_TARDE)
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        dias = _dias_com_atividade(conexao.cursor(), aluno_id)
+        conexao.close()
+
+        self.assertEqual(dias, {"2026-10-05", "2026-10-06"})
+
+    def test_a_noite_do_ultimo_dia_do_mes_fica_no_mes(self):
+        from regras.coortes import criar_coorte, matricular_na_coorte
+        from regras.relatorios import relatorio_mensal
+
+        coorte = criar_coorte(ADMIN, "MED 3A", "2026/2")["coorte"]["id"]
+        turma = criar_turma(ADMIN, PROFESSOR, "Fisiologia", "2026/2", coorte)["turma"]["id"]
+        matricular_na_coorte(ADMIN, ALUNO, coorte)
+        self._pergunta("2026-11-01T01:30:00+00:00", turma)   # 31/10, 22h30
+
+        meses = relatorio_mensal(ADMIN, coorte)["meses"]
+
+        self.assertNotIn("2026-11", [m["mes"] for m in meses])
+        outubro = [m for m in meses if m["mes"] == "2026-10"][0]
+        self.assertEqual(outubro["total"]["chat"]["perguntas"], 1)
 
 
 if __name__ == "__main__":

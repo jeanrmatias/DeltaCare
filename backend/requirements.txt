@@ -7,7 +7,7 @@
 # qual dia alguém rodou o comando. Numa entrega institucional isso é a
 # diferença entre "roda na máquina deles" e "rodava na minha".
 #
-# Para subir uma versão: mude aqui, rode a suíte (backend/testes.py) e commite
+# Para subir uma versão: mude aqui, rode a suíte (backend/testes/testes.py) e commite
 # junto. Nunca o contrário.
 
 fastapi~=0.141.1

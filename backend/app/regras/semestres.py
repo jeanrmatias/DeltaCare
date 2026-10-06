@@ -31,6 +31,7 @@ continuam no banco; o que muda é o que aparece na frente.
 import re
 from datetime import date, datetime, timezone
 
+from infra import fuso
 from regras.turmas import _eh_admin, buscar_usuario, conectar
 
 _FORMATO = re.compile(r"^\s*(\d{4})\s*[./\-\s]\s*([12])\s*$")
@@ -67,7 +68,7 @@ def chave_de_ordem(semestre: str) -> tuple:
 
 
 def semestre_do_calendario(dia: date | None = None) -> str:
-    dia = dia or datetime.now(timezone.utc).date()
+    dia = dia or fuso.hoje()
     return f"{dia.year}/{1 if dia.month <= 6 else 2}"
 
 

@@ -20,8 +20,9 @@ impedem farmar XP rodam antes do recorte por data (ver aluno.xp_no_periodo):
 reabrir material antigo ou repetir pergunta velha não viram "evolução".
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
+from infra import fuso
 from regras.aluno import XP_POR_NIVEL, faixa_do_nivel, xp_no_periodo
 from regras.semestres import semestre_vigente
 from regras.turmas import buscar_usuario, conectar
@@ -94,7 +95,7 @@ def ranking_da_turma(aluno_email: str, coorte_id: int | None = None) -> dict:
         (escolhida[0],),
     ).fetchall()
 
-    hoje = datetime.now(timezone.utc).date()
+    hoje = fuso.hoje()
     desde = (hoje - timedelta(days=DIAS_DA_EVOLUCAO - 1)).isoformat()
 
     placar = []

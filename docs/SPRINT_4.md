@@ -122,7 +122,10 @@ material respondeu, se é distinta das anteriores e dentro de um teto por dia.
 
 **Defeito achado em uso:** um prazo às 23:59 aparecia no dia seguinte, porque
 o calendário agrupava pela data em UTC. Corrigido com o fuso configurável
-(`DELTACARE_FUSO_HORAS`).
+(`DELTACARE_FUSO_HORAS`). Na revisão do código, o mesmo erro apareceu fora do
+calendário — dias de estudo, sequência, teto diário de XP, ranking da semana
+e mês dos relatórios — e a regra virou uma só para o sistema todo
+([`infra/fuso.py`](../backend/app/infra/fuso.py)).
 
 ### US-07 — Turma de alunos, semestres e ranking
 
@@ -270,7 +273,7 @@ resumo aqui, só com dado das sessões.
 
 | Verificação | Resultado em 05/10/2026 |
 |---|---|
-| Testes do backend (regras e rotas, sem o Ollama) | 576 passando |
+| Testes do backend (regras e rotas, sem o Ollama) | 587 passando |
 | Testes das telas React (renderizadas no Node) | 64 passando |
 | Lint do React (oxlint) | sem aviso |
 | Contrato front ↔ back | 139 chamadas conferidas, nenhuma sem rota |
@@ -283,6 +286,19 @@ sprint isso derrubou testes que pareciam bons: um limite de reenvio do código
 por e-mail que o teste "provava" só porque outra regra (a espera entre envios)
 mascarava a falta dele; uma cópia de índice do chat que o teste não conferia
 porque a consulta não lia a coluna copiada.
+
+**Sete testes não rodavam, e ninguém sabia.** Duas classes de teste tinham
+o mesmo nome de classes posteriores (`TestesExclusao`, `TestesCorrecao`); em
+Python, a segunda apaga a primeira, e os testes dela somem da suíte sem aviso.
+Uma análise estática (Pyright) apontou. As classes foram renomeadas, os sete
+testes voltaram a rodar e passaram, e um teste novo falha se isso se repetir.
+A mesma análise não achou defeito no código do sistema: os demais avisos eram
+de tipagem, em trechos já protegidos.
+
+**Testes que dependiam da hora.** Três testes do calendário falhavam só entre
+0h e 3h (horário de Brasília): montavam a data em UTC e esperavam o dia UTC,
+enquanto o calendário mostra o dia local. Passaram a montar a data no fuso da
+instituição.
 
 **O teste com o modelo de verdade pega o que o falso não pega.** Os testes do
 chat usam um modelo falso, para rodar sem o Ollama. Ao testar o modo automático

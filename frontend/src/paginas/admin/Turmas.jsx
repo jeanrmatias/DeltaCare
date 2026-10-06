@@ -13,7 +13,7 @@ import { api, ERRO_DE_CONEXAO } from "../../lib/api"
  * Turmas de alunos (MED 3A, o grupo que cursa junto), as exceções por
  * disciplina e o semestre vigente. A tela de Disciplinas cuida de Anatomia,
  * Fisiologia e de qual professor dá cada uma. (No banco a disciplina se chama
- * `turmas` e a turma, `coortes` — ver backend/regras/coortes.py.)
+ * `turmas` e a turma, `coortes` — ver backend/app/regras/coortes.py.)
  *
  * A exceção é uma fileira de chips por aluno, um por disciplina: aceso =
  * cursa, apagado = está fora; um toque alterna. Uma matriz aluno × disciplina

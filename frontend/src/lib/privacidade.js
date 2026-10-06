@@ -1,7 +1,7 @@
 /**
  * O que as telas de privacidade do aluno e da administração dividem: o nome
  * de cada status e o nome do arquivo da cópia. As regras estão no servidor
- * (backend/regras/privacidade.py).
+ * (backend/app/regras/privacidade.py).
  */
 export const STATUS_PRIVACIDADE = {
   pendente: { rotulo: "Aguardando a administração", tom: "alerta" },

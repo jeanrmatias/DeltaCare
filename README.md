@@ -238,7 +238,7 @@ modelo completo para o servidor está em
 |---|---|---|
 | `DELTACARE_DB` | `deltacare.db` | Arquivo do banco |
 | `DELTACARE_UPLOADS` | `uploads` | Pasta dos arquivos enviados (material e entregas) |
-| `DELTACARE_FUSO_HORAS` | `-3` | Fuso da instituição em horas, em relação ao UTC (Brasília e Porto Alegre: −3, sem horário de verão). O banco guarda em UTC; o calendário mostra o dia e a hora locais |
+| `DELTACARE_FUSO_HORAS` | `-3` | Fuso da instituição em horas, em relação ao UTC (Brasília e Porto Alegre: −3, sem horário de verão). O banco guarda em UTC; calendário, dias de estudo, sequência, XP por dia, ranking da semana e relatórios por mês usam o dia e a hora locais |
 | `DELTACARE_TELAS` | `frontend/dist` | Pasta das telas compiladas (`npm run build`) que a API entrega em `/app/` |
 | `DELTACARE_ORIGENS` | portas 5500 e 5173 da máquina local | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Onde está o servidor do modelo. Use o IP, não `localhost`: no Windows, `localhost` tenta o IPv6 antes e soma ~2 s a cada chamada (5 s por pergunta no chat) |
@@ -551,7 +551,7 @@ npm test                           # telas React: rotas por perfil e componentes
 npm run lint                       # regras do React (hooks, componentes)
 ```
 
-- **Backend (576 testes):** permissões de cada perfil, visibilidade de
+- **Backend (587 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,
