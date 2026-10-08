@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from infra.arquivos import remover_arquivo, salvar_arquivo_base64
+from regras import limites
 from regras.turmas import turma_pertence_ao_professor, buscar_professor, conectar
 
 TIPOS_VALIDOS = ("pdf", "documento", "video", "link")
@@ -60,6 +61,20 @@ def _linha_para_dict(linha) -> dict:
     }
 
 
+_LIMITES = {
+    "titulo": (limites.TITULO, "O título"),
+    "descricao": (limites.TEXTO, "A descrição"),
+    "assunto": (limites.TITULO, "O assunto"),
+    "topico": (limites.TITULO, "O tópico"),
+    "aula": (limites.TITULO, "A aula"),
+    "link_url": (limites.TEXTO_CURTO, "O link"),
+}
+
+
+def _texto_demais(**campos) -> str | None:
+    return limites.excesso(*((valor, *_LIMITES[nome]) for nome, valor in campos.items()))
+
+
 def criar_material(
     professor_email: str,
     turma_id: int,
@@ -82,6 +97,9 @@ def criar_material(
 
     if not titulo:
         return {"sucesso": False, "mensagem": "Informe o título do material."}
+    erro = _texto_demais(titulo=titulo, descricao=descricao, assunto=assunto, topico=topico, aula=aula, link_url=link_url)
+    if erro:
+        return {"sucesso": False, "mensagem": erro}
 
     if tipo not in TIPOS_VALIDOS:
         return {"sucesso": False, "mensagem": f"Tipo inválido. Use um destes: {', '.join(TIPOS_VALIDOS)}."}
@@ -299,6 +317,10 @@ def atualizar_material(material_id: int, professor_email: str, **campos) -> dict
         "rascunho", "data_liberacao", "link_url",
     }
     atualizacoes = {chave: valor for chave, valor in campos.items() if chave in campos_permitidos and valor is not None}
+    erro = _texto_demais(**{c: v for c, v in atualizacoes.items() if c in _LIMITES})
+    if erro:
+        conexao.close()
+        return {"sucesso": False, "mensagem": erro}
 
     if "rascunho" in campos:
         atualizacoes["rascunho"] = 1 if campos["rascunho"] else 0

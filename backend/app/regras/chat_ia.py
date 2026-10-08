@@ -25,6 +25,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 from infra.vetores import desempacotar, empacotar, normalizar
+from regras import limites
 from regras.turmas import buscar_usuario, conectar
 
 # 127.0.0.1, e não "localhost". No Windows, "localhost" tenta o IPv6 (::1)
@@ -619,6 +620,11 @@ def responder_pergunta(
     pergunta = pergunta.strip()
     if not pergunta:
         return {"sucesso": False, "mensagem": "Digite uma pergunta."}
+    # Antes de tudo: a pergunta vai inteira para o embedding e para o modelo,
+    # que atende uma de cada vez.
+    erro = limites.excesso((pergunta, limites.PERGUNTA, "A pergunta"))
+    if erro:
+        return {"sucesso": False, "mensagem": erro}
 
     automatico = turma_id is None
     conexao = conectar()

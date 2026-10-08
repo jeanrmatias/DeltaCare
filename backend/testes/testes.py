@@ -373,15 +373,41 @@ class TestesSessao(BaseDelta):
         self.assertIsNone(buscar_usuario_da_sessao(token))
 
     def test_token_expirado_nao_vale(self):
+        from infra.sessoes import resumo_do_token
+
         token = criar_sessao(self._id_do_aluno())
         conexao = sqlite3.connect(CAMINHO_DB)
         conexao.execute(
             "UPDATE sessoes SET expira_em = ? WHERE token = ?",
-            ("2020-01-01T00:00:00+00:00", token),
+            ("2020-01-01T00:00:00+00:00", resumo_do_token(token)),
         )
         conexao.commit()
         conexao.close()
         self.assertIsNone(buscar_usuario_da_sessao(token))
+
+    def test_o_banco_nao_guarda_o_token(self):
+        """Uma cópia do banco (o backup é diário) não pode abrir sessão."""
+        token = criar_sessao(self._id_do_aluno())
+        conexao = sqlite3.connect(CAMINHO_DB)
+        guardados = [linha[0] for linha in conexao.execute("SELECT token FROM sessoes")]
+        conexao.close()
+
+        self.assertNotIn(token, guardados)
+        self.assertIsNone(buscar_usuario_da_sessao(guardados[0]))  # o que está no banco não serve de token
+        self.assertIsNotNone(buscar_usuario_da_sessao(token))
+
+    def test_sessao_aberta_antes_da_mudanca_continua_valendo(self):
+        """A migração troca o token puro das sessões antigas pelo hash."""
+        token_antigo = "a" * 43
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("INSERT INTO sessoes (token, user_id, criado_em, expira_em) VALUES (?, ?, ?, ?)",
+                        (token_antigo, self._id_do_aluno(), "2026-10-01T00:00:00+00:00", "2099-01-01T00:00:00+00:00"))
+        conexao.commit()
+        conexao.close()
+
+        configurar_banco(silencioso=True)
+
+        self.assertIsNotNone(buscar_usuario_da_sessao(token_antigo))
 
     def test_tokens_sao_diferentes(self):
         aluno_id = self._id_do_aluno()
@@ -7750,6 +7776,124 @@ class TestesFusoDaInstituicao(BaseDelta):
         self.assertNotIn("2026-11", [m["mes"] for m in meses])
         outubro = [m for m in meses if m["mes"] == "2026-10"][0]
         self.assertEqual(outubro["total"]["chat"]["perguntas"], 1)
+
+
+# =========================================================================
+# O que chega de fora: gabarito, nota e tamanho dos textos
+
+class TestesEntradasDaRevisao(BaseAtividades):
+
+    def _quiz(self, alternativas, correta):
+        return criar_atividade_em_turmas(
+            PROFESSOR, [self.turma_id], titulo="Quiz de diuréticos", tipo="objetiva", pontos=10, rascunho=False,
+            questoes=[{"enunciado": "Qual a base do tratamento da congestão?", "alternativas": alternativas, "correta": correta}],
+        )
+
+    def _gabarito(self, atividade_id):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        alternativas, correta = conexao.execute("SELECT alternativas, correta FROM questoes WHERE atividade_id = ?", (atividade_id,)).fetchone()
+        conexao.close()
+        return json.loads(alternativas)[correta]
+
+    def test_alternativa_em_branco_nao_desloca_o_gabarito(self):
+        """Com ["", "Furosemida", "Espironolactona"] e a 2ª marcada, o índice 1
+        passava a apontar para a Espironolactona depois de tirar o branco."""
+        resultado = self._quiz(["", "Furosemida", "Espironolactona"], 1)
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertEqual(self._gabarito(resultado["atividade_ids"][0]), "Furosemida")
+
+    def test_correta_marcada_numa_alternativa_em_branco_e_recusada(self):
+        resultado = self._quiz(["Furosemida", "", "Espironolactona"], 1)
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertIn("sem alternativa correta", resultado["mensagem"])
+
+    def test_nota_nan_e_recusada(self):
+        """"nan" passava por float() e pela faixa (toda comparação com NaN é
+        falsa), entrava no banco e quebrava o XP do aluno."""
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "A furosemida intravenosa é a base.")
+        entrega_id = listar_entregas(atividade_id, PROFESSOR)["entregas"][0]["entrega_id"]
+
+        for nota in ("nan", float("nan"), float("inf")):
+            with self.subTest(nota=nota):
+                self.assertFalse(corrigir_entrega(entrega_id, PROFESSOR, nota)["sucesso"])
+        self.assertTrue(corrigir_entrega(entrega_id, PROFESSOR, 8)["sucesso"])
+
+    def test_pergunta_gigante_nem_chega_ao_modelo(self):
+        from regras import limites
+
+        chamadas = []
+        resultado = chat_ia.responder_pergunta(ALUNO, self.turma_id, "a" * (limites.PERGUNTA + 1),
+                                               gerar_embedding_fn=lambda t: chamadas.append(t) or embedding_falso(t),
+                                               gerar_resposta_fn=lambda m, s=None: chamadas.append(m))
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertEqual(chamadas, [])
+
+    def test_textos_acima_do_limite_sao_recusados(self):
+        from regras import limites
+        from regras.denuncias import criar_denuncia
+
+        longo = "x" * (limites.TEXTO + 1)
+        material = self.criar_material_simples("Aula 3 - Insuficiência cardíaca aguda")["material_id"]
+        atividade = self.criar_dissertativa()["atividade_ids"][0]
+
+        casos = {
+            "título do material": self.criar_material_simples("T" * (limites.TITULO + 1)),
+            "título da atividade": criar_atividade_em_turmas(PROFESSOR, [self.turma_id], titulo="T" * (limites.TITULO + 1),
+                                                             tipo="dissertativa", pontos=10),
+            "enunciado": criar_atividade_em_turmas(PROFESSOR, [self.turma_id], titulo="Caso", tipo="dissertativa",
+                                                   pontos=10, enunciado=longo),
+            "resposta dissertativa": enviar_entrega(ALUNO, atividade, longo),
+            "descrição da denúncia": criar_denuncia(ALUNO, material, "outro", "d" * (limites.TEXTO_CURTO + 1)),
+            "nome da disciplina": criar_turma(ADMIN, PROFESSOR, "N" * (limites.NOME + 1), "2026.2"),
+        }
+        for caso, resultado in casos.items():
+            with self.subTest(caso=caso):
+                self.assertFalse(resultado["sucesso"])
+                self.assertIn("passa de", resultado["mensagem"])
+
+
+    def test_entrega_ja_enviada_nao_e_regravada_pelo_progresso(self):
+        """O progresso salvo que chega depois do Entregar trocava as respostas
+        de uma entrega já corrigida."""
+        from regras.atividades import _gravar_entrega
+
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "Furosemida intravenosa.")
+
+        conexao = sqlite3.connect(CAMINHO_DB)
+        aluno_id = conexao.execute("SELECT id FROM users WHERE email = ?", (ALUNO,)).fetchone()[0]
+        _, ja_estava = _gravar_entrega(conexao, atividade_id, aluno_id, "Texto que chegou atrasado.", enviar=False)
+        conexao.commit()
+        guardada = conexao.execute("SELECT respostas FROM entregas WHERE atividade_id = ?", (atividade_id,)).fetchone()[0]
+        conexao.close()
+
+        self.assertTrue(ja_estava)
+        self.assertEqual(json.loads(guardada), "Furosemida intravenosa.")
+
+    def test_entregas_simultaneas_so_uma_vale(self):
+        """Duplo clique, ou duas abas: as duas passavam pela conferência."""
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        largada = threading.Barrier(8)
+
+        def entregar(_):
+            largada.wait()
+            return enviar_entrega(ALUNO, atividade_id, [1, 1])
+
+        with ThreadPoolExecutor(8) as grupo:
+            resultados = list(grupo.map(entregar, range(8)))
+
+        self.assertEqual(sum(1 for r in resultados if r["sucesso"]), 1, resultados)
+        conexao = sqlite3.connect(CAMINHO_DB)
+        linhas = conexao.execute("SELECT COUNT(*) FROM entregas WHERE atividade_id = ?", (atividade_id,)).fetchone()[0]
+        conexao.close()
+        self.assertEqual(linhas, 1)
 
 
 if __name__ == "__main__":

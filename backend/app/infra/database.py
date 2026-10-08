@@ -419,6 +419,14 @@ def configurar_banco(silencioso: bool = False):
         )
     ''')
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessoes_user ON sessoes (user_id)")
+    # O banco passou a guardar o SHA-256 do token (infra/sessoes.resumo_do_token).
+    # As sessões abertas antes disso guardavam o token puro: são convertidas
+    # aqui, e ninguém precisa entrar de novo. O hash tem 64 caracteres
+    # hexadecimais; o token, 43 — é o que separa um do outro.
+    from infra.sessoes import resumo_do_token
+
+    antigas = cursor.execute("SELECT token FROM sessoes WHERE length(token) != 64").fetchall()
+    cursor.executemany("UPDATE sessoes SET token = ? WHERE token = ?", [(resumo_do_token(t), t) for (t,) in antigas])
 
     # Configurações da instituição que a administração muda pela tela. Hoje
     # só o semestre vigente (regras/semestres.py); chave e valor para a

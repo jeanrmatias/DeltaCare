@@ -16,6 +16,7 @@ para revisar. JWT faz sentido quando há vários serviços validando sem
 consultar o banco, o que não é o caso aqui.
 """
 
+import hashlib
 import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,19 @@ from infra.database import CAMINHO_DB, abrir_conexao
 # Uma sessão dura o suficiente para uma aula ou uma demonstração sem obrigar
 # o usuário a logar de novo no meio.
 DURACAO_SESSAO = timedelta(hours=12)
+
+
+def resumo_do_token(token: str) -> str:
+    """O que o banco guarda no lugar do token: o SHA-256 dele.
+
+    O banco vai para o backup todo dia. Com o token como o navegador recebe,
+    quem pusesse a mão numa cópia entrava como qualquer pessoa com sessão
+    aberta, por até 12 horas, sem senha e sem o código por e-mail. Com o hash,
+    a cópia não abre sessão nenhuma. Sem sal de propósito: o token já é
+    aleatório (256 bits), não há dicionário a evitar, e a busca precisa
+    achar a linha pelo valor.
+    """
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def _conectar():
@@ -45,7 +59,7 @@ def criar_sessao(user_id: int) -> str:
     cursor.execute(
         "INSERT INTO sessoes (token, user_id, criado_em, expira_em) VALUES (?, ?, ?, ?)",
         (
-            token,
+            resumo_do_token(token),
             user_id,
             agora.isoformat(),
             (agora + DURACAO_SESSAO).isoformat(),
@@ -78,7 +92,7 @@ def buscar_usuario_da_sessao(token: str):
         JOIN users u ON u.id = s.user_id
         WHERE s.token = ? AND u.desativado_em IS NULL
         ''',
-        (token,),
+        (resumo_do_token(token),),
     )
     linha = cursor.fetchone()
     conexao.close()
@@ -109,7 +123,7 @@ def encerrar_sessao(token: str) -> None:
 
     conexao = _conectar()
     cursor = conexao.cursor()
-    cursor.execute("DELETE FROM sessoes WHERE token = ?", (token,))
+    cursor.execute("DELETE FROM sessoes WHERE token = ?", (resumo_do_token(token),))
     conexao.commit()
     conexao.close()
 

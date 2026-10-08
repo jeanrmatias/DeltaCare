@@ -360,6 +360,12 @@ def criar_conta_staff(
 
     if not nome:
         return {"sucesso": False, "mensagem": "Informe o nome completo."}
+    from regras import limites
+
+    erro = limites.excesso((nome, limites.NOME, "O nome"), (disciplinas, limites.TEXTO_CURTO, "As disciplinas"),
+                           (matricula, limites.NOME, "A matrícula"))
+    if erro:
+        return {"sucesso": False, "mensagem": erro}
 
     problema = problema_da_senha(senha, email, nome) if conferir_senha else None
     if problema:
@@ -578,7 +584,9 @@ def alterar_senha(email: str, token_atual: str, senha_atual: str, nova_senha: st
         return {"sucesso": False, "mensagem": "A senha atual não confere."}
 
     conexao.execute("UPDATE users SET senha = ?, senha_provisoria = 0 WHERE id = ?", (hash_senha(nova_senha), linha[0]))
-    conexao.execute("DELETE FROM sessoes WHERE user_id = ? AND token != ?", (linha[0], token_atual or ""))
+    from infra.sessoes import resumo_do_token
+
+    conexao.execute("DELETE FROM sessoes WHERE user_id = ? AND token != ?", (linha[0], resumo_do_token(token_atual or "")))
     conexao.commit()
     conexao.close()
     return {"sucesso": True, "mensagem": "Senha alterada."}

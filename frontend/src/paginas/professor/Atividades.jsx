@@ -15,6 +15,7 @@ import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 import { baixarArquivo } from "../../lib/arquivos"
 import { dataDoCalendario } from "../../lib/datas"
 import { dataEHora, STATUS_DO_MATERIAL } from "../../lib/formatos"
+import { questaoParaEnvio, removerAlternativa } from "../../lib/questoes"
 
 /**
  * Atividades do professor: criar, acompanhar e corrigir.
@@ -157,9 +158,7 @@ function FormularioAtividade({ atividade, prazoInicial, turmas, turmaPadrao, aoF
       if (!marcadas.length) return setMensagem("Escolha pelo menos uma disciplina.")
       Object.assign(corpo, { turma_ids: marcadas, tipo: campos.tipo, anexo: objetiva ? "nenhum" : campos.anexo })
       if (objetiva) {
-        corpo.questoes = questoes.map((q) => ({
-          enunciado: q.enunciado.trim(), alternativas: q.alternativas.map((a) => a.trim()).filter(Boolean), correta: q.correta,
-        }))
+        corpo.questoes = questoes.map(questaoParaEnvio)
       }
     }
     setEnviando(true)
@@ -243,10 +242,7 @@ function EditorDeQuestoes({ questoes, aoMudar }) {
                   className="min-w-0 flex-1 rounded-campo border border-borda-campo px-3 py-2 text-sm outline-none focus:border-primaria" />
                 {questao.alternativas.length > 2 && (
                   <button type="button" aria-label={`Remover alternativa ${posicao + 1}`}
-                    onClick={() => {
-                      const alternativas = questao.alternativas.filter((_, p) => p !== posicao)
-                      mudarQuestao(indice, { alternativas, correta: questao.correta >= alternativas.length ? 0 : questao.correta })
-                    }}
+                    onClick={() => mudarQuestao(indice, removerAlternativa(questao, posicao))}
                     className="px-2 text-lg text-perigo">×</button>
                 )}
               </div>

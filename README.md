@@ -312,7 +312,13 @@ todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
   cliente: quem está chamando é deduzido do token
   ([`backend/app/infra/sessoes.py`](backend/app/infra/sessoes.py)). Antes disso, o
   backend acreditava no e-mail enviado pelo front, e bastava trocá-lo para agir
-  em nome de outra pessoa.
+  em nome de outra pessoa. O banco guarda só o hash do token: uma cópia dele
+  (o backup é diário) não abre sessão de ninguém.
+- **Tamanho de tudo o que chega.** Cada texto tem limite — a pergunta ao
+  assistente, títulos, enunciados, respostas, descrições, nomes
+  ([`backend/app/regras/limites.py`](backend/app/regras/limites.py)) —, e o
+  Caddy barra a requisição inteira acima de 25 MB. Sem isso, uma pergunta de
+  um megabyte ia inteira para o modelo de IA.
 - **Cada perfil na sua porta.** As rotas exigem o perfil certo, e as regras
   conferem de novo o vínculo (o professor só vê as disciplinas dele; o aluno,
   só o material publicado das disciplinas em que está matriculado).
@@ -558,7 +564,7 @@ npm test                           # telas React: rotas por perfil e componentes
 npm run lint                       # regras do React (hooks, componentes)
 ```
 
-- **Backend (587 testes):** permissões de cada perfil, visibilidade de
+- **Backend (596 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,
@@ -568,7 +574,7 @@ npm run lint                       # regras do React (hooks, componentes)
   integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (67 testes):** as telas são renderizadas no Node, sem
+- **Telas React (71 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de

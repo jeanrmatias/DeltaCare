@@ -276,8 +276,8 @@ resumo aqui, só com dado das sessões.
 
 | Verificação | Resultado em 05/10/2026 |
 |---|---|
-| Testes do backend (regras e rotas, sem o Ollama) | 587 passando |
-| Testes das telas React (renderizadas no Node) | 67 passando |
+| Testes do backend (regras e rotas, sem o Ollama) | 596 passando |
+| Testes das telas React (renderizadas no Node) | 71 passando |
 | Lint do React (oxlint) | sem aviso |
 | Contrato front ↔ back | 139 chamadas conferidas, nenhuma sem rota |
 
@@ -297,6 +297,24 @@ Uma análise estática (Pyright) apontou. As classes foram renomeadas, os sete
 testes voltaram a rodar e passaram, e um teste novo falha se isso se repetir.
 A mesma análise não achou defeito no código do sistema: os demais avisos eram
 de tipagem, em trechos já protegidos.
+
+**O que a leitura do código achou, e os testes não.** Uma revisão linha a
+linha, depois das ferramentas, encontrou defeitos que nenhum teste existente
+cobria — e cada um virou teste:
+
+- **Gabarito deslocado.** Ao montar o quiz, a alternativa em branco era
+  descartada sem acertar o número da correta: com a primeira em branco e a
+  segunda marcada, o sistema corrigia pela terceira. Remover uma alternativa
+  antes da correta fazia o mesmo.
+- **Nota "NaN".** A API aceitava "nan" como nota, que passava por toda
+  comparação e quebraria o XP do aluno.
+- **Entrega em dobro.** Duas requisições ao mesmo tempo (duplo clique) passavam
+  juntas pela conferência "já entregou?"; e o progresso salvo logo depois do
+  Entregar trocava as respostas de uma entrega já corrigida. A condição foi
+  para dentro do próprio comando do banco; o teste dispara oito entregas
+  simultâneas e só uma vale.
+- **Textos sem limite**, inclusive a pergunta ao assistente, e **o token de
+  sessão guardado como vai ao navegador** (agora só o hash).
 
 **Testes que dependiam da hora.** Três testes do calendário falhavam só entre
 0h e 3h (horário de Brasília): montavam a data em UTC e esperavam o dia UTC,

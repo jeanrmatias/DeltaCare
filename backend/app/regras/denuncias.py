@@ -17,6 +17,7 @@ implementado sozinho sem repetir a lacuna:
 
 from datetime import datetime, timezone
 
+from regras import limites
 from regras.turmas import buscar_usuario, conectar
 
 MOTIVOS = {
@@ -116,6 +117,9 @@ def criar_denuncia(autor_email: str, material_id: int, motivo: str, descricao: s
         return {"sucesso": False, "mensagem": "Escolha um motivo válido."}
 
     descricao = (descricao or "").strip()
+    erro = limites.excesso((descricao, limites.TEXTO_CURTO, "A descrição"))
+    if erro:
+        return {"sucesso": False, "mensagem": erro}
 
     if motivo == "outro" and not descricao:
         return {

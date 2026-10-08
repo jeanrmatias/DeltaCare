@@ -33,6 +33,7 @@ aluno de fora da disciplina — visível, ao contrário do inverso.
 
 from datetime import datetime, timezone
 
+from regras import limites
 from regras.turmas import _eh_admin, buscar_usuario, conectar
 
 
@@ -50,6 +51,8 @@ def criar_coorte(admin_email: str, nome: str, semestre: str) -> dict:
 
     if not nome:
         return {"sucesso": False, "mensagem": "Informe o nome da turma (ex.: MED 3A)."}
+    if len(nome) > limites.NOME:
+        return {"sucesso": False, "mensagem": f"O nome passa de {limites.NOME} caracteres."}
     if not semestre:
         return {"sucesso": False, "mensagem": "Informe o semestre (ex.: 2026/2)."}
 

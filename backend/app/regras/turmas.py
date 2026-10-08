@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from infra.database import CAMINHO_DB as DB_PATH
 from infra.database import abrir_conexao
+from regras import limites
 
 
 def conectar():
@@ -56,6 +57,9 @@ def criar_turma(
 
     if not nome:
         return {"sucesso": False, "mensagem": "Informe o nome da turma."}
+    erro = limites.excesso((nome, limites.NOME, "O nome"))
+    if erro:
+        return {"sucesso": False, "mensagem": erro}
     if not semestre:
         return {"sucesso": False, "mensagem": "Informe o semestre (ex.: 2026/2)."}
 

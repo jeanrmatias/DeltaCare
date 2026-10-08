@@ -24,9 +24,12 @@ campo `atrasada` é calculado comparando `enviado_em` com `prazo`.
 """
 
 import json
+import math
+import sqlite3
 from datetime import datetime, timezone
 
 from infra.arquivos import PASTA_ENTREGAS, salvar_arquivo_base64
+from regras import limites
 from regras.turmas import buscar_usuario, conectar, turma_pertence_ao_professor
 
 TIPOS_VALIDOS = ("objetiva", "dissertativa")
@@ -80,6 +83,23 @@ def _atrasada(enviado_em: str | None, prazo: str | None) -> bool:
 # Professor
 # =========================================================================
 
+def _alternativas_e_correta(questao: dict) -> tuple:
+    """(alternativas sem as em branco, índice da correta nessa lista nova).
+
+    Tirar as alternativas em branco sem acertar o índice desloca o gabarito:
+    com ["", "B", "C"] e a B marcada (índice 1), a lista vira ["B", "C"] — e o
+    índice 1 passaria a ser a C. A atividade era corrigida contra a resposta
+    errada, sem aviso. Correta marcada numa alternativa em branco, ou fora da
+    lista: None.
+    """
+    brutas = [str(a or "").strip() for a in (questao.get("alternativas") or [])]
+    alternativas = [a for a in brutas if a]
+    correta = questao.get("correta")
+    if isinstance(correta, bool) or not isinstance(correta, int) or not (0 <= correta < len(brutas)) or not brutas[correta]:
+        return alternativas, None
+    return alternativas, correta - sum(1 for a in brutas[:correta] if not a)
+
+
 def _validar_questoes(tipo: str, questoes) -> str | None:
     """Devolve a mensagem de erro, ou None se estiver tudo certo."""
     if tipo != "objetiva":
@@ -87,18 +107,25 @@ def _validar_questoes(tipo: str, questoes) -> str | None:
 
     if not questoes:
         return "Uma atividade objetiva precisa de pelo menos uma questão."
+    if len(questoes) > limites.QUESTOES:
+        return f"Uma atividade tem no máximo {limites.QUESTOES} questões."
 
     for indice, questao in enumerate(questoes, start=1):
         enunciado = (questao.get("enunciado") or "").strip()
-        alternativas = [a.strip() for a in (questao.get("alternativas") or []) if a.strip()]
-        correta = questao.get("correta")
+        alternativas, correta = _alternativas_e_correta(questao)
 
         if not enunciado:
             return f"A questão {indice} está sem enunciado."
         if len(alternativas) < 2:
             return f"A questão {indice} precisa de pelo menos duas alternativas."
-        if not isinstance(correta, int) or not (0 <= correta < len(alternativas)):
+        if len(alternativas) > limites.ALTERNATIVAS:
+            return f"A questão {indice} tem mais de {limites.ALTERNATIVAS} alternativas."
+        if correta is None:
             return f"A questão {indice} está sem alternativa correta marcada."
+        erro = limites.excesso((enunciado, limites.TEXTO_CURTO, f"O enunciado da questão {indice}"),
+                               *((a, limites.ALTERNATIVA, f"Uma alternativa da questão {indice}") for a in alternativas))
+        if erro:
+            return erro
 
     return None
 
@@ -132,6 +159,10 @@ def criar_atividade_em_turmas(professor_email: str, turma_ids: list, **campos) -
     titulo = (campos.get("titulo") or "").strip()
     if not titulo:
         return {"sucesso": False, "mensagem": "Informe o título da atividade."}
+    erro = limites.excesso((titulo, limites.TITULO, "O título"), (campos.get("enunciado"), limites.TEXTO, "O enunciado"),
+                           (campos.get("assunto"), limites.TITULO, "O assunto"), (campos.get("topico"), limites.TITULO, "O tópico"))
+    if erro:
+        return {"sucesso": False, "mensagem": erro}
 
     tipo = campos.get("tipo")
     if tipo not in TIPOS_VALIDOS:
@@ -200,7 +231,7 @@ def criar_atividade_em_turmas(professor_email: str, turma_ids: list, **campos) -
         # mas aí editar a questão de uma turma editaria a da outra — e o
         # professor edita turma a turma, como já faz com material.
         for ordem, questao in enumerate(questoes):
-            alternativas = [a.strip() for a in questao["alternativas"] if a.strip()]
+            alternativas, correta = _alternativas_e_correta(questao)
             cursor.execute(
                 """
                 INSERT INTO questoes (atividade_id, ordem, enunciado, alternativas, correta)
@@ -211,7 +242,7 @@ def criar_atividade_em_turmas(professor_email: str, turma_ids: list, **campos) -
                     ordem,
                     questao["enunciado"].strip(),
                     json.dumps(alternativas, ensure_ascii=False),
-                    int(questao["correta"]),
+                    correta,
                 ),
             )
 
@@ -377,6 +408,11 @@ def atualizar_atividade(atividade_id: int, professor_email: str, **campos) -> di
     permitidos = ("titulo", "enunciado", "assunto", "topico", "pontos",
                   "rascunho", "data_liberacao", "prazo", "anexo")
     mudancas = {c: v for c, v in campos.items() if c in permitidos and v is not None}
+    erro = limites.excesso((mudancas.get("titulo"), limites.TITULO, "O título"), (mudancas.get("enunciado"), limites.TEXTO, "O enunciado"),
+                           (mudancas.get("assunto"), limites.TITULO, "O assunto"), (mudancas.get("topico"), limites.TITULO, "O tópico"))
+    if erro:
+        conexao.close()
+        return {"sucesso": False, "mensagem": erro}
 
     if not mudancas:
         conexao.close()
@@ -568,6 +604,15 @@ def corrigir_entrega(entrega_id: int, professor_email: str, nota, devolutiva: st
     except (TypeError, ValueError):
         conexao.close()
         return {"sucesso": False, "mensagem": "Nota inválida."}
+    # "nan" passa por float() e por qualquer comparação (toda comparação com
+    # NaN é falsa): sem isto, entrava no banco e quebrava o XP e as médias.
+    if not math.isfinite(nota):
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Nota inválida."}
+    erro = limites.excesso((devolutiva, limites.TEXTO, "A devolutiva"))
+    if erro:
+        conexao.close()
+        return {"sucesso": False, "mensagem": erro}
 
     if nota < 0 or nota > linha[1]:
         conexao.close()
@@ -786,34 +831,63 @@ def obter_atividade_do_aluno(aluno_email: str, atividade_id: int) -> dict:
 
 
 def _gravar_entrega(conexao, atividade_id: int, aluno_id: int, respostas, enviar: bool):
-    """Cria ou atualiza a entrega. `enviar=False` é só progresso salvo."""
-    agora = _agora()
-    existente = conexao.execute(
-        "SELECT id, enviado_em FROM entregas WHERE atividade_id = ? AND aluno_id = ?",
-        (int(atividade_id), aluno_id),
-    ).fetchone()
+    """Cria ou atualiza a entrega. `enviar=False` é só progresso salvo.
 
+    Devolve (id da entrega, já estava entregue). Com o segundo True, nada foi
+    gravado.
+
+    A conferência "já foi entregue?" das funções que chamam esta acontece
+    antes, numa consulta separada — e duas requisições ao mesmo tempo passavam
+    as duas por ela. Com um duplo clique em Entregar, a segunda tentava
+    inserir a mesma entrega (erro 500) ou corrigia e notificava duas vezes; com
+    o progresso salvo chegando logo depois do Entregar, as respostas de uma
+    entrega já corrigida eram trocadas. Por isso a mesma condição vai no
+    próprio UPDATE (`enviado_em IS NULL`), que o SQLite aplica de uma vez só.
+    """
+    agora = _agora()
     corpo = json.dumps(respostas, ensure_ascii=False)
 
-    if existente:
-        conexao.execute(
-            "UPDATE entregas SET respostas = ?, atualizado_em = ?"
-            + (", enviado_em = ?" if enviar else "")
-            + " WHERE id = ?",
-            ([corpo, agora] + ([agora] if enviar else []) + [existente[0]]),
-        )
-        return existente[0], bool(existente[1])
+    for _ in range(2):
+        existente = conexao.execute(
+            "SELECT id, enviado_em FROM entregas WHERE atividade_id = ? AND aluno_id = ?",
+            (int(atividade_id), aluno_id),
+        ).fetchone()
 
-    conexao.execute(
-        "INSERT INTO entregas (atividade_id, aluno_id, respostas, enviado_em, atualizado_em)"
-        " VALUES (?, ?, ?, ?, ?)",
-        (int(atividade_id), aluno_id, corpo, agora if enviar else None, agora),
-    )
-    return conexao.execute("SELECT last_insert_rowid()").fetchone()[0], False
+        if existente:
+            alteradas = conexao.execute(
+                "UPDATE entregas SET respostas = ?, atualizado_em = ?"
+                + (", enviado_em = ?" if enviar else "")
+                + " WHERE id = ? AND enviado_em IS NULL",
+                ([corpo, agora] + ([agora] if enviar else []) + [existente[0]]),
+            ).rowcount
+            return existente[0], alteradas == 0
+
+        try:
+            conexao.execute(
+                "INSERT INTO entregas (atividade_id, aluno_id, respostas, enviado_em, atualizado_em)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (int(atividade_id), aluno_id, corpo, agora if enviar else None, agora),
+            )
+            return conexao.execute("SELECT last_insert_rowid()").fetchone()[0], False
+        except sqlite3.IntegrityError:
+            # Outra requisição criou a entrega entre a consulta e o INSERT:
+            # volta e segue pelo UPDATE condicional.
+            continue
+    raise RuntimeError("Entrega em disputa: não foi possível gravar.")
+
+
+def _respostas_grandes_demais(respostas) -> bool:
+    """Resposta dissertativa (texto) ou objetiva (lista de índices) acima do
+    tamanho que uma resposta de verdade alcança."""
+    if isinstance(respostas, str):
+        return len(respostas) > limites.TEXTO
+    return len(json.dumps(respostas, ensure_ascii=False)) > limites.TEXTO
 
 
 def salvar_progresso(aluno_email: str, atividade_id: int, respostas) -> dict:
     """Guarda o que o aluno respondeu até agora, sem entregar."""
+    if _respostas_grandes_demais(respostas):
+        return {"sucesso": False, "mensagem": f"A resposta passa de {limites.TEXTO} caracteres."}
     conexao = conectar()
     aluno = buscar_usuario(conexao, aluno_email)
 
@@ -836,9 +910,11 @@ def salvar_progresso(aluno_email: str, atividade_id: int, respostas) -> dict:
         conexao.close()
         return {"sucesso": False, "mensagem": "Esta atividade já foi entregue."}
 
-    _gravar_entrega(conexao, atividade_id, aluno[0], respostas, enviar=False)
+    _, ja_estava = _gravar_entrega(conexao, atividade_id, aluno[0], respostas, enviar=False)
     conexao.commit()
     conexao.close()
+    if ja_estava:
+        return {"sucesso": False, "mensagem": "Esta atividade já foi entregue."}
 
     return {"sucesso": True, "mensagem": "Progresso salvo."}
 
@@ -856,6 +932,8 @@ def enviar_entrega(
     salvar primeiro deixaria lixo órfão em uploads/entregas toda vez que a
     entrega fosse recusada por prazo, duplicidade ou texto em branco.
     """
+    if _respostas_grandes_demais(respostas):
+        return {"sucesso": False, "mensagem": f"A resposta passa de {limites.TEXTO} caracteres."}
     conexao = conectar()
     aluno = buscar_usuario(conexao, aluno_email)
 
@@ -910,7 +988,16 @@ def enviar_entrega(
             return {"sucesso": False, "mensagem": salvo["mensagem"]}
         caminho_arquivo = salvo["caminho"]
 
-    entrega_id, _ = _gravar_entrega(conexao, atividade_id, aluno[0], respostas, enviar=True)
+    entrega_id, ja_estava = _gravar_entrega(conexao, atividade_id, aluno[0], respostas, enviar=True)
+    if ja_estava:
+        # Outra requisição entregou primeiro: esta não grava nada, e o arquivo
+        # que ela salvou não pode ficar órfão no disco.
+        conexao.close()
+        if caminho_arquivo:
+            from infra.arquivos import remover_arquivo
+
+            remover_arquivo(caminho_arquivo)
+        return {"sucesso": False, "mensagem": "Você já entregou esta atividade."}
 
     if caminho_arquivo:
         conexao.execute(
