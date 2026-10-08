@@ -8005,6 +8005,28 @@ class TestesUnicidadeSimultanea(BaseDelta):
         self.assertIsNone(desativado)  # nada mudou pela metade
 
 
+# =========================================================================
+# O que a resposta não pode revelar
+
+class TestesSemDetalheInterno(BaseDelta):
+
+    def test_ia_fora_do_ar_nao_revela_a_infraestrutura(self):
+        """Visto na instalação do zero: a resposta trazia o endereço interno do
+        Ollama e o erro do Windows, num campo que a tela nem mostra."""
+        from unittest import mock
+
+        def fora(*_, **__):
+            raise RuntimeError("Não foi possível falar com o Ollama em http://127.0.0.1:11434: WinError 10061")
+
+        with mock.patch.object(chat_ia, "_chamar_ollama", fora):
+            resultado = chat_ia.responder_pergunta(ALUNO, self.turma_id, "Quando usar a dobutamina?")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertIn("indisponível", resultado["mensagem"])
+        self.assertNotIn("11434", json.dumps(resultado))
+        self.assertNotIn("WinError", json.dumps(resultado))
+
+
 if __name__ == "__main__":
     print(f"Banco de teste: {CAMINHO_DB}")
     print("(o Ollama não precisa estar rodando)\n")

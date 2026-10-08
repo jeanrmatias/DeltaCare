@@ -276,7 +276,7 @@ resumo aqui, só com dado das sessões.
 
 | Verificação | Resultado em 05/10/2026 |
 |---|---|
-| Testes do backend (regras e rotas, sem o Ollama) | 605 passando |
+| Testes do backend (regras e rotas, sem o Ollama) | 606 passando |
 | Testes das telas React (renderizadas no Node) | 71 passando |
 | Lint do React (oxlint) | sem aviso |
 | Contrato front ↔ back | 139 chamadas conferidas, nenhuma sem rota |
@@ -325,6 +325,33 @@ requisições idênticas disparadas ao mesmo tempo mostraram que as conferência
 disciplinas iguais) e que a recusa das restrições únicas virava erro 500.
 Hoje a unicidade está no banco e a recusa é tratada; a rodada final de
 fuzzing terminou sem nenhum 500.
+
+**Outros cinco tipos de verificação**, cada um olhando um risco diferente:
+
+- **Instalação do zero**, seguindo o README numa cópia limpa e num ambiente
+  Python novo, como o professor fará. Tudo subiu e funcionou — mas os testes
+  quebravam: o cliente de teste precisa de um pacote (`httpx2`) que não estava
+  declarado, e aqui já estava instalado por acaso. Foi para o
+  `backend/requirements-dev.txt`. A instalação também mostrou que a resposta
+  do chat, com a IA fora do ar, trazia o endereço interno do servidor de IA;
+  agora isso vai só para o log.
+- **Migração**: os 11 backups do banco, do mais antigo ao mais novo, migrados
+  pelo código atual, ficaram idênticos a um banco criado do zero — tabelas,
+  colunas, restrições, índices e chaves —, sem perder nenhuma linha.
+- **Restauração** de backup como o README manda: o banco volta ao estado da
+  cópia e os PDFs abrem. As instruções ganharam um cuidado que faltava (apagar
+  os arquivos `-wal` e `-shm` que sobram de uma queda).
+- **Carga**: 40 alunos usando ao mesmo tempo por um minuto (13 mil
+  requisições, 213 por segundo, nenhum erro) e 40 entregas no mesmo instante
+  (todas aceitas em 1,5 s).
+- **Autorização exaustiva**: cada usuário tentando cada recurso de cada rota
+  (2.168 tentativas), contra um oráculo que consulta o banco; nenhuma
+  divergência — e, com uma brecha aberta de propósito, o teste a acusou.
+- **Só pelo teclado**, no navegador: entrar, pular o menu, navegar, responder
+  e entregar um quiz, abrir e fechar janelas, usar a gaveta do celular. Achou
+  dois problemas que a auditoria automática não vê: ao fechar uma janela, o
+  foco se perdia (ia para a página inteira); e o Tab escapava da gaveta para
+  botões escondidos atrás dela. Os dois foram corrigidos.
 
 **Testes que dependiam da hora.** Três testes do calendário falhavam só entre
 0h e 3h (horário de Brasília): montavam a data em UTC e esperavam o dia UTC,

@@ -547,6 +547,11 @@ a API **e** as telas (em `/app/`); na frente, o
    O `backup.py` copia o banco pela API do SQLite (cópia consistente com o
    sistema no ar), confere a cópia e guarda as últimas 14. **Leve as cópias
    para fora do servidor** — backup na mesma máquina não sobrevive ao disco.
+   **Para restaurar:** pare o serviço (`systemctl stop deltacare`), apague
+   `deltacare.db-wal` e `deltacare.db-shm` se existirem — sobram quando o
+   servidor caiu, e deixados lá o SQLite aplicaria essas escritas antigas
+   sobre o banco restaurado —, copie o `deltacare.db` e a pasta `uploads/` da
+   cópia escolhida por cima dos atuais e suba o serviço de novo.
    O `anonimizar_vencidas.py` anonimiza as contas cuja exclusão passou dos 45
    dias; o servidor também faz isso ao subir e quando a administração abre a
    fila, e o agendamento cobre o servidor que fica meses no ar sem ninguém
@@ -563,6 +568,8 @@ migra sozinho na subida.
 ## Testes
 
 ```
+pip install -r backend/requirements-dev.txt   # uma vez: o que só os testes usam
+
 cd backend
 python testes/rodar_testes.py      # regras e rotas, em paralelo (~50s)
 python testes/testes.py            # os mesmos, em série
@@ -573,7 +580,7 @@ npm test                           # telas React: rotas por perfil e componentes
 npm run lint                       # regras do React (hooks, componentes)
 ```
 
-- **Backend (605 testes):** permissões de cada perfil, visibilidade de
+- **Backend (606 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,

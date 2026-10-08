@@ -37,7 +37,10 @@ export function Painel() {
       {/* Para quem navega pelo teclado: sem isto, são onze itens de menu a
           atravessar com Tab em toda página antes de chegar ao conteúdo.
           Invisível até receber o foco. */}
-      <a href="#conteudo"
+      {/* inert com a gaveta aberta (aqui, na barra do topo e no conteúdo): o
+          fundo escurecido cobre a página, e sem isto o Tab saía da gaveta para
+          botões que a pessoa nem enxerga (visto no teste só com teclado). */}
+      <a href="#conteudo" inert={gavetaAberta}
         className="sr-only z-50 rounded-campo bg-superficie px-4 py-2 text-sm font-semibold text-primaria shadow-cartao focus:not-sr-only focus:fixed focus:top-3 focus:left-3">
         Pular para o conteúdo
       </a>
@@ -50,7 +53,7 @@ export function Painel() {
       </aside>
 
       {/* Celular: a barra do topo. */}
-      <header className="sticky top-0 z-30 flex items-center justify-between bg-navy-900 px-4 py-3 md:hidden">
+      <header inert={gavetaAberta} className="sticky top-0 z-30 flex items-center justify-between bg-navy-900 px-4 py-3 md:hidden">
         <Marca para={inicio} />
         <button ref={botaoMenu} type="button" onClick={() => setGavetaAberta(true)} aria-expanded={gavetaAberta} aria-controls="gaveta-menu"
           className="flex items-center gap-2 rounded-campo px-3 py-2 text-sm font-semibold text-white transition hover:bg-navy-700">
@@ -61,7 +64,7 @@ export function Painel() {
       <Gaveta aberta={gavetaAberta} aoFechar={() => setGavetaAberta(false)} aoAbrir={() => setGavetaAberta(true)} botaoMenu={botaoMenu}
         tipo={usuario.tipo} aoVerPerfil={() => { setGavetaAberta(false); setVendoPerfil(true) }} />
 
-      <main id="conteudo" tabIndex={-1} className="relative min-w-0 flex-1 p-5">
+      <main id="conteudo" tabIndex={-1} inert={gavetaAberta} className="relative min-w-0 flex-1 p-5">
         {/* O sino fica no canto de toda tela logada, por cima do cabeçalho
             da página — que reserva o espaço dele (ver Cabecalho). */}
         <div className="absolute top-5 right-5 z-10">

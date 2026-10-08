@@ -19,8 +19,11 @@ agendador poder avisar.
     DELTACARE_BACKUPS          pasta dos backups (padrão: backups/, ao lado do banco)
     DELTACARE_BACKUPS_MANTER   quantos guardar (padrão: 14)
 
-Restaurar: com o servidor parado, copie deltacare.db da pasta escolhida sobre
-o banco em uso e a pasta uploads/ sobre a atual.
+Restaurar: com o servidor parado, apague deltacare.db-wal e deltacare.db-shm
+se existirem (sobram quando o servidor caiu; deixados lá, o SQLite aplicaria
+essas escritas antigas sobre o banco restaurado), copie deltacare.db da pasta
+escolhida sobre o banco em uso e a pasta uploads/ sobre a atual. Testado:
+restaurado assim, o banco volta ao estado do backup e os PDFs abrem.
 """
 
 import os

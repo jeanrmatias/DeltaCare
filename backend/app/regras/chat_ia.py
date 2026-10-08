@@ -667,10 +667,13 @@ def responder_pergunta(
 
         resultado_modelo = gerar_resposta_fn(mensagens, montar_schema_resposta(materiais_recuperados))
     except RuntimeError as erro:
+        # O motivo técnico (endereço interno do Ollama, erro do sistema) vai
+        # para o log do servidor, e não para a resposta: o aluno não precisa
+        # dele, e ele descreve a infraestrutura para quem abrir o navegador.
+        print(f"[Delta Care] Chat sem o modelo de IA: {erro}")
         return {
             "sucesso": False,
             "mensagem": "O assistente de IA está indisponível no momento. Tente de novo em instantes.",
-            "detalhe": str(erro),
         }
 
     resposta_texto = resultado_modelo["resposta"]

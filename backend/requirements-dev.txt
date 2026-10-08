@@ -1,0 +1,11 @@
+# Para rodar os testes: as dependências do sistema mais o que só os testes usam.
+#
+#     pip install -r backend/requirements-dev.txt
+#
+# O cliente de teste do FastAPI (starlette.testclient) precisa do httpx2.
+# Sem ele, numa máquina limpa, todo teste que chama a API pela rota quebrava —
+# descoberto instalando o projeto do zero, num ambiente novo: aqui ele já
+# estava instalado por outro motivo, e a suíte passava.
+
+-r requirements.txt
+httpx2~=2.13.0

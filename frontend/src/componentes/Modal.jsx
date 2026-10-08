@@ -14,6 +14,7 @@ import { useEffect, useId, useRef } from "react"
  */
 export function Modal({ aberto, aoFechar, titulo, rotulo, children, largura = "max-w-[480px]" }) {
   const dialogo = useRef(null)
+  const anterior = useRef(null)
   // O título dá nome à janela: o leitor de tela anuncia "Alterar senha,
   // diálogo" em vez de só "diálogo".
   const idDoTitulo = useId()
@@ -23,8 +24,24 @@ export function Modal({ aberto, aoFechar, titulo, rotulo, children, largura = "m
   useEffect(() => {
     const elemento = dialogo.current
     if (!elemento) return
-    if (aberto && !elemento.open) elemento.showModal()
+    if (aberto && !elemento.open) {
+      anterior.current = document.activeElement
+      elemento.showModal()
+    }
     if (!aberto && elemento.open) elemento.close()
+  }, [aberto])
+
+  // Ao fechar, o foco volta para onde estava (o botão que abriu a janela). O
+  // <dialog> faz isso sozinho só quando é fechado por close(); quem usa
+  // costuma tirar a janela da página ao fechar, e aí o foco caía no <body>:
+  // o leitor de tela perdia o lugar e o Tab recomeçava do topo (visto no
+  // teste só com teclado).
+  useEffect(() => {
+    if (!aberto) return undefined
+    const voltar = anterior.current
+    return () => {
+      if (voltar?.isConnected) voltar.focus()
+    }
   }, [aberto])
 
   return (
