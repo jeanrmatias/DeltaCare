@@ -8,6 +8,7 @@ import { useApi } from "../../hooks/useApi"
 import { useDialogo } from "../../hooks/useDialogo"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
+import { useEnvio } from "../../hooks/useEnvio"
 
 /**
  * Turmas de alunos (MED 3A, o grupo que cursa junto), as exceções por
@@ -127,6 +128,8 @@ function NovaTurma({ aoFechar, aoCriar }) {
   const [semestre, setSemestre] = useState("")
   const [mensagem, setMensagem] = useState("")
 
+  const [enviando, executar] = useEnvio()
+
   async function criar(evento) {
     evento.preventDefault()
     try {
@@ -141,11 +144,11 @@ function NovaTurma({ aoFechar, aoCriar }) {
 
   return (
     <Cartao titulo="Nova turma">
-      <form onSubmit={criar} className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={executar(criar)} className="grid gap-4 sm:grid-cols-2">
         <Texto rotulo="Nome" valor={nome} aoMudar={setNome} placeholder="ex.: MED 3A" obrigatorio />
         <Texto rotulo="Semestre" valor={semestre} aoMudar={setSemestre} placeholder="ex.: 2026/2" obrigatorio />
         <div className="flex gap-2.5 sm:col-span-2">
-          <Botao tipo="submit">Criar turma</Botao>
+          <Botao tipo="submit" desativado={enviando}>Criar turma</Botao>
           <Botao variante="neutra" onClick={aoFechar}>Cancelar</Botao>
         </div>
       </form>

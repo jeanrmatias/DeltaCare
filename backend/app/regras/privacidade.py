@@ -27,12 +27,13 @@ motivo de cada linha.
 
 import json
 import secrets
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from infra.security import hash_senha
 from regras.importacao import _parece_email
 from regras.notificacoes import criar_notificacao, criar_notificacoes
-from regras.turmas import buscar_usuario, conectar, passar_disciplina
+from regras.turmas import buscar_usuario, conectar, conflito_ao_passar, passar_disciplina
 
 PRAZO_ANONIMIZACAO_DIAS = 45
 
@@ -113,12 +114,17 @@ def solicitar(aluno_email: str, tipo: str, campo: str = "", valor_novo: str = ""
         return {"sucesso": False, "mensagem": "Você já tem um pedido desse em andamento."}
 
     cursor = conexao.cursor()
-    cursor.execute(
-        "INSERT INTO solicitacoes_privacidade"
-        " (aluno_id, tipo, status, campo, valor_novo, motivo, criado_em)"
-        " VALUES (?, ?, 'pendente', ?, ?, ?, ?)",
-        (aluno_id, tipo, campo or None, valor_novo or None, motivo or None, _agora().isoformat()),
-    )
+    try:
+        cursor.execute(
+            "INSERT INTO solicitacoes_privacidade"
+            " (aluno_id, tipo, status, campo, valor_novo, motivo, criado_em)"
+            " VALUES (?, ?, 'pendente', ?, ?, ?, ?)",
+            (aluno_id, tipo, campo or None, valor_novo or None, motivo or None, _agora().isoformat()),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou primeiro (infra/database.UNICIDADES).
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Você já tem um pedido desse em andamento."}
     solicitacao_id = cursor.lastrowid
     nome = conexao.execute(
         "SELECT COALESCE(NULLIF(nome, ''), email) FROM users WHERE id = ?", (aluno_id,)
@@ -522,6 +528,10 @@ def excluir_pela_administracao(admin_email: str, email: str, motivo: str, novo_p
                 quais = "a disciplina" if len(disciplinas) == 1 else f"as {len(disciplinas)} disciplinas"
                 return {"sucesso": False, "mensagem": f"Escolha quem assume {quais} deste professor."}
             novo_id = novo[0]
+
+        conflito = conflito_ao_passar(conexao, disciplinas, novo_id)
+        if conflito:
+            return {"sucesso": False, "mensagem": conflito}
 
         agora = _agora()
         anonimizar_em = agora + timedelta(days=PRAZO_ANONIMIZACAO_DIAS)

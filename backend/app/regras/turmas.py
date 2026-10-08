@@ -102,10 +102,15 @@ def criar_turma(
             return {"sucesso": False, "mensagem": "Turma de alunos não encontrada."}
 
     agora = datetime.now(timezone.utc).isoformat()
-    cursor.execute(
-        "INSERT INTO turmas (nome, semestre, professor_id, criado_em, coorte_id) VALUES (?, ?, ?, ?, ?)",
-        (nome, semestre, professor_id, agora, int(coorte_id) if coorte_id is not None else None),
-    )
+    try:
+        cursor.execute(
+            "INSERT INTO turmas (nome, semestre, professor_id, criado_em, coorte_id) VALUES (?, ?, ?, ?, ?)",
+            (nome, semestre, professor_id, agora, int(coorte_id) if coorte_id is not None else None),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou primeiro (infra/database.UNICIDADES).
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Esse professor já tem uma turma com esse nome nesse semestre."}
     conexao.commit()
     turma_id = cursor.lastrowid
     conexao.close()
@@ -385,6 +390,26 @@ def listar_usuarios(admin_email: str) -> dict:
     return {"sucesso": True, "usuarios": usuarios}
 
 
+def conflito_ao_passar(conexao, turma_ids: list, novo_professor_id) -> str | None:
+    """Por que estas disciplinas não podem ir para esse professor, ou None.
+
+    Um professor não tem duas disciplinas com o mesmo nome no mesmo semestre
+    (infra/database.UNICIDADES): se o novo já tem uma "Anatomia · 2026/2", a
+    do outro não pode ir para ele — o banco recusaria no meio da troca.
+    """
+    for turma_id in turma_ids:
+        repetida = conexao.execute(
+            "SELECT t.nome, t.semestre FROM turmas t JOIN turmas outra"
+            "    ON outra.nome = t.nome AND outra.semestre = t.semestre AND outra.id != t.id"
+            " WHERE t.id = ? AND outra.professor_id = ?",
+            (int(turma_id), novo_professor_id),
+        ).fetchone()
+        if repetida:
+            return (f"O professor escolhido já tem {repetida[0]} · {repetida[1]}. "
+                    "Renomeie uma das disciplinas ou escolha outro professor.")
+    return None
+
+
 def passar_disciplina(conexao, turma_id: int, novo_professor_id: int) -> None:
     """A disciplina muda de professor, e o que foi publicado nela vai junto.
 
@@ -416,6 +441,9 @@ def trocar_professor(admin_email: str, turma_id: int, professor_email: str) -> d
             return {"sucesso": False, "mensagem": "Escolha um professor com a conta ativa."}
         if novo[0] == turma[2]:
             return {"sucesso": False, "mensagem": "Esse já é o professor da disciplina."}
+        conflito = conflito_ao_passar(conexao, [int(turma_id)], novo[0])
+        if conflito:
+            return {"sucesso": False, "mensagem": conflito}
         passar_disciplina(conexao, int(turma_id), novo[0])
         conexao.commit()
     finally:

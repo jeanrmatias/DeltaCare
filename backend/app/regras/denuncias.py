@@ -15,6 +15,7 @@ implementado sozinho sem repetir a lacuna:
                       onde a pessoa joga o problema e nunca sabe o que houve.
 """
 
+import sqlite3
 from datetime import datetime, timezone
 
 from regras import limites
@@ -163,14 +164,19 @@ def criar_denuncia(autor_email: str, material_id: int, motivo: str, descricao: s
         }
 
     agora = _agora()
-    conexao.execute(
-        """
-        INSERT INTO denuncias (autor_id, material_id, material_titulo, turma_id,
-                               motivo, descricao, status, criado_em, atualizado_em)
-        VALUES (?, ?, ?, ?, ?, ?, 'aberta', ?, ?)
-        """,
-        (autor[0], material[0], material[1], material[2], motivo, descricao, agora, agora),
-    )
+    try:
+        conexao.execute(
+            """
+            INSERT INTO denuncias (autor_id, material_id, material_titulo, turma_id,
+                                   motivo, descricao, status, criado_em, atualizado_em)
+            VALUES (?, ?, ?, ?, ?, ?, 'aberta', ?, ?)
+            """,
+            (autor[0], material[0], material[1], material[2], motivo, descricao, agora, agora),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou primeiro (infra/database.UNICIDADES).
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Você já reportou este material e a análise ainda está em andamento."}
     conexao.commit()
     conexao.close()
 

@@ -8,6 +8,7 @@ import { useApi } from "../../hooks/useApi"
 import { useDialogo } from "../../hooks/useDialogo"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
+import { useEnvio } from "../../hooks/useEnvio"
 
 /**
  * Disciplinas na visão da administração. Cada disciplina tem um professor e
@@ -104,6 +105,8 @@ function NovaDisciplina({ professores, coortes, aoFechar, aoCriar }) {
   const [mensagem, setMensagem] = useState("")
   const mudar = (nome) => (valor) => setCampos((atual) => ({ ...atual, [nome]: valor }))
 
+  const [enviando, executar] = useEnvio()
+
   async function criar(evento) {
     evento.preventDefault()
     try {
@@ -125,7 +128,7 @@ function NovaDisciplina({ professores, coortes, aoFechar, aoCriar }) {
         Uma entrada por disciplina, com o seu professor e o seu material. Escolhendo a turma, os alunos dela entram matriculados na hora,
         menos os que estiverem marcados como exceção.
       </p>
-      <form onSubmit={criar} className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={executar(criar)} className="grid gap-4 sm:grid-cols-2">
         <Escolha rotulo="Professor" valor={campos.professor_email} aoMudar={mudar("professor_email")} opcoes={professores.map((e) => ({ valor: e, rotulo: e }))} />
         {/* "Nenhuma" é o padrão: escolher turma por acidente matricularia dezenas de alunos de uma vez. */}
         <Escolha rotulo="Turma" valor={campos.coorte_id} aoMudar={mudar("coorte_id")}
@@ -133,7 +136,7 @@ function NovaDisciplina({ professores, coortes, aoFechar, aoCriar }) {
         <Texto rotulo="Disciplina" valor={campos.nome} aoMudar={mudar("nome")} placeholder="ex.: Cardiologia I" obrigatorio />
         <Texto rotulo="Semestre" valor={campos.semestre} aoMudar={mudar("semestre")} placeholder="ex.: 2026/2" obrigatorio />
         <div className="flex gap-2.5 sm:col-span-2">
-          <Botao tipo="submit">Criar disciplina</Botao>
+          <Botao tipo="submit" desativado={enviando}>Criar disciplina</Botao>
           <Botao variante="neutra" onClick={aoFechar}>Cancelar</Botao>
         </div>
       </form>

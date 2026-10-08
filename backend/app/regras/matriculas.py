@@ -5,6 +5,7 @@ remove um aluno de uma turma. O aluno só vê e conversa (via chat de IA)
 sobre as turmas em que está matriculado.
 """
 
+import sqlite3
 from datetime import datetime, timezone
 
 from regras.turmas import _eh_admin, buscar_usuario, conectar
@@ -37,10 +38,17 @@ def matricular_aluno(admin_email: str, aluno_email: str, turma_id: int) -> dict:
         return {"sucesso": False, "mensagem": "Esse aluno já está matriculado nessa turma."}
 
     agora = datetime.now(timezone.utc).isoformat()
-    cursor.execute(
-        "INSERT INTO matriculas (aluno_id, turma_id, criado_em) VALUES (?, ?, ?)",
-        (aluno[0], turma_id, agora),
-    )
+    try:
+        cursor.execute(
+            "INSERT INTO matriculas (aluno_id, turma_id, criado_em) VALUES (?, ?, ?)",
+            (aluno[0], turma_id, agora),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou entre a conferência acima e este
+        # INSERT: o banco recusa pela restrição única, e a resposta é a mesma.
+        conexao.rollback()
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Esse aluno já está matriculado nessa turma."}
     conexao.commit()
 
     turma = cursor.execute("SELECT nome FROM turmas WHERE id = ?", (turma_id,)).fetchone()

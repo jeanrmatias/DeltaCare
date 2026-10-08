@@ -385,24 +385,31 @@ def criar_conta_staff(
         conexao.close()
         return {"sucesso": False, "mensagem": "Já existe uma conta com esse e-mail."}
 
-    cursor.execute(
-        # `provisoria` é o padrão de propósito: a senha foi escolhida por quem
-        # criou a conta, não pelo dono — e, na planilha, é a mesma para a turma
-        # inteira. O dono troca no primeiro acesso. Quem não deve ser forçado
-        # (contas de demonstração, fixtures de teste) diz isso explicitamente.
-        "INSERT INTO users (email, senha, tipo, nome, disciplinas, matricula, senha_provisoria, segundo_fator)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (
-            email,
-            hash_senha(senha),
-            tipo,
-            nome,
-            (disciplinas or "").strip() if tipo == "professor" else None,
-            (matricula or "").strip() if tipo == "aluno" else None,
-            1 if provisoria else 0,
-            1 if segundo_fator else 0,
-        ),
-    )
+    try:
+        cursor.execute(
+            # `provisoria` é o padrão de propósito: a senha foi escolhida por quem
+            # criou a conta, não pelo dono — e, na planilha, é a mesma para a turma
+            # inteira. O dono troca no primeiro acesso. Quem não deve ser forçado
+            # (contas de demonstração, fixtures de teste) diz isso explicitamente.
+            "INSERT INTO users (email, senha, tipo, nome, disciplinas, matricula, senha_provisoria, segundo_fator)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                email,
+                hash_senha(senha),
+                tipo,
+                nome,
+                (disciplinas or "").strip() if tipo == "professor" else None,
+                (matricula or "").strip() if tipo == "aluno" else None,
+                1 if provisoria else 0,
+                1 if segundo_fator else 0,
+            ),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou entre a conferência acima e este
+        # INSERT: o banco recusa pela restrição única, e a resposta é a mesma.
+        conexao.rollback()
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Já existe uma conta com esse e-mail."}
     conexao.commit()
     conexao.close()
 

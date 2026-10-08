@@ -10,6 +10,7 @@ import { useSessao } from "../../hooks/useSessao"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 import { dataComAno } from "../../lib/formatos"
+import { useEnvio } from "../../hooks/useEnvio"
 
 /**
  * Denúncias na visão de quem reporta — aluno e professor. Acompanha o que
@@ -111,6 +112,8 @@ function NovaDenuncia({ motivos, aoFechar, aoEnviar }) {
   const [mensagem, setMensagem] = useState("")
   const { avisar } = useDialogo()
 
+  const [enviando, executar] = useEnvio()
+
   async function enviar(evento) {
     evento.preventDefault()
     const materialId = Number(material || materiais[0]?.id)
@@ -135,7 +138,7 @@ function NovaDenuncia({ motivos, aoFechar, aoEnviar }) {
 
   return (
     <Cartao titulo="Reportar conteúdo" className="mb-5">
-      <form onSubmit={enviar} className="flex flex-col gap-4">
+      <form onSubmit={executar(enviar)} className="flex flex-col gap-4">
         <div>
           <Escolha rotulo="Material" valor={material || opcoesMaterial[0].valor} aoMudar={setMaterial} opcoes={opcoesMaterial} />
           <span className="mt-1 block text-xs text-texto-secundario">Só aparecem os materiais que você tem acesso.</span>
@@ -144,7 +147,7 @@ function NovaDenuncia({ motivos, aoFechar, aoEnviar }) {
         <AreaDeTexto rotulo="O que está errado" valor={descricao} aoMudar={setDescricao} maximo={1000}
           placeholder="Descreva o problema. Quanto mais específico, mais rápido a administração resolve." />
         <div className="flex gap-2.5">
-          <Botao tipo="submit">Enviar denúncia</Botao>
+          <Botao tipo="submit" desativado={enviando}>Enviar denúncia</Botao>
           <Botao variante="neutra" onClick={aoFechar}>Cancelar</Botao>
         </div>
         <MensagemDeFormulario texto={mensagem} />

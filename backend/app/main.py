@@ -256,12 +256,22 @@ class AuditarAcoes:
         cabecalhos = dict(scope.get("headers") or [])
         autorizacao = cabecalhos.get(b"authorization", b"").decode("latin-1")
         token = autorizacao[7:].strip() if autorizacao.lower().startswith("bearer ") else ""
-        quem = await anyio.to_thread.run_sync(buscar_usuario_da_sessao, token) if token else None
-        # No passo do código ainda não há sessão: de quem é o login sai do
-        # desafio, e antes da rota (ao acertar, o desafio é apagado).
-        desafio = _json_ou_vazio(b"".join(m.get("body", b"") for m in pedido))
-        desafio = desafio.get("desafio") if isinstance(desafio, dict) else None
-        email_do_login = await anyio.to_thread.run_sync(email_do_desafio, desafio) if desafio else ""
+        corpo_pedido = _json_ou_vazio(b"".join(m.get("body", b"") for m in pedido))
+        # O corpo ainda não passou pela validação da rota: pode vir qualquer
+        # coisa. Uma lista no lugar do texto do `desafio` derrubava a
+        # requisição com 500 antes de a rota recusá-la (achado no fuzzing).
+        # E nada aqui pode derrubar a ação que a trilha só registra.
+        try:
+            quem = await anyio.to_thread.run_sync(buscar_usuario_da_sessao, token) if token else None
+            # No passo do código ainda não há sessão: de quem é o login sai do
+            # desafio, e antes da rota (ao acertar, o desafio é apagado).
+            desafio = corpo_pedido.get("desafio") if isinstance(corpo_pedido, dict) else None
+            email_do_login = await anyio.to_thread.run_sync(email_do_desafio, desafio) if isinstance(desafio, str) and desafio else ""
+        except Exception as erro:  # noqa: BLE001
+            print(f"[Delta Care] Auditoria não identificou quem fez {scope['method']} {scope['path']}: {erro}")
+            quem, email_do_login = None, ""
+        email_informado = corpo_pedido.get("email") if isinstance(corpo_pedido, dict) else None
+        email_informado = email_informado if isinstance(email_informado, str) else ""
 
         resposta = {"status": 500, "corpo": []}
 
@@ -277,10 +287,9 @@ class AuditarAcoes:
         finally:
             rota = getattr(scope.get("route"), "path", scope["path"])
             if auditoria.auditar(scope["method"], rota):
-                corpo_pedido = _json_ou_vazio(b"".join(m.get("body", b"") for m in pedido))
                 await anyio.to_thread.run_sync(partial(
                     auditoria.registrar, scope["method"], rota, scope.get("path_params") or {}, corpo_pedido, quem,
-                    (corpo_pedido.get("email", "") if isinstance(corpo_pedido, dict) else "") or email_do_login,
+                    email_informado or email_do_login,
                     (scope.get("client") or ("", 0))[0], resposta["status"],
                     _json_ou_vazio(b"".join(resposta["corpo"])),
                 ))

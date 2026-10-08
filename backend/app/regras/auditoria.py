@@ -93,13 +93,25 @@ def candidata(metodo: str, caminho: str) -> bool:
     return any(metodo == m and padrao.match(caminho) for m, padrao in _PADROES)
 
 
+def _sem_sigilo(valor, profundidade: int = 0):
+    """O valor sem as chaves sigilosas, em qualquer nível. Antes só o primeiro
+    nível era filtrado: uma senha dentro de um objeto aninhado ia para a trilha
+    inteira, no json.dumps da lista ou do dicionário."""
+    if profundidade > 5:
+        return "…"
+    if isinstance(valor, dict):
+        return {str(chave): _sem_sigilo(item, profundidade + 1) for chave, item in valor.items()
+                if not any(sigilo in str(chave).lower() for sigilo in _SIGILOSOS)}
+    if isinstance(valor, list):
+        return [_sem_sigilo(item, profundidade + 1) for item in valor[:20]]
+    return valor
+
+
 def _limpar(corpo) -> dict:
     if not isinstance(corpo, dict):
         return {}
     limpo = {}
-    for chave, valor in corpo.items():
-        if any(sigilo in chave.lower() for sigilo in _SIGILOSOS):
-            continue
+    for chave, valor in _sem_sigilo(corpo).items():
         if isinstance(valor, str):
             valor = valor[:200]
         elif isinstance(valor, (list, dict)):
@@ -123,7 +135,7 @@ def registrar(metodo: str, rota: str, parametros: dict, corpo, quem: dict | None
             (
                 datetime.now(timezone.utc).isoformat(),
                 quem["id"] if quem else None,
-                (quem["email"] if quem else (email_informado or "")).strip().lower()[:200],
+                str(quem["email"] if quem else (email_informado or "")).strip().lower()[:200],
                 metodo, rota, json.dumps(detalhe, ensure_ascii=False), ip or "", status, int(sucesso),
                 str(resposta.get("mensagem") or (resposta.get("detail") if isinstance(resposta.get("detail"), str) else ""))[:300],
             ),

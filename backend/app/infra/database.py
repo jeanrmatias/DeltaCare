@@ -926,8 +926,40 @@ def configurar_banco(silencioso: bool = False):
     if "origem" not in {linha[1] for linha in cursor.fetchall()}:
         cursor.execute("ALTER TABLE solicitacoes_privacidade ADD COLUMN origem TEXT NOT NULL DEFAULT 'titular'")
 
+    _unicidades(conexao)
+
     conexao.commit()
     conexao.close()
+
+
+# O que não pode existir em dobro, garantido pelo próprio banco. As regras já
+# conferiam antes de inserir ("já existe?"), mas duas requisições ao mesmo
+# tempo passavam juntas pela conferência: num teste com oito simultâneas,
+# saíram 5 denúncias, 4 pedidos de privacidade e 8 disciplinas iguais. O
+# índice único o SQLite aplica de uma vez só; as regras tratam a recusa
+# (sqlite3.IntegrityError) com a mesma mensagem da conferência.
+UNICIDADES = [
+    ("idx_denuncia_aberta_unica",
+     "CREATE UNIQUE INDEX IF NOT EXISTS idx_denuncia_aberta_unica ON denuncias (autor_id, material_id)"
+     " WHERE status IN ('aberta', 'em_analise')"),
+    ("idx_pedido_aberto_unico",
+     "CREATE UNIQUE INDEX IF NOT EXISTS idx_pedido_aberto_unico"
+     " ON solicitacoes_privacidade (aluno_id, tipo, COALESCE(campo, ''))"
+     " WHERE status IN ('pendente', 'agendada')"),
+    ("idx_disciplina_unica",
+     "CREATE UNIQUE INDEX IF NOT EXISTS idx_disciplina_unica ON turmas (professor_id, nome, semestre)"),
+]
+
+
+def _unicidades(conexao) -> None:
+    """Cria os índices únicos. Banco antigo que já tenha repetição não deixa
+    criar o índice: o servidor sobe mesmo assim e avisa o que resolver."""
+    for nome, sql in UNICIDADES:
+        try:
+            conexao.execute(sql)
+        except sqlite3.IntegrityError:
+            print(f"[Delta Care] AVISO: há registros repetidos, e o índice {nome} não foi criado. "
+                  "Resolva as repetições e reinicie o servidor.")
 
 
 if __name__ == "__main__":

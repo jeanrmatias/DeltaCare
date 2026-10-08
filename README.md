@@ -30,7 +30,7 @@ serviço de terceiros.
   | O que a sprint pede | Onde está |
   |---|---|
   | React com componentes, props e hooks nativos | todas as telas, em [`frontend/src/`](frontend/src) |
-  | Ao menos um hook próprio | `useSessao`, `useApi`, `useDialogo`, `useApagarAnotacao` e `useTituloDaPagina`, em [`frontend/src/hooks/`](frontend/src/hooks) |
+  | Ao menos um hook próprio | `useSessao`, `useApi`, `useDialogo`, `useApagarAnotacao`, `useTituloDaPagina` e `useEnvio`, em [`frontend/src/hooks/`](frontend/src/hooks) |
   | Rotas públicas e privadas | [`frontend/src/App.jsx`](frontend/src/App.jsx) e [`frontend/src/rotas/RotaPrivada.jsx`](frontend/src/rotas/RotaPrivada.jsx): login e privacidade públicos; cada área só para o próprio perfil |
   | Tailwind CSS | tema do projeto em [`frontend/src/index.css`](frontend/src/index.css) |
   | Validação de usabilidade com no mínimo 3 participantes | [`docs/validacao/`](docs/validacao/README.md) e a seção **Validação de usabilidade** abaixo |
@@ -120,7 +120,7 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 | Interface | **React 19** com **React Router** (rotas públicas e privadas por perfil), em JavaScript, compilado pelo **Vite** |
 | Estilo | **Tailwind CSS 4**, com o tema (cores, espaços, raios) montado a partir do design system do projeto, em português (`bg-primaria`, `rounded-cartao`). Tipografia "editorial clínica": títulos e números em **Literata** (serifada de leitura), texto em **Source Sans 3** |
 | Componentes | Próprios: painel com menu e sino, cartões, modal, visualizador de material, Markdown, calendário, gráficos de desempenho |
-| Hooks próprios | `useSessao` (quem está logado), `useApi` (busca com carregando e erro tratados), `useDialogo` (confirmar e avisar), `useApagarAnotacao`, `useTituloDaPagina` (o nome da página na aba) |
+| Hooks próprios | `useSessao` (quem está logado), `useApi` (busca com carregando e erro tratados), `useDialogo` (confirmar e avisar), `useApagarAnotacao`, `useTituloDaPagina` (o nome da página na aba), `useEnvio` (um envio de formulário por vez) |
 | Sessão no navegador | `sessionStorage` (o token some ao fechar a aba) |
 | API | Python 3.10+ com FastAPI, servida pelo Uvicorn |
 | Banco | SQLite (modo WAL, chaves estrangeiras cobradas) |
@@ -319,6 +319,15 @@ todo mundo que viu o projeto conhece, e sem o código por e-mail. São as
   ([`backend/app/regras/limites.py`](backend/app/regras/limites.py)) —, e o
   Caddy barra a requisição inteira acima de 25 MB. Sem isso, uma pergunta de
   um megabyte ia inteira para o modelo de IA.
+- **Nada em dobro, nem com cliques simultâneos.** O que não pode se repetir —
+  conta, disciplina, turma, matrícula, entrega, denúncia aberta, pedido de
+  privacidade em aberto — é garantido por restrição única no próprio banco,
+  e não só por uma conferência antes de gravar (que duas requisições ao
+  mesmo tempo passavam juntas). Na tela, o formulário trava do clique até a
+  resposta (`useEnvio`).
+- **Testada com entradas malformadas.** Cada rota recebeu milhares de
+  requisições com tipos trocados, números fora da faixa, textos enormes e
+  caracteres estranhos, de todos os perfis e sem login: nenhuma resposta 500.
 - **Cada perfil na sua porta.** As rotas exigem o perfil certo, e as regras
   conferem de novo o vínculo (o professor só vê as disciplinas dele; o aluno,
   só o material publicado das disciplinas em que está matriculado).
@@ -564,7 +573,7 @@ npm test                           # telas React: rotas por perfil e componentes
 npm run lint                       # regras do React (hooks, componentes)
 ```
 
-- **Backend (596 testes):** permissões de cada perfil, visibilidade de
+- **Backend (605 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,
@@ -675,7 +684,7 @@ frontend/                  - as telas (React), entregues pela API em /app/
   src/App.jsx                todas as rotas, públicas e privadas
   src/rotas/                 RotaPrivada (perfil certo, ou volta ao login)
   src/sessao/, src/dialogos/ Contexts da sessão e dos diálogos
-  src/hooks/                 useSessao, useApi, useDialogo, useApagarAnotacao, useTituloDaPagina
+  src/hooks/                 useSessao, useApi, useDialogo, useApagarAnotacao, useTituloDaPagina, useEnvio
   src/layout/                Painel (menu, sino, perfil) e o menu de cada perfil
   src/componentes/           peças reutilizadas: Cartao, Botao, Modal, Visualizador...
   src/paginas/               aluno/, professor/, admin/, comum/ (as telas que

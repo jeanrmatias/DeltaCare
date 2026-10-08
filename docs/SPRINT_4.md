@@ -32,7 +32,7 @@ infraestrutura da instituição (Ollama), sem mandar dado de aluno para fora.
 | Requisito | Onde está |
 |---|---|
 | React com componentes, props e hooks nativos | Todas as 34 telas, em [`frontend/src/`](../frontend/src). Vite 8, React 19, React Router 8. |
-| Ao menos um hook próprio | Cinco, em [`frontend/src/hooks/`](../frontend/src/hooks): `useSessao`, `useApi`, `useDialogo`, `useApagarAnotacao`, `useTituloDaPagina`. |
+| Ao menos um hook próprio | Seis, em [`frontend/src/hooks/`](../frontend/src/hooks): `useSessao`, `useApi`, `useDialogo`, `useApagarAnotacao`, `useTituloDaPagina`, `useEnvio`. |
 | Rotas públicas e privadas | [`App.jsx`](../frontend/src/App.jsx) e [`RotaPrivada.jsx`](../frontend/src/rotas/RotaPrivada.jsx): o login (com a recuperação de senha), a privacidade e os termos são públicos; cada área só abre para o próprio perfil, e a senha provisória só abre a tela de troca. A regra é repetida no servidor, que é quem de fato barra. |
 | Tailwind CSS | O tema inteiro em [`index.css`](../frontend/src/index.css), como tokens do Tailwind 4; nenhum CSS solto por tela. |
 | Validação de usabilidade com no mínimo 3 participantes | Material completo em [`validacao/`](validacao/README.md); piloto feito; sessões externas pendentes (seção 6). |
@@ -276,7 +276,7 @@ resumo aqui, só com dado das sessões.
 
 | Verificação | Resultado em 05/10/2026 |
 |---|---|
-| Testes do backend (regras e rotas, sem o Ollama) | 596 passando |
+| Testes do backend (regras e rotas, sem o Ollama) | 605 passando |
 | Testes das telas React (renderizadas no Node) | 71 passando |
 | Lint do React (oxlint) | sem aviso |
 | Contrato front ↔ back | 139 chamadas conferidas, nenhuma sem rota |
@@ -315,6 +315,16 @@ cobria — e cada um virou teste:
   simultâneas e só uma vale.
 - **Textos sem limite**, inclusive a pergunta ao assistente, e **o token de
   sessão guardado como vai ao navegador** (agora só o hash).
+
+**Fuzzing e requisições simultâneas.** Um script mandou a cada uma das 109
+rotas, como cada perfil e sem login, milhares de entradas malformadas (16 mil
+requisições em quatro rodadas). Achou dois erros 500, os dois na trilha de
+auditoria, que lia o corpo antes da validação da rota. Depois, oito
+requisições idênticas disparadas ao mesmo tempo mostraram que as conferências
+"já existe?" deixavam passar duplicatas (5 denúncias, 4 pedidos, 8
+disciplinas iguais) e que a recusa das restrições únicas virava erro 500.
+Hoje a unicidade está no banco e a recusa é tratada; a rodada final de
+fuzzing terminou sem nenhum 500.
 
 **Testes que dependiam da hora.** Três testes do calendário falhavam só entre
 0h e 3h (horário de Brasília): montavam a data em UTC e esperavam o dia UTC,

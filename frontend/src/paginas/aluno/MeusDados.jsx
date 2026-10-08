@@ -12,6 +12,7 @@ import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 import { dataComAno } from "../../lib/formatos"
 import { nomeArquivoDaCopia, statusPrivacidade } from "../../lib/privacidade"
+import { useEnvio } from "../../hooks/useEnvio"
 
 /**
  * Os direitos do titular (LGPD), na tela do próprio aluno. A cópia sai na
@@ -97,6 +98,8 @@ function Correcao({ aoPedir }) {
   const [motivo, setMotivo] = useState("")
   const [mensagem, setMensagem] = useState({ texto: "", sucesso: false })
 
+  const [enviando, executar] = useEnvio()
+
   async function pedir(evento) {
     evento.preventDefault()
     try {
@@ -119,13 +122,13 @@ function Correcao({ aoPedir }) {
   return (
     <Cartao titulo="Corrigir um dado">
       <p className="mb-4 text-sm text-texto-secundario">A administração confere com o registro acadêmico antes de trocar. Você recebe uma notificação com a resposta.</p>
-      <form onSubmit={pedir} className="flex flex-col gap-4">
+      <form onSubmit={executar(pedir)} className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 sm:flex-row">
           <Escolha rotulo="O que está errado" valor={campo} aoMudar={setCampo} opcoes={CAMPOS} className="sm:w-48" />
           <Texto rotulo="Como deveria ser" valor={valor} aoMudar={setValor} maximo={500} obrigatorio className="flex-1" />
         </div>
         <Texto rotulo="Observação (opcional)" valor={motivo} aoMudar={setMotivo} maximo={500} placeholder="Ex.: meu nome saiu sem o segundo sobrenome" />
-        <div><Botao tipo="submit">Enviar pedido</Botao></div>
+        <div><Botao tipo="submit" desativado={enviando}>Enviar pedido</Botao></div>
         <MensagemDeFormulario texto={mensagem.texto} sucesso={mensagem.sucesso} />
       </form>
     </Cartao>
@@ -136,6 +139,8 @@ function Exclusao({ prazo, aoPedir }) {
   const [aberto, setAberto] = useState(false)
   const [motivo, setMotivo] = useState("")
   const [mensagem, setMensagem] = useState({ texto: "", sucesso: false })
+
+  const [enviando, executar] = useEnvio()
 
   async function pedir(evento) {
     evento.preventDefault()
@@ -166,11 +171,11 @@ function Exclusao({ prazo, aoPedir }) {
 
       <Modal aberto={aberto} aoFechar={() => setAberto(false)} titulo="Excluir minha conta">
         <p className="mb-4 text-sm text-texto-secundario">Aprovado o pedido, você não entra mais na plataforma. Antes, vale baixar a cópia dos seus dados.</p>
-        <form onSubmit={pedir}>
+        <form onSubmit={executar(pedir)}>
           <AreaDeTexto rotulo="Motivo (opcional)" valor={motivo} aoMudar={setMotivo} linhas={3} maximo={500} />
           <AcoesDoModal>
             <Botao variante="neutra" onClick={() => setAberto(false)}>Cancelar</Botao>
-            <Botao tipo="submit" variante="perigo">Enviar pedido</Botao>
+            <Botao tipo="submit" variante="perigo" desativado={enviando}>Enviar pedido</Botao>
           </AcoesDoModal>
         </form>
       </Modal>

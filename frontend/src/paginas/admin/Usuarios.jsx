@@ -12,6 +12,7 @@ import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 import { dataComAno } from "../../lib/formatos"
 import { normalizar } from "../../lib/texto"
+import { useEnvio } from "../../hooks/useEnvio"
 
 /**
  * Contas da plataforma. É o único caminho de entrada: não existe cadastro
@@ -188,6 +189,8 @@ function NovaConta({ turmas, aoFechar, aoCriar }) {
   const [mensagem, setMensagem] = useState({ texto: "", sucesso: false })
   const mudar = (nome) => (valor) => setCampos((atual) => ({ ...atual, [nome]: valor }))
 
+  const [enviando, executar] = useEnvio()
+
   async function criar(evento) {
     evento.preventDefault()
     const corpo = { ...campos, nome: campos.nome.trim(), email: campos.email.trim(), matricula: campos.matricula.trim(), disciplinas: campos.disciplinas.trim() }
@@ -206,7 +209,7 @@ function NovaConta({ turmas, aoFechar, aoCriar }) {
   return (
     <Cartao titulo="Nova conta" className="mb-5">
       <p className="mb-4 text-[14px] text-texto-secundario">Toda conta nasce aqui ou pela importação da planilha, inclusive a de aluno: não existe cadastro pela tela de login.</p>
-      <form onSubmit={criar} className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={executar(criar)} className="grid gap-4 sm:grid-cols-2">
         <Texto rotulo="Nome completo" valor={campos.nome} aoMudar={mudar("nome")} placeholder="Ex.: Ana Paula Ribeiro" obrigatorio />
         <Escolha rotulo="Perfil" valor={campos.tipo} aoMudar={mudar("tipo")} opcoes={[{ valor: "aluno", rotulo: "Aluno" }, { valor: "professor", rotulo: "Professor" }, { valor: "adm", rotulo: "Administrador" }]} />
         <Texto rotulo="E-mail institucional" tipo="email" valor={campos.email} aoMudar={mudar("email")} placeholder="nome@instituicao.edu.br" obrigatorio />
@@ -223,7 +226,7 @@ function NovaConta({ turmas, aoFechar, aoCriar }) {
           <Texto rotulo="Disciplinas que leciona" valor={campos.disciplinas} aoMudar={mudar("disciplinas")} placeholder="Separe por ponto e vírgula: Cardiologia; Clínica Médica" className="sm:col-span-2" />
         )}
         <div className="flex gap-2.5 sm:col-span-2">
-          <Botao tipo="submit">Criar conta</Botao>
+          <Botao tipo="submit" desativado={enviando}>Criar conta</Botao>
           <Botao variante="neutra" onClick={aoFechar}>Fechar</Botao>
         </div>
       </form>

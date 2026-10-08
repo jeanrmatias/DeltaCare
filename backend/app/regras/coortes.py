@@ -31,6 +31,7 @@ dentro de uma coorte também chama. Se um caminho novo esquecer, o sintoma é
 aluno de fora da disciplina — visível, ao contrário do inverso.
 """
 
+import sqlite3
 from datetime import datetime, timezone
 
 from regras import limites
@@ -75,10 +76,17 @@ def criar_coorte(admin_email: str, nome: str, semestre: str) -> dict:
         conexao.close()
         return {"sucesso": False, "mensagem": "Já existe uma turma com esse nome nesse semestre."}
 
-    cursor.execute(
-        "INSERT INTO coortes (nome, semestre, criado_em) VALUES (?, ?, ?)",
-        (nome, semestre, _agora()),
-    )
+    try:
+        cursor.execute(
+            "INSERT INTO coortes (nome, semestre, criado_em) VALUES (?, ?, ?)",
+            (nome, semestre, _agora()),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou entre a conferência acima e este
+        # INSERT: o banco recusa pela restrição única, e a resposta é a mesma.
+        conexao.rollback()
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Já existe uma turma com esse nome nesse semestre."}
     conexao.commit()
     coorte_id = cursor.lastrowid
     conexao.close()
@@ -212,7 +220,9 @@ def _sincronizar(cursor, coorte_id: int) -> dict:
     faltando = desejadas - existentes
     for aluno_id, turma_id in faltando:
         cursor.execute(
-            "INSERT INTO matriculas (aluno_id, turma_id, criado_em) VALUES (?, ?, ?)",
+            # OR IGNORE: duas sincronizações ao mesmo tempo calculariam a mesma
+            # matrícula faltando; a segunda não tem o que acrescentar.
+            "INSERT OR IGNORE INTO matriculas (aluno_id, turma_id, criado_em) VALUES (?, ?, ?)",
             (aluno_id, turma_id, agora),
         )
 
@@ -291,10 +301,17 @@ def matricular_na_coorte(admin_email: str, aluno_email: str, coorte_id: int) -> 
         conexao.close()
         return {"sucesso": False, "mensagem": "Esse aluno já está nessa turma."}
 
-    cursor.execute(
-        "INSERT INTO matriculas_coorte (aluno_id, coorte_id, criado_em) VALUES (?, ?, ?)",
-        (aluno[0], coorte_id, _agora()),
-    )
+    try:
+        cursor.execute(
+            "INSERT INTO matriculas_coorte (aluno_id, coorte_id, criado_em) VALUES (?, ?, ?)",
+            (aluno[0], coorte_id, _agora()),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou entre a conferência acima e este
+        # INSERT: o banco recusa pela restrição única, e a resposta é a mesma.
+        conexao.rollback()
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Esse aluno já está nessa turma."}
     resultado = _sincronizar(cursor, coorte_id)
     conexao.commit()
     conexao.close()
@@ -486,10 +503,17 @@ def criar_excecao(admin_email: str, aluno_email: str, turma_id: int) -> dict:
         conexao.close()
         return {"sucesso": False, "mensagem": "Esse aluno já está fora dessa disciplina."}
 
-    cursor.execute(
-        "INSERT INTO excecoes_coorte (aluno_id, turma_id, criado_em) VALUES (?, ?, ?)",
-        (aluno[0], turma_id, _agora()),
-    )
+    try:
+        cursor.execute(
+            "INSERT INTO excecoes_coorte (aluno_id, turma_id, criado_em) VALUES (?, ?, ?)",
+            (aluno[0], turma_id, _agora()),
+        )
+    except sqlite3.IntegrityError:
+        # Outra requisição igual chegou entre a conferência acima e este
+        # INSERT: o banco recusa pela restrição única, e a resposta é a mesma.
+        conexao.rollback()
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Esse aluno já está fora dessa disciplina."}
     resultado = _sincronizar(cursor, disciplina[0])
     conexao.commit()
     conexao.close()

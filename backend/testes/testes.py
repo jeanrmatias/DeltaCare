@@ -6969,6 +6969,35 @@ class TestesAuditoria(BaseDelta):
     def _cab(self, email):
         return {"Authorization": "Bearer " + self.cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]}
 
+    def test_corpo_malformado_e_recusado_e_nao_derruba_a_api(self):
+        """A trilha lia o `desafio` antes da rota validar: uma lista no lugar
+        do texto dava 500 (achado no fuzzing). Tem de dar 422, como em
+        qualquer rota."""
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app, raise_server_exceptions=False)
+        for corpo in ({"desafio": ["x"], "codigo": "123456"}, {"desafio": {"a": 1}}, {"desafio": None, "codigo": 1}):
+            for rota in ("/login/codigo", "/login/codigo/reenviar"):
+                with self.subTest(rota=rota, corpo=corpo):
+                    self.assertEqual(cliente.post(rota, json=corpo).status_code, 422)
+
+    def test_email_de_tipo_errado_ainda_fica_na_trilha(self):
+        self.cliente.post("/login", json={"email": ["adm@teste.com"], "senha": "x"})
+
+        self.assertTrue([r for r in self._trilha() if r["acao"] == "Login"])
+
+    def test_senha_aninhada_tambem_fica_de_fora(self):
+        from regras.auditoria import _limpar
+
+        limpo = json.dumps(_limpar({"conta": {"email": "a@b.com", "senha": "segredo-123"},
+                                    "lista": [{"codigo": "654321", "nome": "Ana"}]}), ensure_ascii=False)
+
+        for sigilo in ("segredo-123", "654321"):
+            self.assertNotIn(sigilo, limpo)
+        self.assertIn("Ana", limpo)
+
     def _trilha(self, **filtros):
         from regras.auditoria import listar
 
@@ -7894,6 +7923,86 @@ class TestesEntradasDaRevisao(BaseAtividades):
         linhas = conexao.execute("SELECT COUNT(*) FROM entregas WHERE atividade_id = ?", (atividade_id,)).fetchone()[0]
         conexao.close()
         self.assertEqual(linhas, 1)
+
+
+# =========================================================================
+# O que não pode existir em dobro, mesmo com requisições simultâneas
+
+class TestesUnicidadeSimultanea(BaseDelta):
+    """A conferência "já existe?" acontecia antes do INSERT, e oito requisições
+    ao mesmo tempo passavam juntas: 5 denúncias, 4 pedidos e 8 disciplinas
+    iguais. Agora o banco garante (infra/database.UNICIDADES)."""
+
+    def _corrida(self, funcao, vezes=8):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+
+        largada = threading.Barrier(vezes)
+
+        def uma(_):
+            largada.wait()
+            return funcao()
+
+        with ThreadPoolExecutor(vezes) as grupo:
+            resultados = list(grupo.map(uma, range(vezes)))
+        return sum(1 for r in resultados if r["sucesso"])
+
+    def test_uma_denuncia_aberta_por_material(self):
+        from regras.denuncias import criar_denuncia
+
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 3 - Insuficiência cardíaca aguda",
+                                  tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
+
+        self.assertEqual(self._corrida(lambda: criar_denuncia(ALUNO, material, "incorreto", "A dose está trocada.")), 1)
+
+    def test_um_pedido_igual_em_aberto(self):
+        from regras.privacidade import solicitar
+
+        self.assertEqual(self._corrida(lambda: solicitar(ALUNO, "correcao", "nome", "Aluno Um da Silva", "Faltou o sobrenome.")), 1)
+
+    def test_uma_disciplina_por_nome_semestre_e_professor(self):
+        self.assertEqual(self._corrida(lambda: criar_turma(ADMIN, PROFESSOR, "Farmacologia", "2026.2")), 1)
+
+    def test_conta_turma_e_matricula_simultaneas_nao_dao_erro(self):
+        """Essas já tinham restrição única, mas a recusa do banco não era
+        tratada: a segunda requisição dava erro 500 em vez de "já existe"."""
+        from regras.coortes import criar_coorte, matricular_na_coorte
+
+        coorte = criar_coorte(ADMIN, "MED 3A", "2026.2")["coorte"]["id"]
+        casos = {
+            "conta": lambda: criar_conta_staff(ADMIN, "residente@teste.com", "Senha-forte-9", "aluno",
+                                               nome="Residente Novo", provisoria=False),
+            "turma de alunos": lambda: criar_coorte(ADMIN, "MED 5C", "2026.2"),
+            "matrícula na disciplina": lambda: matricular_aluno(ADMIN, ALUNO_FORA, self.turma_id),
+            "matrícula na turma": lambda: matricular_na_coorte(ADMIN, ALUNO, coorte),
+        }
+        for caso, funcao in casos.items():
+            with self.subTest(caso=caso):
+                self.assertEqual(self._corrida(funcao), 1)
+
+    def test_trocar_para_professor_que_ja_tem_a_disciplina_e_recusado_sem_erro(self):
+        """Com a unicidade, o banco recusaria no meio da troca: a regra avisa antes."""
+        from regras.turmas import trocar_professor
+
+        criar_turma(ADMIN, PROFESSOR2, "Cardiologia", "2026.2")
+
+        resultado = trocar_professor(ADMIN, self.turma_id, PROFESSOR2)
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertIn("já tem Cardiologia", resultado["mensagem"])
+
+    def test_excluir_professor_cuja_disciplina_o_sucessor_ja_tem_e_recusado(self):
+        from regras.privacidade import excluir_pela_administracao
+
+        criar_turma(ADMIN, PROFESSOR2, "Cardiologia", "2026.2")
+
+        resultado = excluir_pela_administracao(ADMIN, PROFESSOR, "Deixou a instituição.", PROFESSOR2)
+
+        self.assertFalse(resultado["sucesso"])
+        conexao = sqlite3.connect(CAMINHO_DB)
+        desativado = conexao.execute("SELECT desativado_em FROM users WHERE email = ?", (PROFESSOR,)).fetchone()[0]
+        conexao.close()
+        self.assertIsNone(desativado)  # nada mudou pela metade
 
 
 if __name__ == "__main__":

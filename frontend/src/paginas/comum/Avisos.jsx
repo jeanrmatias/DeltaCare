@@ -10,6 +10,7 @@ import { useSessao } from "../../hooks/useSessao"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
 import { dataEHora } from "../../lib/formatos"
+import { useEnvio } from "../../hooks/useEnvio"
 
 /**
  * Avisos: escrever para as disciplinas, e ver o que chegou. Um componente
@@ -52,6 +53,8 @@ function NovoAviso({ adm, aoEnviar }) {
   const opcoes = (disciplinas.dados?.turmas || []).filter((d) => (adm ? !vigente || d.semestre === vigente : d.vigente !== false))
   const todas = opcoes.length > 0 && marcadas.length === opcoes.length
 
+  const [enviando, executar] = useEnvio()
+
   async function enviar(evento) {
     evento.preventDefault()
     if (!geral && !marcadas.length) return setMensagem({ texto: "Escolha pelo menos uma disciplina." })
@@ -77,7 +80,7 @@ function NovoAviso({ adm, aoEnviar }) {
 
   return (
     <Cartao titulo="Novo aviso">
-      <form onSubmit={enviar} className="flex flex-col gap-4">
+      <form onSubmit={executar(enviar)} className="flex flex-col gap-4">
         {/* "Instituição inteira" só existe para a administração: o professor
             não recebe um controle que o servidor recusaria. */}
         {adm && (
@@ -113,7 +116,7 @@ function NovoAviso({ adm, aoEnviar }) {
           <input type="checkbox" checked={urgente} onChange={(e) => setUrgente(e.target.checked)} className="size-4 accent-primaria" />
           Urgente <span className="font-normal text-texto-secundario">— fica no topo do mural por 7 dias</span>
         </label>
-        <div><Botao tipo="submit">Enviar aviso</Botao></div>
+        <div><Botao tipo="submit" desativado={enviando}>Enviar aviso</Botao></div>
         <MensagemDeFormulario texto={mensagem.texto} sucesso={mensagem.sucesso} />
       </form>
     </Cartao>
