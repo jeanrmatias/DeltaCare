@@ -82,7 +82,7 @@ export function Usuarios() {
                   {conta.desativado && <Selo tom="perigo">Desativada · anonimiza em {dataComAno(conta.anonimizar_em)}</Selo>}
                   {conta.email === usuario.email && <span className="text-xs font-semibold text-texto-secundario">você</span>}
                 </div>
-                <h3 className="text-[17px] font-semibold text-navy-900">{conta.nome || conta.email}</h3>
+                <h2 className="text-[17px] font-semibold text-navy-900">{conta.nome || conta.email}</h2>
                 <p className="text-[14px] [overflow-wrap:anywhere] text-texto-secundario">{conta.email}</p>
                 <p className="mt-0.5 text-xs font-medium text-primaria">{vinculo(conta)}</p>
               </div>

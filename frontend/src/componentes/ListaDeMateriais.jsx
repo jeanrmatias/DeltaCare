@@ -80,7 +80,7 @@ function ItemMaterial({ material, totalAnotacoes, abrir, aoDesfavoritar }) {
           </span>
           <BotaoFavorito material={material} aoMudar={(favorito) => !favorito && aoDesfavoritar?.(material)} />
         </div>
-        <h3 className="text-base font-semibold text-navy-900">{material.titulo}</h3>
+        <h2 className="text-base font-semibold text-navy-900">{material.titulo}</h2>
         {classificacao && <p className="mt-1 text-xs font-medium text-primaria">{classificacao}</p>}
         {material.descricao && <p className="mt-1.5 text-[14px] leading-relaxed text-texto-secundario">{material.descricao}</p>}
         {!Number.isNaN(publicado.getTime()) && (

@@ -1,6 +1,6 @@
 /**
- * As cores de cada faixa: clara no anel, no nome e no selo; escura no fundo
- * do escudo. Um lugar só — o cartão de progresso e o ranking usam as mesmas.
+ * As cores de cada faixa: clara no anel e no escudo; escura no texto (o nome
+ * sobre fundo claro, o selo com letra branca), que precisa de 4,5:1. Um lugar só — o cartão de progresso e o ranking usam as mesmas.
  */
 export const CORES_DA_FAIXA = {
   bronze: { clara: "#C87C3C", escura: "#7A4420" },

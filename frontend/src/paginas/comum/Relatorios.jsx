@@ -141,7 +141,7 @@ function AoVivo({ coorteId }) {
       </div>
 
       <Cartao titulo="O semestre até agora">
-        <Tabela colunas={["Disciplina", { titulo: "Alunos", numero: true }, { titulo: "Aproveitamento", numero: true }, { titulo: "Entregas no prazo", numero: true }, { titulo: "Ativos em 7 dias", numero: true }]}>
+        <Tabela rotulo="O semestre até agora" colunas={["Disciplina", { titulo: "Alunos", numero: true }, { titulo: "Aproveitamento", numero: true }, { titulo: "Entregas no prazo", numero: true }, { titulo: "Ativos em 7 dias", numero: true }]}>
           {dados.disciplinas.map((d) => (
             <tr key={d.id}>
               <Celula>{d.nome}</Celula>
@@ -207,7 +207,7 @@ function Mensal({ coorteId }) {
       </Cartao>
 
       <Cartao titulo="Mês a mês">
-        <Tabela colunas={["Mês", { titulo: "Aproveitamento", numero: true }, { titulo: "Entregas no prazo", numero: true },
+        <Tabela rotulo="Mês a mês" colunas={["Mês", { titulo: "Aproveitamento", numero: true }, { titulo: "Entregas no prazo", numero: true },
           { titulo: "Não entregues", numero: true }, { titulo: "Alunos ativos", numero: true }, { titulo: "Dias de estudo", numero: true },
           ...(disciplina === "total" ? [{ titulo: "XP médio", numero: true }] : []), { titulo: "Perguntas", numero: true },
           { titulo: "Material respondeu", numero: true }]}>
@@ -248,7 +248,7 @@ function Mensal({ coorteId }) {
 /** Uma barra por mês; abaixo do limite de dificuldade ela fica amarela. */
 function BarrasDoMes({ meses, limite }) {
   return (
-    <div className="flex items-end gap-3 overflow-x-auto pb-1">
+    <div className="flex items-end gap-3 overflow-x-auto pb-1" tabIndex={0} role="region" aria-label="Aproveitamento por mês">
       {meses.map((m) => (
         <div key={m.rotulo} className="flex min-w-14 flex-col items-center gap-1" role="img"
           aria-label={`${m.rotulo}: ${m.valor === null ? "sem nota" : `${m.valor}%`}`}>

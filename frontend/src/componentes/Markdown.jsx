@@ -26,7 +26,7 @@ function Bloco({ bloco }) {
     case "tabela":
       return (
         // Rola na horizontal: tabela larga não estoura a bolha em tela estreita.
-        <div className="mb-2.5 overflow-x-auto last:mb-0">
+        <div className="mb-2.5 overflow-x-auto last:mb-0" tabIndex={0} role="region" aria-label="Tabela da resposta">
           <table className="w-full border-collapse text-[14px]">
             <thead>
               <tr>{bloco.cabecalho.map((celula, i) => <th key={i} className="border border-borda bg-superficie px-2.5 py-1.5 text-left font-semibold"><Trechos trechos={celula} /></th>)}</tr>

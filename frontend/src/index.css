@@ -64,6 +64,8 @@
   --color-perigo-fundo: #FEE2E2;
   --color-sucesso: #15803D;
   --color-sucesso-fundo: #DCFCE7;
+  /* Texto verde sobre fundo tingido (a linha destacada do ranking). */
+  --color-sucesso-forte: #166534;
   --color-alerta: #F59E0B;
   /* O amarelo como ícone (a estrela do favorito) precisa de 3:1 no branco. */
   --color-alerta-forte: #D97706;

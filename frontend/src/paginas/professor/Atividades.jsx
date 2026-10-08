@@ -107,7 +107,7 @@ function LinhaAtividade({ atividade, aoEditar, aoExcluir, aoCorrigir }) {
           <Selo>{atividade.tipo === "objetiva" ? "Objetiva" : "Dissertativa"}</Selo>
           <Selo tom={status.tom}>{status.rotulo}</Selo>
         </div>
-        <h3 className="text-[17px] font-semibold text-navy-900">{atividade.titulo}</h3>
+        <h2 className="text-[17px] font-semibold text-navy-900">{atividade.titulo}</h2>
         {(atividade.assunto || atividade.topico) && <p className="mt-1 text-xs font-medium text-primaria">{[atividade.assunto, atividade.topico].filter(Boolean).join(" · ")}</p>}
         <p className="mt-1 text-[14px] text-texto-secundario">{detalhes.join(" · ")}</p>
         {atividade.status === "publicado" && (

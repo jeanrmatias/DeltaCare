@@ -56,6 +56,8 @@ const PARES = [
   ["marca", "navy-900", 3, "anel de foco e barra do item ativo no menu"],
   ["marca-perigo", "superficie", 3, "barra de tópico com muito erro"],
   ["marca-sucesso", "superficie", 3, "barra de aproveitamento bom"],
+  ["navy-900", "alerta", 4.5, "selo Urgente dos avisos"],
+  ["sucesso-forte", "fundo", 4.5, "XP ganho na semana, no ranking"],
 ]
 
 test("as cores da marca continuam as do hospital", () => {
@@ -74,6 +76,15 @@ for (const [frente, fundo, minimo, onde] of PARES) {
     assert.ok(razao >= minimo, `${frente} sobre ${fundo}: ${razao.toFixed(2)}:1, mínimo ${minimo}:1`)
   })
 }
+
+test("o nome de cada faixa tem contraste no cartão branco", async () => {
+  // O nome usa a cor escura da faixa; a clara (do anel) dava 3,3:1 no bronze.
+  const { CORES_DA_FAIXA } = await import("../src/lib/faixas.js")
+  for (const [faixa, cores] of Object.entries(CORES_DA_FAIXA)) {
+    const razao = contraste(cores.escura, BRANCO)
+    assert.ok(razao >= 4.5, `${faixa}: ${razao.toFixed(2)}:1`)
+  }
+})
 
 test("o anel de foco fica fora das camadas do Tailwind", () => {
   // Dentro de @layer, um `outline-none` numa utilitária apagaria o foco.

@@ -432,6 +432,13 @@ Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
   e têm nome; a resposta do assistente e as mensagens novas são anunciadas
   (`role="log"`), e o cronômetro do "consultando o material" não é lido a cada
   segundo; o título da aba muda com a página.
+- **Auditoria automática.** Todas as telas dos três perfis e as públicas
+  passaram pelo [axe-core](https://github.com/dequelabs/axe-core) (WCAG 2.1 A
+  e AA e boas práticas), no computador e no celular: nenhuma violação. A
+  auditoria achou e fez corrigir o nome da faixa e o selo "Urgente" com pouco
+  contraste, a hora das mensagens enviadas, títulos que pulavam de nível,
+  tabelas e gráficos que rolam de lado sem acesso pelo teclado e a conversa de
+  Mensagens que não recebia foco para rolar.
 - **O que ainda não foi feito:** o teste com leitor de tela real (NVDA) e
   com usuários com deficiência. O roteiro está pronto em
   [`validacao/TESTE_LEITOR_DE_TELA.md`](docs/validacao/TESTE_LEITOR_DE_TELA.md).
@@ -561,7 +568,7 @@ npm run lint                       # regras do React (hooks, componentes)
   integridade do banco ao excluir, a entrega das telas em `/app/` e o próprio seed. Rodam
   num banco temporário e **não precisam do Ollama** — as funções que falam
   com o modelo entram como parâmetro.
-- **Telas React (64 testes):** as telas são renderizadas no Node, sem
+- **Telas React (67 testes):** as telas são renderizadas no Node, sem
   navegador, e o teste confere o HTML que sai. Cobre quem entra em qual rota
   (visitante, aluno, professor e administração — a matriz das rotas
   públicas e privadas —, e a senha provisória, que só abre a tela de

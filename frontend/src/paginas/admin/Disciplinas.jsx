@@ -77,7 +77,7 @@ export function DisciplinasAdmin() {
             {/* Lado a lado só com folga (lg): no tablet, três botões ao lado do nome passavam da tela. */}
             <article className="flex flex-col gap-3 p-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="text-[17px] font-semibold text-navy-900">{turma.nome} · {turma.semestre}</h3>
+                <h2 className="text-[17px] font-semibold text-navy-900">{turma.nome} · {turma.semestre}</h2>
                 <p className="mt-1 text-[14px] text-texto-secundario">Professor: {turma.professor_email}</p>
                 <p className="text-[14px] text-texto-secundario">{turma.total_materiais} material(is) cadastrado(s)</p>
               </div>

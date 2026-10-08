@@ -139,7 +139,7 @@ function LinhaMaterial({ material, aoEditar, aoExcluir, aoVer, aoReportar, aoInd
           {agendadoPara && <span className="text-xs text-texto-secundario">libera em {agendadoPara}</span>}
           {material.no_chat === false && <Selo tom="alerta">Fora do chat</Selo>}
         </div>
-        <h3 className="text-[17px] font-semibold text-navy-900">{material.titulo}</h3>
+        <h2 className="text-[17px] font-semibold text-navy-900">{material.titulo}</h2>
         {classificacao && <p className="mt-1 text-xs font-medium text-primaria">{classificacao}</p>}
         {material.descricao && <p className="mt-1.5 text-[14px] text-texto-secundario">{material.descricao}</p>}
         <p className="mt-1.5 flex flex-wrap gap-x-2 text-[14px]">

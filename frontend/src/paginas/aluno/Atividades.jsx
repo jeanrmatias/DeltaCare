@@ -95,7 +95,7 @@ function LinhaAtividade({ atividade, aoAbrir }) {
           <Selo>{atividade.tipo === "objetiva" ? "Objetiva" : "Dissertativa"}</Selo>
           <Selo tom={situacao.tom}>{situacao.rotulo}</Selo>
         </div>
-        <h3 className="text-base font-semibold text-navy-900">{atividade.titulo}</h3>
+        <h2 className="text-base font-semibold text-navy-900">{atividade.titulo}</h2>
         <p className="mt-1 text-xs font-medium text-primaria">{[atividade.turma_nome, atividade.assunto, atividade.topico].filter(Boolean).join(" · ")}</p>
         <p className="mt-1 text-[14px] text-texto-secundario">{detalhes.join(" · ")}</p>
         {prazo}

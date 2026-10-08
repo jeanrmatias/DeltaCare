@@ -34,7 +34,7 @@ export function BarrasDeErro({ topicos, detalhe }) {
 /** Uma coluna por atividade corrigida, na ordem. Verde a partir de 60%. */
 export function Evolucao({ pontos }) {
   return (
-    <div className="flex items-end gap-2 overflow-x-auto pb-1">
+    <div className="flex items-end gap-2 overflow-x-auto pb-1" tabIndex={0} role="region" aria-label="Evolução das notas, por atividade">
       {pontos.map((ponto, indice) => {
         const percentual = ponto.percentual ?? 0
         return (

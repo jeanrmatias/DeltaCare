@@ -63,7 +63,7 @@ export function Desempenho() {
           )}
 
           <Cartao titulo="Suas notas">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Suas notas">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-borda text-left text-xs text-texto-secundario">

@@ -64,7 +64,7 @@ export function DenunciasAdmin() {
                 <Selo>{denuncia.motivo_rotulo}</Selo>
                 <Selo tom={TOM[denuncia.status]}>{denuncia.status_rotulo}</Selo>
               </div>
-              <h3 className="text-[17px] font-semibold text-navy-900">{denuncia.material_titulo}</h3>
+              <h2 className="text-[17px] font-semibold text-navy-900">{denuncia.material_titulo}</h2>
               <p className="mt-1 text-xs font-medium text-primaria">
                 {[denuncia.autor_nome, denuncia.turma_nome, dataComAno(denuncia.criado_em)].filter(Boolean).join(" · ")}
               </p>

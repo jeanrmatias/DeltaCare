@@ -4,10 +4,13 @@
  *     <Tabela colunas={["Aluno", { titulo: "Nota", numero: true }]}>
  *       {linhas.map((l) => <tr key={l.id}><Celula>...</Celula><Celula numero>...</Celula></tr>)}
  *     </Tabela>
+ *
+ * Em tela estreita a tabela rola de lado. Quem usa só o teclado rola pelas
+ * setas: por isso a área recebe o foco e tem nome (`rotulo`).
  */
-export function Tabela({ colunas, children }) {
+export function Tabela({ colunas, children, rotulo = "Tabela" }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={rotulo}>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-borda text-xs text-texto-secundario">

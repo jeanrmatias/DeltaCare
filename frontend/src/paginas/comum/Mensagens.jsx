@@ -172,7 +172,10 @@ function Conversa({ conversa, professor, textoInicial, aoMudar, aoEnviar }) {
         <p className="text-xs text-texto-secundario">{conversa.subtitulo}</p>
       </header>
 
-      <div ref={caixa} role="log" aria-label="Mensagens da conversa" className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-5">
+      {/* tabIndex: área que rola precisa receber o foco, senão quem usa só o
+          teclado não consegue rolar a conversa. */}
+      <div ref={caixa} role="log" aria-label="Mensagens da conversa" tabIndex={0}
+        className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-5">
         {carregando && <Carregando />}
         {erro && <p className="text-sm text-texto-secundario">{erro}</p>}
         {dados?.sucesso && mensagens.length === 0 && <p className="m-auto text-sm text-texto-secundario">Nenhuma mensagem ainda. Escreva a primeira.</p>}
@@ -180,7 +183,7 @@ function Conversa({ conversa, professor, textoInicial, aoMudar, aoEnviar }) {
           <div key={m.id ?? indice}
             className={`max-w-[75%] rounded-bloco px-3.5 py-2.5 text-sm ${m.minha ? "self-end bg-primaria text-white" : "self-start bg-fundo text-texto"}`}>
             <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.conteudo}</p>
-            <span className="mt-1 block text-right text-[12px] opacity-70">{quando(m.criado_em, true)}</span>
+            <span className="mt-1 block text-right text-[12px] opacity-90">{quando(m.criado_em, true)}</span>
           </div>
         ))}
       </div>

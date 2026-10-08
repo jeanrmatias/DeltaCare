@@ -131,10 +131,10 @@ function Rodape({ aoVerPerfil }) {
       <div className="min-w-0">
         <strong className="block truncate text-sm text-white">{usuario.tipo === "professor" ? `Prof. ${nome}` : nome}</strong>
         <div className="flex gap-3">
-          <button type="button" onClick={aoVerPerfil} className="text-xs font-medium text-texto-inverso opacity-70 hover:opacity-100">
+          <button type="button" onClick={aoVerPerfil} className="text-xs font-medium text-texto-inverso/70 hover:text-texto-inverso">
             Ver perfil
           </button>
-          <button type="button" onClick={sair} className="text-xs font-medium text-texto-inverso opacity-70 hover:opacity-100">
+          <button type="button" onClick={sair} className="text-xs font-medium text-texto-inverso/70 hover:text-texto-inverso">
             Sair
           </button>
         </div>

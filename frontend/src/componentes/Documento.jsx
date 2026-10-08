@@ -20,9 +20,13 @@ export function Documento({ titulo, subtitulo, children }) {
         <p className="mt-1 text-sm text-texto-secundario">{subtitulo}</p>
         {children}
       </main>
-      <Link to={voltar} className="mt-6 block text-center text-sm font-medium text-primaria hover:underline">
-        ← {usuario ? "Voltar para o início" : "Voltar para o login"}
-      </Link>
+      {/* Dentro de um <footer>: conteúdo fora de toda região (main, nav,
+          footer) fica de fora da navegação por regiões do leitor de tela. */}
+      <footer>
+        <Link to={voltar} className="mt-6 block text-center text-sm font-medium text-primaria hover:underline">
+          ← {usuario ? "Voltar para o início" : "Voltar para o login"}
+        </Link>
+      </footer>
     </div>
   )
 }

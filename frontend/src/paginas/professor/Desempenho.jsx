@@ -61,7 +61,7 @@ export function DesempenhoProfessor() {
           )}
 
           <Cartao titulo="Por atividade">
-            <Tabela colunas={["Atividade", { titulo: "Entregues", numero: true }, { titulo: "Pendentes", numero: true }, { titulo: "Média", numero: true }, { titulo: "Menor – maior", numero: true }]}>
+            <Tabela rotulo="Por atividade" colunas={["Atividade", { titulo: "Entregues", numero: true }, { titulo: "Pendentes", numero: true }, { titulo: "Média", numero: true }, { titulo: "Menor – maior", numero: true }]}>
               {dados.atividades.map((a) => (
                 <tr key={a.id ?? a.titulo}>
                   <Celula detalhe={`${a.tipo === "objetiva" ? "Objetiva" : "Dissertativa"} · vale ${a.pontos}`}>{a.titulo}</Celula>
@@ -75,7 +75,7 @@ export function DesempenhoProfessor() {
           </Cartao>
 
           <Cartao titulo="Por aluno">
-            <Tabela colunas={["Aluno", { titulo: "Entregues", numero: true }, { titulo: "Atrasadas", numero: true }, { titulo: "Aproveitamento", numero: true }, { titulo: "Última entrega", numero: true }]}>
+            <Tabela rotulo="Por aluno" colunas={["Aluno", { titulo: "Entregues", numero: true }, { titulo: "Atrasadas", numero: true }, { titulo: "Aproveitamento", numero: true }, { titulo: "Última entrega", numero: true }]}>
               {dados.alunos.map((a) => (
                 <tr key={a.aluno_email}>
                   <Celula detalhe={a.aluno_email}>{a.aluno_nome}</Celula>

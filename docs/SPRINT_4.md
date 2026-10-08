@@ -234,8 +234,11 @@ faixa. As cores são as da marca, intocadas.
 **Acessibilidade.** Contraste AA verificado por teste; anel de foco visível em
 todo elemento; atalho "Pular para o conteúdo"; toda janela com nome para o
 leitor de tela; a resposta do chat é anunciada sozinha quando chega (região
-`log`), e o cronômetro de espera não é lido a cada segundo. O teste completo
-com o NVDA tem roteiro pronto
+`log`), e o cronômetro de espera não é lido a cada segundo. A auditoria
+automática (axe-core, WCAG 2.1 AA) em todas as telas, no computador e no
+celular, terminou sem violação — depois de corrigir o que ela achou: contraste
+do nome da faixa e do selo "Urgente", títulos pulando de nível e áreas de
+rolagem sem acesso pelo teclado. O teste completo com o NVDA tem roteiro pronto
 ([TESTE_LEITOR_DE_TELA.md](validacao/TESTE_LEITOR_DE_TELA.md)) e ainda não foi
 feito.
 
@@ -274,7 +277,7 @@ resumo aqui, só com dado das sessões.
 | Verificação | Resultado em 05/10/2026 |
 |---|---|
 | Testes do backend (regras e rotas, sem o Ollama) | 587 passando |
-| Testes das telas React (renderizadas no Node) | 64 passando |
+| Testes das telas React (renderizadas no Node) | 67 passando |
 | Lint do React (oxlint) | sem aviso |
 | Contrato front ↔ back | 139 chamadas conferidas, nenhuma sem rota |
 

@@ -44,8 +44,10 @@ export function Ranking() {
             <p className="-mt-2 mb-3 text-[14px] text-texto-secundario">Só o topo é mostrado. A posição de cada um, só a própria pessoa vê.</p>
             {dados.topo.length === 0 ? <p className="text-sm text-texto-secundario">Ninguém pontuou neste semestre ainda.</p> : (
               <ol className="flex flex-col gap-1.5">
-                {dados.topo.map((linha) => (
-                  <Linha key={linha.posicao} eu={linha.eu}>
+                {/* key pela ordem, não pela posição: quem empata divide a posição
+                    (dois 3º lugares), e key repetida faz o React trocar linhas. */}
+                {dados.topo.map((linha, indice) => (
+                  <Linha key={indice} eu={linha.eu}>
                     <span className="w-8 shrink-0 text-sm font-bold text-navy-900">{linha.posicao}º</span>
                     <span className={`min-w-0 flex-1 truncate text-sm ${linha.nome ? "text-texto" : "text-texto-secundario italic"}`}>
                       {linha.nome ? (linha.eu ? `${linha.nome} (você)` : linha.nome) : "Colega que preferiu não aparecer"}
@@ -64,7 +66,7 @@ export function Ranking() {
                 {dados.evoluiu.map((linha, indice) => (
                   <Linha key={indice} eu={linha.eu}>
                     <span className="min-w-0 flex-1 truncate text-sm text-texto">{linha.eu ? `${linha.nome} (você)` : linha.nome}</span>
-                    <span className="text-sm font-semibold text-sucesso">+{linha.xp_semana} XP</span>
+                    <span className="text-sm font-semibold text-sucesso-forte">+{linha.xp_semana} XP</span>
                   </Linha>
                 ))}
               </ol>

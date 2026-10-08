@@ -108,7 +108,7 @@ export function PrivacidadeAdmin() {
                   </span>
                   <Selo tom={situacao.tom}>{situacao.rotulo}</Selo>
                 </div>
-                <h3 className="text-[17px] font-semibold text-navy-900">{pedido.campo_rotulo ? `${pedido.tipo_rotulo}: ${pedido.campo_rotulo}` : pedido.tipo_rotulo}</h3>
+                <h2 className="text-[17px] font-semibold text-navy-900">{pedido.campo_rotulo ? `${pedido.tipo_rotulo}: ${pedido.campo_rotulo}` : pedido.tipo_rotulo}</h2>
                 {/* O valor de hoje ao lado do pedido: aprovar sem ver o que vai ser trocado é aprovar no escuro. */}
                 {pedido.tipo === "correcao" && pedido.valor_novo && (
                   <p className="mt-1 text-[14px] text-texto">Hoje: <strong>{pedido.valor_atual || "(vazio)"}</strong> → Pedido: <strong>{pedido.valor_novo}</strong></p>

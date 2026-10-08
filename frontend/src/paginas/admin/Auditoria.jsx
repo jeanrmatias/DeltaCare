@@ -57,7 +57,7 @@ export function Auditoria() {
 
       {registros.length > 0 && (
         <section className="rounded-cartao bg-superficie p-5 shadow-cartao">
-          <Tabela colunas={["Quando", "Quem", "Ação", "Detalhe", "Resultado", "IP"]}>
+          <Tabela rotulo="Trilha de auditoria" colunas={["Quando", "Quem", "Ação", "Detalhe", "Resultado", "IP"]}>
             {registros.map((r) => (
               <tr key={r.id}>
                 <Celula>{dataEHora(r.quando)}</Celula>

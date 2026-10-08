@@ -77,14 +77,19 @@ function Escudo({ nivel, faixa, percentual }) {
       >
         <div
           className="flex size-full flex-col items-center justify-center gap-px text-white"
-          style={{ clipPath: FORMA_DE_ESCUDO, background: `linear-gradient(150deg, ${cores.clara}, ${cores.escura})` }}
+          // A clara só no canto: do centro para baixo, onde está o texto branco,
+          // é a escura (5,4:1 ou mais em todas as faixas; no meio do degradê, a
+          // prata, o ouro e a platina davam 3,3).
+          style={{ clipPath: FORMA_DE_ESCUDO, background: `linear-gradient(150deg, ${cores.clara}, ${cores.escura} 35%)` }}
         >
-          <span className="text-[10px] font-semibold tracking-widest uppercase opacity-70">Nível</span>
+          <span className="text-[10px] font-semibold tracking-widest uppercase">Nível</span>
           <span className="text-2xl leading-none font-bold tabular-nums">{nivel}</span>
         </div>
       </div>
+      {/* O nome na cor escura da faixa: a clara (do anel) sobre o cartão branco
+          ficava abaixo de 4,5:1 — o bronze dava 3,3. */}
       {faixa && (
-        <span className="text-[12px] font-bold tracking-[0.1em] uppercase" style={{ color: cores.clara }}>
+        <span className="text-[12px] font-bold tracking-[0.1em] uppercase" style={{ color: cores.escura }}>
           {faixa.nome}
         </span>
       )}
@@ -151,8 +156,11 @@ function Frequencia({ dias, totalDiasAtivos }) {
           const rotulo = new Date(`${entrada.dia}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
           const estado = entrada.ativo ? "com estudo" : "sem registro"
           return (
+            // role="img": aria-label num <span> sem papel é ignorado (e proibido)
+            // pelo leitor de tela; com o papel, cada dia é lido.
             <span
               key={entrada.dia}
+              role="img"
               title={`${rotulo} — ${estado}`}
               aria-label={`${rotulo}, ${estado}`}
               className={`size-[18px] rounded border ${entrada.ativo ? "border-marca bg-marca" : "border-borda bg-fundo"}`}
