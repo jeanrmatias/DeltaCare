@@ -113,7 +113,7 @@ def montar_schema_resposta(titulos_disponiveis: list) -> dict:
     um título que exista de verdade entre os materiais recuperados, então não há
     como inventar fonte nem grafar o título diferente.
     """
-    schema_fonte = {"type": "string"}
+    schema_fonte: dict = {"type": "string"}
 
     # enum vazio é inválido em JSON Schema; sem material indexado, a lista fica
     # livre (e o modelo deve devolvê-la vazia de qualquer forma).
@@ -538,8 +538,8 @@ def montar_contexto(trechos: list, automatico: bool = False) -> str:
     return "\n\n---\n\n".join(partes)
 
 
-def _salvar_mensagem(aluno_id: int, turma_id, papel: str, conteudo: str, fontes: list = None,
-                     lacuna: str = "", cobertura: str = None, assunto: str = "", automatico: bool = False) -> None:
+def _salvar_mensagem(aluno_id: int, turma_id, papel: str, conteudo: str, fontes: list | None = None,
+                     lacuna: str = "", cobertura: str | None = None, assunto: str = "", automatico: bool = False) -> None:
     conexao = conectar()
     agora = datetime.now(timezone.utc).isoformat()
     cursor = conexao.cursor()

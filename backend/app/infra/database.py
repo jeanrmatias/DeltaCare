@@ -25,7 +25,7 @@ CAMINHO_DB = os.environ.get("DELTACARE_DB", "deltacare.db")
 TIMEOUT_ESCRITA = 10.0
 
 
-def abrir_conexao(caminho: str = None):
+def abrir_conexao(caminho: str | None = None):
     """Abre conexão com o banco. **Todo módulo passa por aqui.**
 
     Antes cada módulo chamava `sqlite3.connect` por conta própria, em quatro
@@ -72,7 +72,9 @@ def abrir_conexao(caminho: str = None):
 
 # As conexões abertas durante a requisição em curso; None fora de requisição
 # (scripts, seed, testes de regra).
-_CONEXOES_DA_REQUISICAO = contextvars.ContextVar("conexoes_da_requisicao", default=None)
+_CONEXOES_DA_REQUISICAO: contextvars.ContextVar[list | None] = contextvars.ContextVar(
+    "conexoes_da_requisicao", default=None
+)
 
 
 class FecharConexoesDaRequisicao:

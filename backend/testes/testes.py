@@ -23,6 +23,7 @@ import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 # Precisa vir antes de qualquer import do projeto: os módulos leem o caminho
 # do banco e da pasta de arquivos no momento em que são importados.
@@ -358,6 +359,7 @@ class TestesSessao(BaseDelta):
     def test_token_valido_identifica_o_dono(self):
         token = criar_sessao(self._id_do_aluno())
         usuario = buscar_usuario_da_sessao(token)
+        assert usuario is not None
         self.assertEqual(usuario["email"], ALUNO)
         self.assertEqual(usuario["tipo"], "aluno")
 
@@ -2716,7 +2718,9 @@ class TestesEntregaComArquivo(BaseAnexo):
         enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "relatorio.pdf")
 
         entrega_id = obter_atividade_do_aluno(ALUNO, atividade)["entrega"]["entrega_id"]
-        caminho, nome = obter_arquivo_entrega(ALUNO, entrega_id)
+        arquivo = obter_arquivo_entrega(ALUNO, entrega_id)
+        assert arquivo is not None
+        caminho, nome = arquivo
 
         self.assertTrue(os.path.isfile(caminho))
         self.assertNotIn("relatorio", os.path.basename(caminho))
@@ -2924,7 +2928,7 @@ class TestesRecuperacaoDeSenha(BaseDelta):
             "SELECT reset_token FROM users WHERE email = ?", (email,)
         ).fetchone()
         conexao.close()
-        return linha[0] if linha else None
+        return linha[0]
 
     def test_o_fluxo_normal_funciona(self):
         solicitar_recuperacao(ALUNO)
@@ -3784,9 +3788,11 @@ class TestesExclusaoDeDisciplinaUsada(BaseDelta):
             rascunho=False, anexo="opcional",
         )["atividade_ids"][0]
         enviar_entrega(ALUNO, self.atividade, "texto", PDF_BASE64, "relatorio.pdf")
-        self.arquivo = obter_arquivo_entrega(
+        arquivo = obter_arquivo_entrega(
             ALUNO, obter_atividade_do_aluno(ALUNO, self.atividade)["entrega"]["entrega_id"]
-        )[0]
+        )
+        assert arquivo is not None
+        self.arquivo = arquivo[0]
 
         enviar_mensagem(ALUNO, self.turma_id, "Professor, uma dúvida.")
 
@@ -4220,7 +4226,7 @@ class TestesSemestreCompleto(BaseDelta):
         self.assertTrue(resposta.json().get("sucesso"), f"login de {email}: {resposta.text}")
         return {"Authorization": f"Bearer {resposta.json()['token']}"}
 
-    def chamar(self, quem, metodo, caminho, corpo=None, esperado=200):
+    def chamar(self, quem, metodo, caminho, corpo=None, esperado=200) -> Any:
         resposta = self.cliente.request(metodo, caminho, json=corpo, headers=quem)
         self.assertEqual(
             resposta.status_code, esperado, f"{metodo} {caminho} -> {resposta.status_code}: {resposta.text[:300]}"
@@ -4808,10 +4814,8 @@ class TestesPrivacidadeDasAnotacoes(BaseEstudoPessoal):
         professor ou de admin com anotações, este teste avisa."""
         import main
 
-        fora_do_aluno = [
-            rota.path for rota in main.app.routes
-            if "anotac" in rota.path and not rota.path.startswith("/aluno/")
-        ]
+        caminhos = [getattr(rota, "path", "") for rota in main.app.routes]
+        fora_do_aluno = [c for c in caminhos if "anotac" in c and not c.startswith("/aluno/")]
         self.assertEqual(fora_do_aluno, [])
 
 
@@ -4859,7 +4863,7 @@ class BaseSupervisao(BaseDelta):
         futuro = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
 
         def material(titulo, rascunho=False, data_liberacao=None, arquivo=False):
-            campos = dict(
+            campos: dict[str, Any] = dict(
                 professor_email=PROFESSOR, turma_id=self.turma_id, titulo=titulo,
                 rascunho=rascunho, data_liberacao=data_liberacao,
             )
@@ -4953,7 +4957,8 @@ class TestesLimitesDaSupervisao(BaseSupervisao):
     def test_nenhuma_rota_de_administracao_le_trabalho_pessoal(self):
         import main
 
-        rotas_admin = [rota.path for rota in main.app.routes if rota.path.startswith("/admin/")]
+        caminhos = [getattr(rota, "path", "") for rota in main.app.routes]
+        rotas_admin = [c for c in caminhos if c.startswith("/admin/")]
         proibidas = [
             rota for rota in rotas_admin
             if any(p in rota for p in ("entrega", "anotac", "chat", "mensage", "favorit"))
@@ -5079,7 +5084,10 @@ class TestesEmail(BaseDelta):
 
     def configurar(self, servidor=None, porta=None):
         os.environ["DELTACARE_SMTP_HOST"] = "127.0.0.1"
-        os.environ["DELTACARE_SMTP_PORTA"] = str(porta if porta is not None else servidor.porta)
+        if porta is None:
+            assert servidor is not None
+            porta = servidor.porta
+        os.environ["DELTACARE_SMTP_PORTA"] = str(porta)
         os.environ["DELTACARE_SMTP_SEGURANCA"] = "nenhuma"
         os.environ["DELTACARE_SMTP_REMETENTE"] = "Delta Care <nao-responda@teste.com>"
 
@@ -7083,7 +7091,7 @@ class TestesAuditoria(BaseDelta):
         self.assertEqual(self.cliente.get("/admin/auditoria", headers=self._cab(PROFESSOR)).status_code, 403)
         import main
 
-        rotas = {(m, r.path) for r in main.app.routes if hasattr(r, "methods") for m in r.methods}
+        rotas = {(m, getattr(r, "path", "")) for r in main.app.routes for m in getattr(r, "methods", None) or ()}
         self.assertEqual({r for r in rotas if "auditoria" in r[1]}, {("GET", "/admin/auditoria")})
 
 # =========================================================================
@@ -7102,7 +7110,7 @@ class TestesDoisFatores(BaseDelta):
         self.enviados = []
         self._original = infra.email.enviar_em_segundo_plano
         infra.email.enviar_em_segundo_plano = lambda para, assunto, texto: self.enviados.append(
-            (para, re.search(r"\b(\d{6})\b", texto).group(1)))
+            (para, re.findall(r"\b(\d{6})\b", texto)[0]))
         conexao = sqlite3.connect(CAMINHO_DB)
         conexao.execute("UPDATE users SET segundo_fator = 1")
         conexao.commit()
@@ -7136,7 +7144,9 @@ class TestesDoisFatores(BaseDelta):
         entrada = confirmar_codigo(primeiro["desafio"], self._codigo())
 
         self.assertTrue(entrada["token"])
-        self.assertEqual(buscar_usuario_da_sessao(entrada["token"])["email"], PROFESSOR)
+        usuario = buscar_usuario_da_sessao(entrada["token"])
+        assert usuario is not None
+        self.assertEqual(usuario["email"], PROFESSOR)
 
     def test_aluno_entra_direto(self):
         login = realizar_login(ALUNO, SENHA)

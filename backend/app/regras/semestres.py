@@ -80,9 +80,8 @@ def semestre_vigente() -> str:
     ).fetchone()
     conexao.close()
 
-    if linha and normalizar_semestre(linha[0]):
-        return normalizar_semestre(linha[0])
-    return semestre_do_calendario()
+    definido = normalizar_semestre(linha[0]) if linha else None
+    return definido or semestre_do_calendario()
 
 
 def obter_semestre_vigente() -> dict:

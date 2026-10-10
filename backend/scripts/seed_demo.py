@@ -55,7 +55,7 @@ def _semestre_vigente() -> str:
     return semestre_vigente()
 
 
-TURMA_SEMESTRE = None  # resolvido em main(), depois de o banco existir
+TURMA_SEMESTRE = ""  # resolvido em main(), depois de o banco existir
 
 # Conteúdo médico real (material_demo.py): o primeiro PDF da demonstração.
 MATERIAL_TITULO = IC_AGUDA["titulo"]

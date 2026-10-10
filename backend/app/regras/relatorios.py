@@ -80,7 +80,7 @@ def _porcento(parte, total):
 # Quem pode ver qual turma
 # =========================================================================
 
-def _quem(conexao, email: str):
+def _quem(conexao, email: str) -> tuple[int, str] | tuple[None, None]:
     usuario = buscar_usuario(conexao, email)
     return (usuario[0], usuario[1]) if usuario and usuario[1] in ("adm", "professor") else (None, None)
 
@@ -119,20 +119,20 @@ def turmas_para_relatorio(email: str) -> dict:
 
 
 def _abrir(email: str, coorte_id: int):
-    """Confere o acesso e devolve (conexao, turma, disciplinas) ou um erro."""
+    """Confere o acesso e devolve (conexao, turma, disciplinas) ou o dict de erro."""
     conexao = conectar()
     usuario_id, tipo = _quem(conexao, email)
-    if not usuario_id:
+    if usuario_id is None or tipo is None:
         conexao.close()
-        return None, {"sucesso": False, "mensagem": "Relatórios são da administração e dos professores."}
+        return {"sucesso": False, "mensagem": "Relatórios são da administração e dos professores."}
     turma = conexao.execute("SELECT id, nome, semestre FROM coortes WHERE id = ?", (int(coorte_id),)).fetchone()
     disciplinas = _disciplinas_da_turma(conexao, usuario_id, tipo, coorte_id) if turma else []
     if not turma or not disciplinas:
         conexao.close()
         # A mesma resposta para turma que não existe e turma sem disciplina
         # dele: o professor não descobre por aqui quais turmas existem.
-        return None, {"sucesso": False, "mensagem": "Turma não encontrada entre as suas."}
-    return (conexao, {"id": turma[0], "nome": turma[1], "semestre": turma[2]}, disciplinas), None
+        return {"sucesso": False, "mensagem": "Turma não encontrada entre as suas."}
+    return conexao, {"id": turma[0], "nome": turma[1], "semestre": turma[2]}, disciplinas
 
 
 # =========================================================================
@@ -216,9 +216,9 @@ def _bloco_vazio():
 
 
 def relatorio_mensal(email: str, coorte_id: int) -> dict:
-    aberto, erro = _abrir(email, coorte_id)
-    if erro:
-        return erro
+    aberto = _abrir(email, coorte_id)
+    if isinstance(aberto, dict):
+        return aberto
     conexao, turma, disciplinas = aberto
     try:
         ids = [d[0] for d in disciplinas]
@@ -228,7 +228,7 @@ def relatorio_mensal(email: str, coorte_id: int) -> dict:
         # Os meses: do primeiro registro até hoje. Mês sem nada no meio aparece
         # (zerado); antes do primeiro registro, não — seria só ruído.
         datas = [_mes(q) for *_, q in _eventos_de_estudo(registros)]
-        datas += [_mes(a[4]) for a in registros["atividades"] if _quando(a[4]) and _quando(a[4]) < agora]
+        datas += [_mes(a[4]) for a in registros["atividades"] if (prazo := _quando(a[4])) and prazo < agora]
         datas = sorted(d for d in datas if d)
         if not datas:
             return {"sucesso": True, "turma": turma, "disciplinas": [{"id": i, "nome": n} for i, n in disciplinas], "meses": []}
@@ -338,9 +338,9 @@ def relatorio_mensal(email: str, coorte_id: int) -> dict:
 def painel_ao_vivo(email: str, coorte_id: int) -> dict:
     """O que está acontecendo: última hora, últimas 24 horas, atividades em
     aberto e os eventos mais recentes — sem nome de aluno."""
-    aberto, erro = _abrir(email, coorte_id)
-    if erro:
-        return erro
+    aberto = _abrir(email, coorte_id)
+    if isinstance(aberto, dict):
+        return aberto
     conexao, turma, disciplinas = aberto
     try:
         ids = [d[0] for d in disciplinas]
@@ -405,7 +405,8 @@ def painel_ao_vivo(email: str, coorte_id: int) -> dict:
            for _, t, _, q, titulo in registros["acessos"]]
         + [{"tipo": "pergunta", "disciplina": nomes[t], "detalhe": "", "quando": q} for _, t, _, _, q in perguntas]
     )
-    recentes = sorted((e for e in recentes if _quando(e["quando"])), key=lambda e: _quando(e["quando"]), reverse=True)
+    com_data = [(quando, e) for e in recentes if (quando := _quando(e["quando"]))]
+    recentes = [e for _, e in sorted(com_data, key=lambda par: par[0], reverse=True)]
 
     return {
         "sucesso": True,
@@ -450,9 +451,9 @@ def dificuldade_por_disciplina(admin_email: str, semestre: str | None = None) ->
             (semestre,),
         ).fetchall()
         ids = [d[0] for d in disciplinas]
-        registros = _registros(conexao, ids) if ids else None
+        registros = _registros(conexao, ids)
         agora = _agora()
-        situacoes = _situacao_das_entregas(registros, set(ids), agora) if ids else []
+        situacoes = _situacao_das_entregas(registros, set(ids), agora)
         linhas = []
         for turma_id, nome, nome_turma, professor in disciplinas:
             entregas = [e for e in registros["entregas"] if e[1] == turma_id]
@@ -477,7 +478,7 @@ def dificuldade_por_disciplina(admin_email: str, semestre: str | None = None) ->
                 "aproveitamento": _media(notas),
                 "corrigidas": len(notas),
                 "poucos_dados": len(notas) < MINIMO_DE_NOTAS,
-                "alunos_com_dificuldade": sum(1 for lista in por_aluno.values() if _media(lista) < LIMITE_DIFICULDADE),
+                "alunos_com_dificuldade": sum(1 for lista in por_aluno.values() if (media := _media(lista)) is not None and media < LIMITE_DIFICULDADE),
                 "alunos_com_nota": len(por_aluno),
                 "nao_entregues": _porcento(devidas.count("nao_entregues"), len(devidas)),
                 "atrasadas": _porcento(devidas.count("atrasadas"), len(devidas)),

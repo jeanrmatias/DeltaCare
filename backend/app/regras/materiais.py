@@ -131,6 +131,9 @@ def criar_material(
 
     conexao = conectar()
     professor = buscar_professor(conexao, professor_email)
+    if not professor:
+        conexao.close()
+        return {"sucesso": False, "mensagem": "Professor não encontrado."}
     agora = _agora()
 
     cursor = conexao.cursor()

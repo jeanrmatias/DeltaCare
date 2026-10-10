@@ -116,7 +116,7 @@ def criar_turma(
     conexao.close()
 
     matriculados = 0
-    if coorte_id is not None:
+    if coorte_id is not None and turma_id is not None:
         # Import aqui dentro para evitar ciclo: coortes importa deste módulo.
         from regras.coortes import sincronizar_disciplina
 

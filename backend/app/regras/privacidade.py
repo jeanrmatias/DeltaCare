@@ -535,8 +535,9 @@ def excluir_pela_administracao(admin_email: str, email: str, motivo: str, novo_p
 
         agora = _agora()
         anonimizar_em = agora + timedelta(days=PRAZO_ANONIMIZACAO_DIAS)
-        for turma_id in disciplinas:
-            passar_disciplina(conexao, turma_id, novo_id)
+        if novo_id is not None:
+            for turma_id in disciplinas:
+                passar_disciplina(conexao, turma_id, novo_id)
         conexao.execute("UPDATE users SET desativado_em = ? WHERE id = ?", (agora.isoformat(), alvo_id))
         conexao.execute("DELETE FROM sessoes WHERE user_id = ?", (alvo_id,))
         conexao.execute(

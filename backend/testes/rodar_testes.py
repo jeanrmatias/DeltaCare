@@ -15,6 +15,7 @@ traria uma dependência a mais para um projeto que tem quatro.
 um atalho, e o resultado tem que ser o mesmo.
 """
 
+import io
 import os
 import re
 import subprocess
@@ -86,7 +87,7 @@ def main() -> int:
     # justamente ao imprimir uma falha que o runner morria, escondendo a falha.
     # Troca o caractere por "?" em vez de derrubar o relatório.
     for fluxo in (sys.stdout, sys.stderr):
-        if hasattr(fluxo, "reconfigure"):
+        if isinstance(fluxo, io.TextIOWrapper):
             fluxo.reconfigure(errors="replace")
 
     processos = int(sys.argv[1]) if len(sys.argv) > 1 else (os.cpu_count() or 4)

@@ -93,6 +93,10 @@ def candidata(metodo: str, caminho: str) -> bool:
     return any(metodo == m and padrao.match(caminho) for m, padrao in _PADROES)
 
 
+def _sigilosa(chave) -> bool:
+    return any(sigilo in str(chave).lower() for sigilo in _SIGILOSOS)
+
+
 def _sem_sigilo(valor, profundidade: int = 0):
     """O valor sem as chaves sigilosas, em qualquer nível. Antes só o primeiro
     nível era filtrado: uma senha dentro de um objeto aninhado ia para a trilha
@@ -101,7 +105,7 @@ def _sem_sigilo(valor, profundidade: int = 0):
         return "…"
     if isinstance(valor, dict):
         return {str(chave): _sem_sigilo(item, profundidade + 1) for chave, item in valor.items()
-                if not any(sigilo in str(chave).lower() for sigilo in _SIGILOSOS)}
+                if not _sigilosa(chave)}
     if isinstance(valor, list):
         return [_sem_sigilo(item, profundidade + 1) for item in valor[:20]]
     return valor
@@ -111,7 +115,10 @@ def _limpar(corpo) -> dict:
     if not isinstance(corpo, dict):
         return {}
     limpo = {}
-    for chave, valor in _sem_sigilo(corpo).items():
+    for chave, valor in corpo.items():
+        if _sigilosa(chave):
+            continue
+        chave, valor = str(chave), _sem_sigilo(valor, 1)
         if isinstance(valor, str):
             valor = valor[:200]
         elif isinstance(valor, (list, dict)):

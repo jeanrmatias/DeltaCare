@@ -69,7 +69,7 @@ def criar_anotacao(aluno_email: str, material_id: int, texto: str, trecho: str =
     aluno = _buscar_aluno(conexao, aluno_email)
     visivel = material_visivel_para(conexao, aluno[0], material_id) if aluno else None
 
-    if not visivel:
+    if not aluno or not visivel:
         conexao.close()
         return {"sucesso": False, "mensagem": "Material não encontrado."}
 

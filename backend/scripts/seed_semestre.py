@@ -98,7 +98,10 @@ def _agora():
 
 
 def _semestre_anterior(semestre: str) -> str:
-    ano, periodo = (int(parte) for parte in normalizar_semestre(semestre).split("/"))
+    normalizado = normalizar_semestre(semestre)
+    if not normalizado:
+        raise ValueError(f"Semestre inválido: {semestre!r}")
+    ano, periodo = (int(parte) for parte in normalizado.split("/"))
     return f"{ano - 1}/2" if periodo == 1 else f"{ano}/1"
 
 
