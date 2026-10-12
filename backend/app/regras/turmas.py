@@ -175,6 +175,12 @@ def excluir_turma(admin_email: str, turma_id: int) -> dict:
             (turma_id,),
         ).fetchall()
     ]
+    arquivos_de_atividade = [
+        linha[0] for linha in cursor.execute(
+            "SELECT arquivo_caminho FROM atividades WHERE turma_id = ? AND arquivo_caminho IS NOT NULL",
+            (turma_id,),
+        ).fetchall()
+    ]
     arquivos_de_entrega = [
         linha[0] for linha in cursor.execute(
             f"SELECT arquivo_caminho FROM entregas WHERE atividade_id IN ({subconsulta_atividades})"
@@ -221,11 +227,19 @@ def excluir_turma(admin_email: str, turma_id: int) -> dict:
             "SELECT DISTINCT arquivo_caminho FROM materiais WHERE arquivo_caminho IS NOT NULL"
         ).fetchall()
     }
+    # O mesmo vale para o arquivo de atividade publicada em várias disciplinas.
+    atividades_em_uso = {
+        linha[0] for linha in cursor.execute(
+            "SELECT DISTINCT arquivo_caminho FROM atividades WHERE arquivo_caminho IS NOT NULL"
+        ).fetchall()
+    }
     conexao.close()
 
     from infra.arquivos import remover_arquivo
 
     for caminho in set(arquivos_de_material) - em_uso:
+        remover_arquivo(caminho)
+    for caminho in set(arquivos_de_atividade) - atividades_em_uso:
         remover_arquivo(caminho)
     for caminho in arquivos_de_entrega:
         remover_arquivo(caminho)

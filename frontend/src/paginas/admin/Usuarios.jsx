@@ -1,6 +1,7 @@
 import { useState } from "react"
 
 import { Botao } from "../../componentes/Botao"
+import { CampoArquivo } from "../../componentes/CampoArquivo"
 import { Carregando, Cartao, EstadoVazio, Numero, Numeros } from "../../componentes/Cartao"
 import { AreaDeTexto, Escolha, MensagemDeFormulario, Texto } from "../../componentes/Campos"
 import { AcoesDoModal, Modal } from "../../componentes/Modal"
@@ -315,11 +316,8 @@ function Importacao({ turmas, aoFechar, aoImportar }) {
         O cabeçalho pode estar escrito de várias formas ("Nome Completo", "Aluno", "E-mail", "RA").
       </p>
       <form onSubmit={importar} className="grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto">
-          Planilha
-          <input type="file" accept=".csv,.xlsx,.xlsm" required onChange={(e) => { setArquivo(e.target.files?.[0] || null); setRelatorio(null); setMensagem({ texto: "" }) }}
-            className="text-sm font-normal" />
-        </label>
+        <CampoArquivo rotulo="Planilha" nome={arquivo?.name} aceitos=".csv,.xlsx,.xlsm" obrigatorio
+          aoMudar={(e) => { setArquivo(e.target.files?.[0] || null); setRelatorio(null); setMensagem({ texto: "" }) }} />
         <Texto rotulo="Senha provisória" valor={senha} aoMudar={setSenha} placeholder="mínimo 8 caracteres" obrigatorio />
         <Escolha rotulo="Matricular todos na disciplina" valor={turma} aoMudar={setTurma} opcoes={[{ valor: "", rotulo: "Não matricular agora" }, ...turmas]} />
         <div className="flex flex-wrap items-end gap-2.5">

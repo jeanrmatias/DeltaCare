@@ -30,6 +30,16 @@ export function podeVisualizar(material) {
   return material.tipo !== "link" && Boolean(mimeVisualizavel(material.arquivo_nome))
 }
 
+/** O arquivo como data URL (data:<mime>;base64,...), que é como a API recebe. */
+export function lerComoBase64(arquivo) {
+  return new Promise((resolver, rejeitar) => {
+    const leitor = new FileReader()
+    leitor.onload = () => resolver(leitor.result)
+    leitor.onerror = () => rejeitar(leitor.error)
+    leitor.readAsDataURL(arquivo)
+  })
+}
+
 /**
  * Baixa pela rota autenticada. Não dá para ser um link direto: a navegação do
  * navegador não envia o header Authorization, e o token na URL ficaria no

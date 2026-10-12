@@ -1,5 +1,6 @@
 import { useState } from "react"
 
+import { ArquivoParaBaixar } from "../../componentes/ArquivoParaBaixar"
 import { Botao } from "../../componentes/Botao"
 import { Carregando, EstadoVazio } from "../../componentes/Cartao"
 import { Modal } from "../../componentes/Modal"
@@ -78,7 +79,7 @@ export function Conteudo() {
                   <Item key={`a${a.id}`}
                     selos={<><Selo>{a.tipo === "objetiva" ? "Objetiva" : "Dissertativa"}</Selo><Selo tom={a.status === "agendado" ? "alerta" : "sucesso"}>{a.status === "agendado" ? "Agendado" : "Publicado"}</Selo></>}
                     titulo={a.titulo}
-                    detalhe={`${a.pontos} pontos${a.prazo ? ` · prazo ${dataCurta(a.prazo)}` : ""} · ${a.entregues} de ${disciplina.total_alunos} entregaram`}
+                    detalhe={`${a.pontos} pontos${a.prazo ? ` · prazo ${dataCurta(a.prazo)}` : ""} · ${a.entregues} de ${disciplina.total_alunos} entregaram${a.arquivo_nome ? " · com arquivo anexado" : ""}`}
                     acao={<Botao variante="neutra" pequeno onClick={() => setVendo(a.id)}>{a.tipo === "objetiva" ? "Ver questões" : "Ver enunciado"}</Botao>} />
                 ))}
               </div>
@@ -146,6 +147,11 @@ function AtividadeSupervisionada({ id, aoFechar }) {
         <>
           <h2 className="mb-3 text-lg font-semibold text-navy-900">{dados.atividade.titulo} · {dados.atividade.turma_nome}</h2>
           {dados.atividade.enunciado && <p className="mb-4 text-sm whitespace-pre-wrap text-texto">{dados.atividade.enunciado}</p>}
+          {dados.atividade.arquivo_nome && (
+            <div className="mb-4">
+              <ArquivoParaBaixar caminho={`/admin/conteudo/atividades/${id}/arquivo`} nome={dados.atividade.arquivo_nome} />
+            </div>
+          )}
           <ol className="flex max-h-[60vh] list-decimal flex-col gap-3 overflow-y-auto pl-5">
             {dados.questoes.map((questao, i) => (
               <li key={i} className="text-sm text-texto">

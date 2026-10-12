@@ -244,7 +244,7 @@ def exportar_dados(aluno_email: str) -> dict:
         ),
         "entregas": todas(
             "SELECT a.titulo AS atividade, t.nome AS disciplina, a.tipo, e.respostas,"
-            "       e.enviado_em, e.nota, e.devolutiva, e.corrigido_em, e.arquivo_nome"
+            "       e.enviado_em, e.nota, e.devolutiva, e.corrigido_em, e.arquivo_nome, e.link_url"
             "  FROM entregas e JOIN atividades a ON a.id = e.atividade_id"
             "  JOIN turmas t ON t.id = a.turma_id"
             " WHERE e.aluno_id = ? ORDER BY e.enviado_em"

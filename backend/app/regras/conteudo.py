@@ -116,10 +116,10 @@ def visao_do_conteudo(admin_email: str, semestre: str | None = None) -> dict:
             })
 
         for (id_, turma_id, titulo, tipo, pontos, prazo, rascunho, data_liberacao,
-             total_questoes, entregues) in cursor.execute(
+             arquivo_nome, total_questoes, entregues) in cursor.execute(
             f"""
             SELECT a.id, a.turma_id, a.titulo, a.tipo, a.pontos, a.prazo, a.rascunho,
-                   a.data_liberacao,
+                   a.data_liberacao, a.arquivo_nome,
                    (SELECT COUNT(*) FROM questoes q WHERE q.atividade_id = a.id),
                    (SELECT COUNT(*) FROM entregas e
                      WHERE e.atividade_id = a.id AND e.enviado_em IS NOT NULL)
@@ -140,6 +140,7 @@ def visao_do_conteudo(admin_email: str, semestre: str | None = None) -> dict:
                 "prazo": prazo,
                 "status": status,
                 "data_liberacao": data_liberacao,
+                "arquivo_nome": arquivo_nome,
                 "total_questoes": total_questoes,
                 # Quantas entregas houve, e não o que foi entregue: é número
                 # de acompanhamento da coordenação, não trabalho de aluno.
@@ -167,7 +168,7 @@ def atividade_para_supervisao(admin_email: str, atividade_id: int) -> dict:
     atividade = conexao.execute(
         """
         SELECT a.id, a.titulo, a.enunciado, a.tipo, a.pontos, a.prazo, a.rascunho,
-               a.data_liberacao, t.nome
+               a.data_liberacao, t.nome, a.arquivo_nome
           FROM atividades a JOIN turmas t ON t.id = a.turma_id
          WHERE a.id = ?
         """,
@@ -206,6 +207,7 @@ def atividade_para_supervisao(admin_email: str, atividade_id: int) -> dict:
             "prazo": atividade[5],
             "status": _status_da_atividade(atividade[6], atividade[7]),
             "turma_nome": atividade[8],
+            "arquivo_nome": atividade[9],
         },
         "questoes": questoes,
     }
@@ -226,5 +228,26 @@ def arquivo_para_supervisao(admin_email: str, material_id: int):
     conexao.close()
 
     if not linha or not linha[0] or _status_do_material(linha[2], linha[3]) not in VISIVEIS:
+        return None
+    return linha[0], linha[1]
+
+
+def arquivo_de_atividade_para_supervisao(admin_email: str, atividade_id: int):
+    """(caminho, nome) do arquivo que o professor anexou a uma atividade
+    publicada ou agendada. É enunciado, não trabalho de aluno: a coordenação
+    vê, como vê o próprio enunciado."""
+    conexao = conectar()
+
+    if not _eh_admin(conexao, admin_email):
+        conexao.close()
+        return None
+
+    linha = conexao.execute(
+        "SELECT arquivo_caminho, arquivo_nome, rascunho, data_liberacao FROM atividades WHERE id = ?",
+        (int(atividade_id),),
+    ).fetchone()
+    conexao.close()
+
+    if not linha or not linha[0] or _status_da_atividade(linha[2], linha[3]) not in VISIVEIS:
         return None
     return linha[0], linha[1]

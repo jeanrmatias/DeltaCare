@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useSearchParams } from "react-router"
 
 import { Botao } from "../../componentes/Botao"
+import { CampoArquivo } from "../../componentes/CampoArquivo"
 import { Carregando, Cartao, EstadoVazio } from "../../componentes/Cartao"
 import { AreaDeTexto, Escolha, MensagemDeFormulario, Texto } from "../../componentes/Campos"
 import { ChecklistTurmas } from "../../componentes/ChecklistTurmas"
@@ -13,7 +14,7 @@ import { useApi } from "../../hooks/useApi"
 import { useDialogo } from "../../hooks/useDialogo"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
-import { baixarArquivo, podeVisualizar } from "../../lib/arquivos"
+import { baixarArquivo, lerComoBase64, podeVisualizar } from "../../lib/arquivos"
 import { dataDoCalendario } from "../../lib/datas"
 import { ROTULOS_TIPO_MATERIAL, STATUS_DO_MATERIAL } from "../../lib/formatos"
 
@@ -172,15 +173,6 @@ const TIPOS = [
 ]
 const LIMITE = 15 * 1024 * 1024
 
-function lerComoBase64(arquivo) {
-  return new Promise((resolver, rejeitar) => {
-    const leitor = new FileReader()
-    leitor.onload = () => resolver(leitor.result)
-    leitor.onerror = () => rejeitar(leitor.error)
-    leitor.readAsDataURL(arquivo)
-  })
-}
-
 function FormularioMaterial({ material, liberacaoInicial, turmas, turmaPadrao, aoFechar, aoSalvar }) {
   const editando = Boolean(material)
   const [campos, setCampos] = useState({
@@ -249,11 +241,8 @@ function FormularioMaterial({ material, liberacaoInicial, turmas, turmaPadrao, a
           {ehLink ? (
             <Texto rotulo="Link" tipo="url" valor={campos.link_url} aoMudar={mudar("link_url")} placeholder="https://..." obrigatorio />
           ) : !editando && (
-            <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto">
-              Arquivo
-              <input type="file" onChange={(e) => setArquivo(e.target.files?.[0] || null)} className="text-sm font-normal" />
-              <span className="text-xs font-normal text-texto-secundario">Até 15MB. PDF, DOC(X), TXT, ODT, MP4, MOV, WEBM ou MKV, conforme o tipo.</span>
-            </label>
+            <CampoArquivo rotulo="Arquivo" nome={arquivo?.name} aoMudar={(e) => setArquivo(e.target.files?.[0] || null)}
+              dica="Até 15MB. PDF, DOC(X), TXT, ODT, MP4, MOV, WEBM ou MKV, conforme o tipo." />
           )}
         </div>
 

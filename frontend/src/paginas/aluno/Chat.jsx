@@ -3,6 +3,7 @@ import { useNavigate } from "react-router"
 
 import { Botao } from "../../componentes/Botao"
 import { Carregando, EstadoVazio } from "../../componentes/Cartao"
+import { Icone } from "../../componentes/Icone"
 import { Markdown } from "../../componentes/Markdown"
 import { SeletorDisciplina } from "../../componentes/SeletorDisciplina"
 import { useApi } from "../../hooks/useApi"
@@ -212,12 +213,11 @@ function Conversa({ turma, turmas, aoMudar, focarSeletor }) {
   )
 }
 
-const SOBRESCRITOS = ["¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
-
 /**
- * Uma fala da conversa, num balão. A do assistente traz as fontes como nota de
- * rodapé de livro, numeradas: é o que diz que a resposta veio do material, e
- * não da cabeça do modelo. No modo automático, no topo, a disciplina de onde
+ * Uma fala da conversa, num balão. A do assistente traz embaixo de qual
+ * material a resposta saiu: é o que diz que ela veio do material, e não da
+ * cabeça do modelo. (Era nota de rodapé numerada, mas o texto não tinha o
+ * número que remetesse a ela, e o "¹" ficava solto.) No modo automático, no topo, a disciplina de onde
  * a resposta saiu.
  */
 function Bolha({ papel, conteudo, fontes, lacuna, disciplina }) {
@@ -250,13 +250,13 @@ function Bolha({ papel, conteudo, fontes, lacuna, disciplina }) {
         </aside>
       )}
       {fontes?.length > 0 && (
-        <footer className="mt-3 text-[13px] leading-snug text-texto-secundario">
-          <span aria-hidden="true" className="mb-1.5 block w-10 border-t border-borda-campo" />
-          {fontes.map((fonte, indice) => (
-            <p key={fonte}>
-              <span aria-hidden="true" className="mr-1 font-titulo">{SOBRESCRITOS[indice] ?? `${indice + 1}.`}</span>
-              <span className="sr-only">Fonte: </span>
-              {fonte}
+        <footer className="mt-3 flex flex-col gap-1 text-[13px] leading-snug text-texto-secundario">
+          {fontes.map((fonte) => (
+            <p key={fonte} className="flex items-start gap-1.5">
+              <Icone nome="materiais" tamanho={14} className="mt-[3px] shrink-0" />
+              <span>
+                <span className="font-semibold">Fonte:</span> {fonte}
+              </span>
             </p>
           ))}
         </footer>

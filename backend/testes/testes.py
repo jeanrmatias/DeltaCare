@@ -70,6 +70,9 @@ from regras.aluno import (  # noqa: E402
     faixa_do_nivel,
 )
 from regras.atividades import (  # noqa: E402
+    atualizar_atividade,
+    obter_arquivo_atividade,
+    obter_arquivo_atividade_do_aluno,
     obter_arquivo_entrega,
     corrigir_entrega,
     criar_atividade_em_turmas,
@@ -132,6 +135,7 @@ from infra.sessoes import buscar_usuario_da_sessao, criar_sessao, encerrar_sessa
 from regras import chat_ia  # noqa: E402
 
 from regras.conteudo import (  # noqa: E402
+    arquivo_de_atividade_para_supervisao,
     arquivo_para_supervisao,
     atividade_para_supervisao,
     visao_do_conteudo,
@@ -2663,15 +2667,30 @@ class TestesAtividadeComAnexo(BaseAnexo):
 
         self.assertFalse(resultado["sucesso"])
 
-    def test_atividade_antiga_continua_sem_anexo(self):
-        """Quem já existia não muda de comportamento por causa da migração."""
-        atividade = criar_atividade_em_turmas(
+    def test_dissertativa_sempre_aceita_arquivo(self):
+        """Sem dizer nada, ou pedindo "só texto", a dissertativa nasce com
+        arquivo opcional: o aluno sempre tem onde mandar o PDF do trabalho."""
+        sem_dizer = criar_atividade_em_turmas(
             PROFESSOR, [self.turma_id], titulo="Resenha", tipo="dissertativa", rascunho=False
         )["atividade_ids"][0]
+        so_texto = self.criar_com_anexo("nenhum")["atividade_ids"][0]
 
-        vista = obter_atividade_do_aluno(ALUNO, atividade)["atividade"]
+        self.assertEqual(obter_atividade_do_aluno(ALUNO, sem_dizer)["atividade"]["anexo"], "opcional")
+        self.assertEqual(obter_atividade_do_aluno(ALUNO, so_texto)["atividade"]["anexo"], "opcional")
 
-        self.assertEqual(vista["anexo"], "nenhum")
+    def test_as_antigas_so_texto_viram_arquivo_opcional(self):
+        """As criadas antes da mudança, gravadas com 'nenhum', passam a aceitar
+        arquivo quando o banco é configurado de novo (a subida do servidor)."""
+        atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE atividades SET anexo = 'nenhum' WHERE id = ?", (atividade,))
+        conexao.commit()
+        conexao.close()
+
+        configurar_banco(silencioso=True)
+
+        self.assertEqual(obter_atividade_do_aluno(ALUNO, atividade)["atividade"]["anexo"], "opcional")
+        self.assertTrue(enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "trabalho.pdf")["sucesso"])
 
     def test_a_listagem_do_professor_traz_o_anexo(self):
         """O formulário de edição lê daqui.
@@ -2742,12 +2761,19 @@ class TestesEntregaComArquivo(BaseAnexo):
 
         self.assertTrue(resultado["sucesso"], resultado)
 
-    def test_atividade_sem_anexo_recusa_arquivo(self):
-        atividade = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+    def test_objetiva_recusa_arquivo_na_entrega(self):
+        atividade = self.criar_objetiva()["atividade_ids"][0]
 
-        resultado = enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "arquivo.pdf")
+        resultado = enviar_entrega(ALUNO, atividade, [1, 1], PDF_BASE64, "arquivo.pdf")
 
         self.assertFalse(resultado["sucesso"])
+
+    def test_dissertativa_criada_como_so_texto_aceita_pdf(self):
+        atividade = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "trabalho.pdf")
+
+        self.assertTrue(resultado["sucesso"], resultado)
 
     def test_formato_proibido_e_recusado(self):
         atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
@@ -2905,6 +2931,329 @@ class TestesRotaDoAnexo(BaseAtividades):
 
         self.assertEqual(resposta.status_code, 404)
 
+
+# =========================================================================
+# O arquivo que o professor anexa à atividade
+#
+# Enunciado em PDF, artigo, caso clínico, a imagem de uma lâmina. Não tem a
+# ver com `anexo`, que é o que o aluno pode mandar. Publicada em várias
+# disciplinas, a atividade grava o arquivo uma vez e as linhas dividem o
+# caminho: excluir uma não pode levar o arquivo das outras.
+# =========================================================================
+
+PNG_BASE64 = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32).decode()
+
+
+class BaseArquivoDaAtividade(BaseAtividades):
+
+    def criar(self, turmas=None, arquivo_nome="caso-clinico.pdf", arquivo_base64=PDF_BASE64, **extra):
+        campos = dict(titulo="Caso clinico", tipo="dissertativa", enunciado="Leia o caso anexo.", rascunho=False)
+        campos.update(extra)
+        return criar_atividade_em_turmas(
+            PROFESSOR, turmas or [self.turma_id],
+            arquivo_base64=arquivo_base64, arquivo_nome=arquivo_nome, **campos,
+        )
+
+    def caminho_de(self, atividade_id):
+        arquivo = obter_arquivo_atividade(atividade_id, PROFESSOR)
+        assert arquivo is not None
+        return arquivo[0]
+
+    def tearDown(self):
+        import shutil
+
+        from infra.arquivos import PASTA_ATIVIDADES, PASTA_ENTREGAS
+
+        shutil.rmtree(PASTA_ATIVIDADES, ignore_errors=True)
+        shutil.rmtree(PASTA_ENTREGAS, ignore_errors=True)
+        super().tearDown()
+
+
+class TestesArquivoDaAtividade(BaseArquivoDaAtividade):
+
+    def test_o_aluno_ve_e_baixa_o_arquivo(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        self.assertEqual(obter_atividade_do_aluno(ALUNO, atividade)["atividade"]["arquivo_nome"], "caso-clinico.pdf")
+        listada = listar_atividades_do_aluno(ALUNO)["atividades"][0]
+        self.assertEqual(listada["arquivo_nome"], "caso-clinico.pdf")
+        arquivo = obter_arquivo_atividade_do_aluno(ALUNO, atividade)
+        assert arquivo is not None
+        self.assertTrue(os.path.isfile(arquivo[0]))
+        self.assertEqual(arquivo[1], "caso-clinico.pdf")
+
+    def test_o_professor_ve_o_nome_na_listagem_e_no_detalhe(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        self.assertEqual(listar_atividades(PROFESSOR)["atividades"][0]["arquivo_nome"], "caso-clinico.pdf")
+        self.assertEqual(obter_atividade(atividade, PROFESSOR)["atividade"]["arquivo_nome"], "caso-clinico.pdf")
+
+    def test_imagem_e_aceita(self):
+        """A lâmina ou o ECG do caso, sem precisar virar PDF."""
+        resultado = self.criar(arquivo_nome="lamina.png", arquivo_base64=PNG_BASE64)
+
+        self.assertTrue(resultado["sucesso"], resultado)
+
+    def test_formato_proibido_nao_cria_nada(self):
+        resultado = self.criar(arquivo_nome="virus.exe")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertEqual(listar_atividades(PROFESSOR)["atividades"], [])
+
+    def test_atividade_sem_arquivo_continua_funcionando(self):
+        atividade = self.criar(arquivo_nome="", arquivo_base64="")["atividade_ids"][0]
+
+        self.assertIsNone(obter_atividade_do_aluno(ALUNO, atividade)["atividade"]["arquivo_nome"])
+        self.assertIsNone(obter_arquivo_atividade(atividade, PROFESSOR))
+
+    def test_rascunho_nao_entrega_o_arquivo_ao_aluno(self):
+        """O arquivo não pode chegar antes do enunciado."""
+        atividade = self.criar(rascunho=True)["atividade_ids"][0]
+
+        self.assertIsNone(obter_arquivo_atividade_do_aluno(ALUNO, atividade))
+
+    def test_aluno_de_fora_da_disciplina_nao_baixa(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        self.assertIsNone(obter_arquivo_atividade_do_aluno(ALUNO_FORA, atividade))
+
+    def test_outro_professor_nao_baixa(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        self.assertIsNone(obter_arquivo_atividade(atividade, PROFESSOR2))
+
+
+class TestesArquivoDaAtividadeNoDisco(BaseArquivoDaAtividade):
+
+    def setUp(self):
+        super().setUp()
+        self.outra_turma = criar_turma(ADMIN, PROFESSOR, "Pneumologia", "2026.2")["turma"]["id"]
+
+    def test_em_varias_disciplinas_o_arquivo_e_gravado_uma_vez(self):
+        primeira, segunda = self.criar([self.turma_id, self.outra_turma])["atividade_ids"]
+
+        self.assertEqual(self.caminho_de(primeira), self.caminho_de(segunda))
+
+    def test_excluir_uma_nao_leva_o_arquivo_da_outra(self):
+        primeira, segunda = self.criar([self.turma_id, self.outra_turma])["atividade_ids"]
+        caminho = self.caminho_de(primeira)
+
+        excluir_atividade(primeira, PROFESSOR)
+        self.assertTrue(os.path.isfile(caminho))
+
+        excluir_atividade(segunda, PROFESSOR)
+        self.assertFalse(os.path.isfile(caminho))
+
+    def test_trocar_o_arquivo_apaga_o_antigo(self):
+        atividade = self.criar()["atividade_ids"][0]
+        antigo = self.caminho_de(atividade)
+
+        resultado = atualizar_atividade(atividade, PROFESSOR, arquivo_base64=PNG_BASE64, arquivo_nome="lamina.png")
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertFalse(os.path.isfile(antigo))
+        self.assertEqual(obter_atividade(atividade, PROFESSOR)["atividade"]["arquivo_nome"], "lamina.png")
+
+    def test_trocar_numa_disciplina_nao_mexe_na_outra(self):
+        primeira, segunda = self.criar([self.turma_id, self.outra_turma])["atividade_ids"]
+        compartilhado = self.caminho_de(segunda)
+
+        atualizar_atividade(primeira, PROFESSOR, arquivo_base64=PNG_BASE64, arquivo_nome="lamina.png")
+
+        self.assertTrue(os.path.isfile(compartilhado))
+        self.assertEqual(obter_atividade(segunda, PROFESSOR)["atividade"]["arquivo_nome"], "caso-clinico.pdf")
+
+    def test_remover_o_arquivo(self):
+        atividade = self.criar()["atividade_ids"][0]
+        caminho = self.caminho_de(atividade)
+
+        resultado = atualizar_atividade(atividade, PROFESSOR, remover_arquivo=True)
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertFalse(os.path.isfile(caminho))
+        self.assertIsNone(obter_atividade(atividade, PROFESSOR)["atividade"]["arquivo_nome"])
+
+    def test_troca_recusada_mantem_o_arquivo_de_antes(self):
+        atividade = self.criar()["atividade_ids"][0]
+        caminho = self.caminho_de(atividade)
+
+        resultado = atualizar_atividade(atividade, PROFESSOR, arquivo_base64=PDF_BASE64, arquivo_nome="virus.exe")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertEqual(self.caminho_de(atividade), caminho)
+        self.assertTrue(os.path.isfile(caminho))
+
+    def test_excluir_a_disciplina_apaga_o_arquivo(self):
+        atividade = self.criar()["atividade_ids"][0]
+        caminho = self.caminho_de(atividade)
+
+        excluir_turma(ADMIN, self.turma_id)
+
+        self.assertFalse(os.path.isfile(caminho))
+
+    def test_excluir_a_disciplina_preserva_o_arquivo_dividido(self):
+        _, segunda = self.criar([self.turma_id, self.outra_turma])["atividade_ids"]
+        caminho = self.caminho_de(segunda)
+
+        excluir_turma(ADMIN, self.turma_id)
+
+        self.assertTrue(os.path.isfile(caminho))
+
+
+class TestesArquivoDaAtividadeNaSupervisao(BaseArquivoDaAtividade):
+    """É enunciado, não trabalho de aluno: a coordenação vê."""
+
+    def test_a_coordenacao_baixa_o_arquivo_da_publicada(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        self.assertEqual(atividade_para_supervisao(ADMIN, atividade)["atividade"]["arquivo_nome"], "caso-clinico.pdf")
+        self.assertIsNotNone(arquivo_de_atividade_para_supervisao(ADMIN, atividade))
+
+    def test_rascunho_nao_abre_nem_para_a_coordenacao(self):
+        atividade = self.criar(rascunho=True)["atividade_ids"][0]
+
+        self.assertIsNone(arquivo_de_atividade_para_supervisao(ADMIN, atividade))
+
+    def test_professor_nao_usa_a_rota_da_coordenacao(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        self.assertIsNone(arquivo_de_atividade_para_supervisao(PROFESSOR, atividade))
+
+
+class TestesRotasDoArquivoDaAtividade(BaseArquivoDaAtividade):
+
+    def setUp(self):
+        super().setUp()
+
+        from fastapi.testclient import TestClient
+
+        import main
+
+        self.cliente = TestClient(main.app)
+
+    def _cab(self, email):
+        token = self.cliente.post("/login", json={"email": email, "senha": SENHA}).json()["token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_professor_publica_com_arquivo_pela_api(self):
+        resposta = self.cliente.post("/atividades", headers=self._cab(PROFESSOR), json={
+            "turma_ids": [self.turma_id], "titulo": "Caso", "tipo": "dissertativa", "rascunho": False,
+            "arquivo_base64": PDF_BASE64, "arquivo_nome": "caso.pdf",
+        })
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+        atividade = resposta.json()["atividade_ids"][0]
+        baixado = self.cliente.get(f"/atividades/{atividade}/arquivo", headers=self._cab(PROFESSOR))
+        self.assertEqual(baixado.status_code, 200)
+        self.assertIn("caso.pdf", baixado.headers.get("content-disposition", ""))
+
+    def test_aluno_baixa_pela_rota_dele(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        resposta = self.cliente.get(f"/aluno/atividades/{atividade}/arquivo", headers=self._cab(ALUNO))
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta.content.startswith(b"%PDF"))
+
+    def test_aluno_de_fora_recebe_404(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        resposta = self.cliente.get(f"/aluno/atividades/{atividade}/arquivo", headers=self._cab(ALUNO_FORA))
+
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_a_coordenacao_baixa_pela_rota_dela(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        resposta = self.cliente.get(f"/admin/conteudo/atividades/{atividade}/arquivo", headers=self._cab(ADMIN))
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_professor_troca_o_arquivo_pela_api(self):
+        atividade = self.criar()["atividade_ids"][0]
+
+        resposta = self.cliente.put(f"/atividades/{atividade}", headers=self._cab(PROFESSOR), json={
+            "arquivo_base64": PNG_BASE64, "arquivo_nome": "lamina.png",
+        })
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+        self.assertEqual(obter_atividade(atividade, PROFESSOR)["atividade"]["arquivo_nome"], "lamina.png")
+
+
+# =========================================================================
+# O link na entrega do aluno
+#
+# Drive, vídeo, apresentação online. Vale em toda dissertativa e é sempre
+# opcional: não conta para o anexo obrigatório, que continua pedindo arquivo.
+# =========================================================================
+
+class TestesLinkNaEntrega(BaseAnexo):
+
+    def test_a_entrega_guarda_o_link_e_o_professor_ve(self):
+        atividade = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "Segue o video.", link_url="https://exemplo.com/video")
+
+        self.assertTrue(resultado["sucesso"], resultado)
+        self.assertEqual(obter_atividade_do_aluno(ALUNO, atividade)["entrega"]["link_url"], "https://exemplo.com/video")
+        minha = [e for e in listar_entregas(atividade, PROFESSOR)["entregas"] if e["aluno_email"] == ALUNO][0]
+        self.assertEqual(minha["link_url"], "https://exemplo.com/video")
+
+    def test_link_e_arquivo_juntos(self):
+        atividade = self.criar_com_anexo("opcional")["atividade_ids"][0]
+
+        enviar_entrega(ALUNO, atividade, "texto", PDF_BASE64, "caso.pdf", link_url="https://exemplo.com")
+
+        entrega = obter_atividade_do_aluno(ALUNO, atividade)["entrega"]
+        self.assertEqual(entrega["arquivo_nome"], "caso.pdf")
+        self.assertEqual(entrega["link_url"], "https://exemplo.com")
+
+    def test_link_sem_http_e_recusado_e_nada_e_gravado(self):
+        atividade = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "texto", link_url="javascript:alert(1)")
+
+        self.assertFalse(resultado["sucesso"])
+        self.assertIsNone(obter_atividade_do_aluno(ALUNO, atividade)["entrega"]["enviado_em"])
+
+    def test_link_nao_cumpre_o_anexo_obrigatorio(self):
+        atividade = self.criar_com_anexo("obrigatorio")["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, "texto", link_url="https://exemplo.com")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_objetiva_nao_aceita_link(self):
+        atividade = self.criar_objetiva()["atividade_ids"][0]
+
+        resultado = enviar_entrega(ALUNO, atividade, [1, 1], link_url="https://exemplo.com")
+
+        self.assertFalse(resultado["sucesso"])
+
+    def test_entrega_sem_link_continua_sem_link(self):
+        atividade = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+
+        enviar_entrega(ALUNO, atividade, "so texto")
+
+        self.assertIsNone(obter_atividade_do_aluno(ALUNO, atividade)["entrega"]["link_url"])
+
+    def test_o_link_vai_na_rota_de_entrega(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        cliente = TestClient(main.app)
+        atividade = self.criar_com_anexo("nenhum")["atividade_ids"][0]
+        token = cliente.post("/login", json={"email": ALUNO, "senha": SENHA}).json()["token"]
+
+        resposta = cliente.post(
+            f"/aluno/atividades/{atividade}/entrega",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"respostas": "texto", "link_url": "https://exemplo.com/slides"},
+        )
+
+        self.assertTrue(resposta.json()["sucesso"], resposta.text)
+        self.assertEqual(obter_atividade_do_aluno(ALUNO, atividade)["entrega"]["link_url"], "https://exemplo.com/slides")
 
 
 # =========================================================================

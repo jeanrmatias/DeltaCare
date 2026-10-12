@@ -47,6 +47,7 @@ from regras.turmas import (
     trocar_professor,
 )
 from regras.conteudo import (
+    arquivo_de_atividade_para_supervisao,
     arquivo_para_supervisao,
     atividade_para_supervisao,
     visao_do_conteudo,
@@ -122,6 +123,8 @@ from regras.atividades import (
     listar_atividades,
     listar_atividades_do_aluno,
     listar_entregas,
+    obter_arquivo_atividade,
+    obter_arquivo_atividade_do_aluno,
     obter_arquivo_entrega,
     obter_atividade,
     obter_atividade_do_aluno,
@@ -523,6 +526,8 @@ class EntregaRequest(BaseModel):
     respostas: Any = None
     arquivo_base64: Optional[str] = None
     arquivo_nome: Optional[str] = None
+    # Sempre opcional, em qualquer dissertativa (Drive, vídeo, apresentação).
+    link_url: Optional[str] = None
 
 
 class AtividadeRequest(BaseModel):
@@ -543,6 +548,10 @@ class AtividadeRequest(BaseModel):
     # 'nenhum' (padrão), 'opcional' ou 'obrigatorio'. Só vale em dissertativa —
     # numa objetiva o sistema corrige pelo gabarito e ninguém leria o arquivo.
     anexo: str = "nenhum"
+    # O arquivo que o **professor** anexa (enunciado, artigo, imagem). Não tem
+    # a ver com `anexo`, que é o que o aluno pode mandar.
+    arquivo_base64: Optional[str] = None
+    arquivo_nome: Optional[str] = None
 
 
 class AtividadeAtualizacaoRequest(BaseModel):
@@ -555,6 +564,10 @@ class AtividadeAtualizacaoRequest(BaseModel):
     data_liberacao: Optional[str] = None
     prazo: Optional[str] = None
     anexo: Optional[str] = None
+    # Um arquivo novo substitui o anterior; remover_arquivo tira sem pôr outro.
+    arquivo_base64: Optional[str] = None
+    arquivo_nome: Optional[str] = None
+    remover_arquivo: Optional[bool] = None
 
 
 class CorrecaoRequest(BaseModel):
@@ -998,6 +1011,8 @@ def criar_atividade_rota(dados: AtividadeRequest, professor: dict = Depends(usua
         prazo=dados.prazo,
         questoes=[q.model_dump() for q in (dados.questoes or [])],
         anexo=dados.anexo,
+        arquivo_base64=dados.arquivo_base64,
+        arquivo_nome=dados.arquivo_nome,
     )
 
 
@@ -1022,6 +1037,17 @@ def atualizar_atividade_rota(
     professor: dict = Depends(usuario_professor),
 ):
     return atualizar_atividade(atividade_id, professor["email"], **dados.model_dump(exclude_none=True))
+
+
+@app.get("/atividades/{atividade_id}/arquivo")
+def baixar_arquivo_atividade(atividade_id: int, professor: dict = Depends(usuario_professor)):
+    resultado = obter_arquivo_atividade(atividade_id, professor["email"])
+
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+
+    caminho, nome_original = resultado
+    return FileResponse(caminho, filename=nome_original)
 
 
 @app.delete("/atividades/{atividade_id}")
@@ -1056,6 +1082,18 @@ def obter_atividade_do_aluno_rota(atividade_id: int, aluno: dict = Depends(usuar
     return obter_atividade_do_aluno(aluno["email"], atividade_id)
 
 
+@app.get("/aluno/atividades/{atividade_id}/arquivo")
+def baixar_arquivo_atividade_do_aluno(atividade_id: int, aluno: dict = Depends(usuario_aluno)):
+    """O arquivo que o professor anexou. Só sai com a atividade liberada."""
+    resultado = obter_arquivo_atividade_do_aluno(aluno["email"], atividade_id)
+
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+
+    caminho, nome_original = resultado
+    return FileResponse(caminho, filename=nome_original)
+
+
 @app.post("/aluno/atividades/{atividade_id}/progresso")
 def salvar_progresso_rota(
     atividade_id: int,
@@ -1078,6 +1116,7 @@ def enviar_entrega_rota(
         dados.respostas,
         dados.arquivo_base64 or "",
         dados.arquivo_nome or "",
+        dados.link_url or "",
     )
 
 
@@ -1244,6 +1283,15 @@ def conteudo_rota(semestre: Optional[str] = None, admin: dict = Depends(usuario_
 @app.get("/admin/conteudo/atividades/{atividade_id}")
 def atividade_supervisao_rota(atividade_id: int, admin: dict = Depends(usuario_admin)):
     return atividade_para_supervisao(admin["email"], atividade_id)
+
+
+@app.get("/admin/conteudo/atividades/{atividade_id}/arquivo")
+def arquivo_de_atividade_supervisao_rota(atividade_id: int, admin: dict = Depends(usuario_admin)):
+    resultado = arquivo_de_atividade_para_supervisao(admin["email"], atividade_id)
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+    caminho, nome_original = resultado
+    return FileResponse(caminho, filename=nome_original)
 
 
 @app.get("/admin/conteudo/materiais/{material_id}/arquivo")

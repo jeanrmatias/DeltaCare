@@ -1,6 +1,8 @@
 import { useState } from "react"
 
+import { ArquivoParaBaixar } from "../../componentes/ArquivoParaBaixar"
 import { Botao } from "../../componentes/Botao"
+import { CampoArquivo } from "../../componentes/CampoArquivo"
 import { Carregando, EstadoVazio, Numero, Numeros } from "../../componentes/Cartao"
 import { MensagemDeFormulario } from "../../componentes/Campos"
 import { Modal } from "../../componentes/Modal"
@@ -80,7 +82,11 @@ const temNota = (nota) => nota !== null && nota !== undefined
 function LinhaAtividade({ atividade, aoAbrir }) {
   const situacao = SITUACOES[atividade.situacao] || SITUACOES.pendente
   const entregue = atividade.situacao === "entregue" || atividade.situacao === "corrigida"
-  const detalhes = [atividade.tipo === "objetiva" && `${atividade.total_questoes} questão(ões)`, `vale ${atividade.pontos}`].filter(Boolean)
+  const detalhes = [
+    atividade.tipo === "objetiva" && `${atividade.total_questoes} questão(ões)`,
+    `vale ${atividade.pontos}`,
+    atividade.arquivo_nome && "com arquivo do professor",
+  ].filter(Boolean)
 
   let prazo = null
   if (atividade.atrasada) prazo = <p className="mt-1.5 text-[14px] font-semibold text-perigo">Entregue com atraso</p>
@@ -148,6 +154,7 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
       : typeof entrega.respostas === "string" ? entrega.respostas : "",
   )
   const [arquivo, setArquivo] = useState(null)
+  const [link, setLink] = useState("")
   const [mensagem, setMensagem] = useState(() =>
     !entregue && venceu(atividade.prazo) ? { texto: "O prazo já venceu. A entrega será registrada como atrasada.", sucesso: false } : { texto: "" },
   )
@@ -178,6 +185,9 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
       if (anexo === "obrigatorio" && !arquivo) {
         return setMensagem({ texto: "Esta atividade exige um arquivo. Escolha o arquivo antes de entregar." })
       }
+      if (link.trim() && !/^https?:\/\//.test(link.trim())) {
+        return setMensagem({ texto: "O link precisa começar com http:// ou https://." })
+      }
       const faltando = objetiva
         ? respostas.filter((r) => r === null || r === undefined).length
         : String(respostas).trim() || anexo === "obrigatorio" ? 0 : 1
@@ -189,6 +199,7 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
 
     const corpo = { respostas }
     if (definitivo && arquivo) Object.assign(corpo, { arquivo_base64: arquivo.base64, arquivo_nome: arquivo.nome })
+    if (definitivo && link.trim()) corpo.link_url = link.trim()
 
     setEnviando(true)
     try {
@@ -212,6 +223,7 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
   return (
     <div className="flex flex-col gap-4">
       {atividade.enunciado && <p className="text-sm leading-relaxed whitespace-pre-wrap text-texto">{atividade.enunciado}</p>}
+      {atividade.arquivo_nome && <ArquivoParaBaixar caminho={`/aluno/atividades/${atividade.id}/arquivo`} nome={atividade.arquivo_nome} />}
 
       {objetiva ? (
         questoes.map((questao, indice) => (
@@ -246,10 +258,20 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
       )}
 
       {!entregue && anexo !== "nenhum" && (
+        <CampoArquivo rotulo={`Arquivo da entrega (${anexo === "obrigatorio" ? "obrigatório" : "opcional"})`}
+          nome={arquivo?.nome} aceitos={ACEITOS} aoMudar={escolherArquivo}
+          dica="Até 15MB. PDF, documento, imagem, planilha ou apresentação." />
+      )}
+
+      {/* Sempre opcional: não conta para o arquivo obrigatório. */}
+      {!entregue && !objetiva && (
         <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto">
-          Arquivo da entrega ({anexo === "obrigatorio" ? "obrigatório" : "opcional"})
-          <input type="file" accept={ACEITOS} onChange={escolherArquivo} className="text-sm font-normal" />
-          <span className="text-xs font-normal text-texto-secundario">Até 15MB. PDF, documento, imagem, planilha ou apresentação.</span>
+          Link (opcional)
+          <input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..."
+            className="rounded-campo border border-borda-campo px-3 py-2.5 text-sm font-normal outline-none focus:border-primaria" />
+          <span className="text-xs font-normal text-texto-secundario">
+            Google Drive, vídeo, apresentação online.{anexo === "obrigatorio" && " Não substitui o arquivo obrigatório."}
+          </span>
         </label>
       )}
 
@@ -292,6 +314,10 @@ function Resultado({ atividade, entrega }) {
         <button type="button" onClick={baixarAnexo} className="mt-2 text-[14px] font-semibold text-primaria hover:underline">
           Anexo enviado: {entrega.arquivo_nome}
         </button>
+      )}
+      {entrega.link_url && (
+        <a href={entrega.link_url} target="_blank" rel="noopener noreferrer"
+          className="mt-2 block text-[14px] font-semibold text-primaria [overflow-wrap:anywhere] hover:underline">Link enviado: {entrega.link_url}</a>
       )}
     </div>
   )

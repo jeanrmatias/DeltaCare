@@ -728,6 +728,9 @@ def configurar_banco(silencioso: bool = False):
         cursor.execute(
             "ALTER TABLE atividades ADD COLUMN anexo TEXT NOT NULL DEFAULT 'nenhum'"
         )
+    # Dissertativa passou a aceitar arquivo sempre (ver regras/atividades.py):
+    # as criadas como "só texto" viram "arquivo opcional".
+    cursor.execute("UPDATE atividades SET anexo = 'opcional' WHERE tipo = 'dissertativa' AND anexo = 'nenhum'")
 
     # O nome original fica no banco e o arquivo no disco com nome de uuid: nome
     # vindo do cliente traz "../" e colide entre dois alunos que chamaram o
@@ -738,6 +741,18 @@ def configurar_banco(silencioso: bool = False):
         cursor.execute("ALTER TABLE entregas ADD COLUMN arquivo_nome TEXT")
     if "arquivo_caminho" not in colunas_entregas:
         cursor.execute("ALTER TABLE entregas ADD COLUMN arquivo_caminho TEXT")
+    # Link que o aluno manda junto (Drive, vídeo, apresentação online). Sempre
+    # opcional: não conta para o anexo obrigatório, que continua pedindo arquivo.
+    if "link_url" not in colunas_entregas:
+        cursor.execute("ALTER TABLE entregas ADD COLUMN link_url TEXT")
+
+    # O arquivo que o professor anexa à atividade (enunciado, artigo, imagem).
+    # Não confundir com `anexo`, que diz o que o **aluno** pode mandar. Publicada
+    # em várias disciplinas, a atividade grava o arquivo uma vez e as linhas
+    # dividem o caminho, como no material.
+    if "arquivo_caminho" not in colunas_atividades:
+        cursor.execute("ALTER TABLE atividades ADD COLUMN arquivo_nome TEXT")
+        cursor.execute("ALTER TABLE atividades ADD COLUMN arquivo_caminho TEXT")
 
     # Conteúdo reportado por aluno ou professor.
     #

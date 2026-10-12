@@ -1,7 +1,9 @@
 import { useState } from "react"
 import { useSearchParams } from "react-router"
 
+import { ArquivoParaBaixar } from "../../componentes/ArquivoParaBaixar"
 import { Botao } from "../../componentes/Botao"
+import { CampoArquivo } from "../../componentes/CampoArquivo"
 import { Carregando, Cartao, EstadoVazio } from "../../componentes/Cartao"
 import { AreaDeTexto, Escolha, MensagemDeFormulario, Texto } from "../../componentes/Campos"
 import { ChecklistTurmas } from "../../componentes/ChecklistTurmas"
@@ -12,7 +14,7 @@ import { useApi } from "../../hooks/useApi"
 import { useDialogo } from "../../hooks/useDialogo"
 import { Cabecalho } from "../../layout/Painel"
 import { api, ERRO_DE_CONEXAO } from "../../lib/api"
-import { baixarArquivo } from "../../lib/arquivos"
+import { baixarArquivo, lerComoBase64 } from "../../lib/arquivos"
 import { dataDoCalendario } from "../../lib/datas"
 import { dataEHora, STATUS_DO_MATERIAL } from "../../lib/formatos"
 import { questaoParaEnvio, removerAlternativa } from "../../lib/questoes"
@@ -99,6 +101,7 @@ function LinhaAtividade({ atividade, aoEditar, aoExcluir, aoCorrigir }) {
     atividade.tipo === "objetiva" && `${atividade.total_questoes} questão(ões)`,
     `vale ${atividade.pontos}`,
     atividade.prazo && `prazo ${dataEHora(atividade.prazo)}`,
+    atividade.arquivo_nome && "com arquivo anexado",
   ].filter(Boolean)
 
   return (
@@ -128,21 +131,29 @@ function LinhaAtividade({ atividade, aoEditar, aoExcluir, aoCorrigir }) {
 }
 
 const questaoVazia = () => ({ enunciado: "", alternativas: ["", ""], correta: 0 })
+// Em dissertativa o aluno sempre pode mandar arquivo; o professor só diz se
+// é obrigatório.
 const ANEXOS = [
-  { valor: "nenhum", rotulo: "Só texto" },
-  { valor: "opcional", rotulo: "Texto, com arquivo opcional" },
+  { valor: "opcional", rotulo: "Arquivo opcional" },
   { valor: "obrigatorio", rotulo: "Arquivo obrigatório" },
 ]
+const LIMITE_ARQUIVO = 15 * 1024 * 1024
+const ACEITOS_ATIVIDADE = ".pdf,.doc,.docx,.odt,.txt,.png,.jpg,.jpeg,.webp"
 
 function FormularioAtividade({ atividade, prazoInicial, turmas, turmaPadrao, aoFechar, aoSalvar }) {
   const editando = Boolean(atividade)
   const [campos, setCampos] = useState({
     titulo: atividade?.titulo || "", enunciado: atividade?.enunciado || "", tipo: atividade?.tipo || "objetiva",
-    anexo: atividade?.anexo || "nenhum", pontos: String(atividade?.pontos ?? 10), assunto: atividade?.assunto || "",
+    anexo: atividade?.anexo && atividade.anexo !== "nenhum" ? atividade.anexo : "opcional", pontos: String(atividade?.pontos ?? 10), assunto: atividade?.assunto || "",
     topico: atividade?.topico || "", data_liberacao: atividade?.data_liberacao || null, prazo: atividade?.prazo || prazoInicial || null,
   })
   const [marcadas, setMarcadas] = useState(turmaPadrao ? [turmaPadrao] : [])
   const [questoes, setQuestoes] = useState([questaoVazia()])
+  // O arquivo que o professor anexa (enunciado, artigo, imagem). Na edição,
+  // um novo substitui o atual, e "Remover" tira sem pôr outro.
+  const [arquivo, setArquivo] = useState(null)
+  const [removerArquivo, setRemoverArquivo] = useState(false)
+  const arquivoAtual = editando && !removerArquivo ? atividade.arquivo_nome : null
   const [mensagem, setMensagem] = useState("")
   const [enviando, setEnviando] = useState(false)
   const mudar = (nome) => (valor) => setCampos((atual) => ({ ...atual, [nome]: valor }))
@@ -161,8 +172,11 @@ function FormularioAtividade({ atividade, prazoInicial, turmas, turmaPadrao, aoF
         corpo.questoes = questoes.map(questaoParaEnvio)
       }
     }
+    if (arquivo && arquivo.size > LIMITE_ARQUIVO) return setMensagem("O arquivo passa do limite de 15MB.")
     setEnviando(true)
     try {
+      if (arquivo) Object.assign(corpo, { arquivo_base64: await lerComoBase64(arquivo), arquivo_nome: arquivo.name })
+      else if (editando && removerArquivo) corpo.remover_arquivo = true
       const resposta = editando
         ? await api(`/atividades/${atividade.id}`, { method: "PUT", body: JSON.stringify(corpo) })
         : await api("/atividades", { method: "POST", body: JSON.stringify(corpo) })
@@ -183,6 +197,19 @@ function FormularioAtividade({ atividade, prazoInicial, turmas, turmaPadrao, aoF
         <Texto rotulo="Título" valor={campos.titulo} aoMudar={mudar("titulo")} obrigatorio placeholder="ex.: Quiz — Arritmias" />
         {!editando && <ChecklistTurmas turmas={turmas} marcadas={marcadas} aoMudar={setMarcadas} acao="criada" />}
         <AreaDeTexto rotulo="Enunciado (opcional)" valor={campos.enunciado} aoMudar={mudar("enunciado")} linhas={3} />
+
+        <div className="flex flex-col gap-2">
+          <CampoArquivo rotulo={arquivoAtual ? "Trocar o arquivo da atividade" : "Arquivo da atividade (opcional)"}
+            nome={arquivo?.name} aceitos={ACEITOS_ATIVIDADE} aoMudar={(e) => setArquivo(e.target.files?.[0] || null)}
+            dica="Até 15MB. PDF, documento ou imagem (o enunciado, um artigo, um caso clínico). Os alunos baixam junto com a atividade." />
+          {arquivoAtual && !arquivo && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-texto-secundario">Atual:</span>
+              <ArquivoParaBaixar caminho={`/atividades/${atividade.id}/arquivo`} nome={arquivoAtual} />
+              <button type="button" onClick={() => setRemoverArquivo(true)} className="text-xs font-semibold text-perigo hover:underline">Remover arquivo</button>
+            </div>
+          )}
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {editando
@@ -319,6 +346,10 @@ function LinhaEntrega({ entrega, questoes, aoCorrigir }) {
         {entrega.entregue && Array.isArray(entrega.respostas) && <GabaritoDoAluno questoes={questoes} escolhas={entrega.respostas} />}
         {entrega.arquivo_nome && (
           <button type="button" onClick={baixarAnexo} className="mt-2 text-[14px] font-semibold text-primaria hover:underline">Anexo: {entrega.arquivo_nome}</button>
+        )}
+        {entrega.link_url && (
+          <a href={entrega.link_url} target="_blank" rel="noopener noreferrer"
+            className="mt-2 block text-[14px] font-semibold text-primaria [overflow-wrap:anywhere] hover:underline">Link: {entrega.link_url}</a>
         )}
         {entrega.devolutiva && <p className="mt-2 text-[14px] text-texto-secundario italic">Devolutiva: {entrega.devolutiva}</p>}
       </div>

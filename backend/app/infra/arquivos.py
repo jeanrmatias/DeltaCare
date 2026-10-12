@@ -19,6 +19,7 @@ import uuid
 RAIZ_UPLOADS = os.environ.get("DELTACARE_UPLOADS", "uploads")
 PASTA_UPLOADS = os.path.join(RAIZ_UPLOADS, "materiais")
 PASTA_ENTREGAS = os.path.join(RAIZ_UPLOADS, "entregas")
+PASTA_ATIVIDADES = os.path.join(RAIZ_UPLOADS, "atividades")
 TAMANHO_MAXIMO_MB = 15
 TAMANHO_MAXIMO_BYTES = TAMANHO_MAXIMO_MB * 1024 * 1024
 
@@ -26,6 +27,9 @@ EXTENSOES_PERMITIDAS = {
     "pdf": {".pdf"},
     "documento": {".pdf", ".doc", ".docx", ".txt", ".odt"},
     "video": {".mp4", ".mov", ".webm", ".mkv"},
+    # O arquivo que o professor anexa à atividade: o enunciado em PDF, um
+    # artigo, um caso clínico — ou a imagem de uma lâmina ou de um ECG.
+    "atividade": {".pdf", ".doc", ".docx", ".odt", ".txt", ".png", ".jpg", ".jpeg", ".webp"},
     # Entrega de aluno. Mais largo que "documento" porque em medicina o
     # trabalho pode ser a foto de uma peça anatômica, um traçado de ECG
     # digitalizado ou a planilha de um estudo — e recusar isso obrigaria o
