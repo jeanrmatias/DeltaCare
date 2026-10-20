@@ -9,10 +9,13 @@ import { MENUS } from "./menus"
 import { Perfil } from "./Perfil"
 import { Sino } from "./Sino"
 
-// Quanto arrastar (px) para a gaveta abrir pela borda ou fechar puxando.
+// Quanto arrastar (px) para a gaveta abrir ou fechar puxando.
 const ARRASTO_PARA_FECHAR = 80
-const ARRASTO_PARA_ABRIR = 50
-const BORDA_DA_TELA = 24
+const ARRASTO_PARA_ABRIR = 60
+// Onde o puxão para abrir pode começar: a metade direita da tela.
+const ZONA_DE_PUXAR = 0.5
+// Quanto o dedo pode descer antes de o gesto contar como rolagem da página.
+const TOLERANCIA_VERTICAL = 12
 
 /**
  * A moldura de toda tela logada: menu, a pessoa e, no meio, a página da vez
@@ -21,8 +24,9 @@ const BORDA_DA_TELA = 24
  * No computador e no tablet, o menu é a coluna da esquerda. No celular, uma
  * barra fina no topo e o menu numa gaveta que desliza da direita: aberto o
  * tempo todo, ocupava quase metade da tela antes do conteúdo (349 px de 844).
- * A gaveta abre pelo botão ou puxando da borda direita, e fecha tocando fora,
- * com Esc, escolhendo um item ou empurrando-a de volta.
+ * A gaveta abre pelo botão ou puxando para a esquerda na metade direita da
+ * tela, e fecha tocando fora, com Esc, escolhendo um item ou empurrando-a de
+ * volta.
  */
 export function Painel() {
   const { usuario } = useSessao()
@@ -146,6 +150,17 @@ function Rodape({ aoVerPerfil }) {
   )
 }
 
+/** O toque começou em algo que já usa o arrasto para o lado: campo de texto
+ * (selecionar, mover o cursor) ou área que rola na horizontal (tabela, gráfico). */
+function usaOArrastoParaOLado(elemento) {
+  for (let atual = elemento; atual && atual !== document.body; atual = atual.parentElement) {
+    if (atual.matches?.("input, textarea, select, [contenteditable='true']")) return true
+    const { overflowX } = getComputedStyle(atual)
+    if ((overflowX === "auto" || overflowX === "scroll") && atual.scrollWidth > atual.clientWidth) return true
+  }
+  return false
+}
+
 /**
  * O menu do celular, numa gaveta que vem da direita.
  *
@@ -182,16 +197,29 @@ function Gaveta({ aberta, aoFechar, aoAbrir, botaoMenu, tipo, aoVerPerfil }) {
     }
   }, [aberta, botaoMenu])
 
-  // Puxar da borda direita da tela abre a gaveta, como nos apps do celular.
+  // Puxar para a esquerda, começando na metade direita da tela, abre a
+  // gaveta. Começava só nos 24 px da borda — a faixa em que a navegação por
+  // gestos do celular pega o toque antes da página, e o puxão saía do site.
+  // Longe da borda, o gesto precisa ser para o lado (descer é rolar a página)
+  // e não pode começar no que já rola para o lado nem num campo de texto.
   useEffect(() => {
     if (aberta) return undefined
     let inicio = null
     const comecar = (evento) => {
       const dedo = evento.touches[0]
-      inicio = window.innerWidth < 768 && dedo.clientX > window.innerWidth - BORDA_DA_TELA ? dedo.clientX : null
+      const vale = evento.touches.length === 1 && window.innerWidth < 768
+        && dedo.clientX > window.innerWidth * (1 - ZONA_DE_PUXAR)
+        && !document.querySelector("dialog[open]") && !usaOArrastoParaOLado(evento.target)
+      inicio = vale ? { x: dedo.clientX, y: dedo.clientY } : null
     }
     const mover = (evento) => {
-      if (inicio !== null && inicio - evento.touches[0].clientX > ARRASTO_PARA_ABRIR) {
+      if (!inicio) return
+      const dedo = evento.touches[0]
+      const paraEsquerda = inicio.x - dedo.clientX
+      const vertical = Math.abs(dedo.clientY - inicio.y)
+      if (vertical > TOLERANCIA_VERTICAL && vertical > Math.abs(paraEsquerda)) {
+        inicio = null
+      } else if (paraEsquerda > ARRASTO_PARA_ABRIR && vertical < paraEsquerda / 2) {
         inicio = null
         aoAbrir()
       }
