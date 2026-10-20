@@ -31,7 +31,9 @@ main() {
 
   for _ in $(seq 1 20); do
     if curl -fs http://127.0.0.1:8000/saude >/dev/null; then
-      echo "No ar: $(git -C "$APP" log -1 --format='%h %s')"
+      # Como deltacare, dono do repositório: o git do root recusa ler
+      # ("dubious ownership") e a linha saía sem a versão.
+      echo "No ar: $(sudo -u deltacare -H git -C "$APP" log -1 --format='%h %s')"
       return 0
     fi
     sleep 1
