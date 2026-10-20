@@ -210,18 +210,40 @@ def gerar_resposta_chat(mensagens: list, schema: dict | None = None) -> dict:
     if not schema:
         return {"resposta": conteudo, "fontes_usadas": None, "cobertura": None, "lacuna": "", "assunto": ""}
 
+    # O Ollama local impõe o schema; o Ollama Cloud só o segue quase sempre
+    # (medido: 1 em 6 veio dentro de ```json, e com campo faltando ou de outro
+    # tipo nada o impede). Daí a cerca tirada e cada campo conferido aqui.
     try:
-        dados = json.loads(conteudo)
+        dados = json.loads(_sem_cerca_de_codigo(conteudo))
     except json.JSONDecodeError:
         return _resposta_fora_do_formato(conteudo)
+    if not isinstance(dados, dict):
+        return _resposta_fora_do_formato(conteudo)
 
+    def texto(campo):
+        valor = dados.get(campo)
+        return valor.strip() if isinstance(valor, str) else ""
+
+    fontes = dados.get("fontes_usadas")
     return {
-        "resposta": (dados.get("resposta") or "").strip(),
-        "fontes_usadas": dados.get("fontes_usadas"),
-        "cobertura": dados.get("cobertura"),
-        "lacuna": (dados.get("lacuna") or "").strip(),
-        "assunto": (dados.get("assunto") or "").strip(),
+        "resposta": texto("resposta"),
+        # Lista vazia, e não None, quando falta: None é "modelo sem schema" e
+        # cita tudo que a busca trouxe (ver responder_pergunta).
+        "fontes_usadas": fontes if isinstance(fontes, list) else [],
+        "cobertura": texto("cobertura") or None,
+        "lacuna": texto("lacuna"),
+        "assunto": texto("assunto"),
     }
+
+
+_CERCA_DE_CODIGO = re.compile(r"^```[A-Za-z]*\s*(.*?)\s*```$", re.S)
+
+
+def _sem_cerca_de_codigo(conteudo: str) -> str:
+    """Tira o bloco ```json ... ``` em volta do JSON, se houver."""
+    limpo = conteudo.strip()
+    achado = _CERCA_DE_CODIGO.match(limpo)
+    return achado.group(1) if achado else limpo
 
 
 _CAMPO_SOLTO = re.compile(r"^(resposta|assunto|lacuna|cobertura|fontes_usadas)\s*:\s*(.*)$", re.I)

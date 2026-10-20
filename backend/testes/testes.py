@@ -6382,6 +6382,38 @@ class TestesCoberturaDoChat(BaseDelta):
         self.assertEqual(resultado["cobertura"], "nenhuma")
         self.assertEqual(resultado["fontes"], [])
 
+    def test_json_dentro_de_cerca_de_codigo_e_lido(self):
+        """Visto no Ollama Cloud, que não impõe o schema: 1 em 6 respostas veio
+        dentro de ```json. O aluno via o JSON cru, e a cobertura se perdia."""
+        bruto = ('```json\n{\n  "assunto": "amoxicilina",\n  "lacuna": "dose para otite",\n'
+                 '  "resposta": "O material disponibilizado não cobre esse ponto.",\n'
+                 '  "fontes_usadas": [],\n  "cobertura": "nenhuma"\n}\n```')
+        with self._ollama_respondendo(bruto):
+            resultado = chat_ia.responder_pergunta(ALUNO, self.turma_id, "qual a dose de amoxicilina para otite?",
+                                                   gerar_embedding_fn=embedding_falso)
+
+        self.assertEqual(resultado["resposta"], "O material disponibilizado não cobre esse ponto.")
+        self.assertEqual(resultado["cobertura"], "nenhuma")
+
+    def test_json_sem_fontes_nao_cita_tudo_que_a_busca_trouxe(self):
+        """Sem schema imposto, o campo pode faltar. Faltando, era None — o sinal
+        de "modelo sem schema", que cita todo material recuperado."""
+        with self._ollama_respondendo('{"resposta": "Não sei."}'):
+            resultado = chat_ia.responder_pergunta(ALUNO, self.turma_id, "qual o tratamento da apendicite?",
+                                                   gerar_embedding_fn=embedding_falso)
+
+        self.assertEqual(resultado["fontes"], [])
+        self.assertEqual(resultado["cobertura"], "nenhuma")
+
+    def test_json_que_nao_e_objeto_nao_derruba_a_rota(self):
+        """Um JSON válido que não é objeto (uma lista, um texto) quebrava em .get()."""
+        for bruto in ('["Aula 3"]', '"O ventrículo esquerdo bombeia o sangue."', '{"resposta": 42, "fontes_usadas": "Aula 3"}'):
+            with self.subTest(bruto=bruto), self._ollama_respondendo(bruto):
+                resultado = chat_ia.responder_pergunta(ALUNO, self.turma_id, "o que faz o ventrículo esquerdo?",
+                                                       gerar_embedding_fn=embedding_falso)
+                self.assertTrue(resultado["sucesso"])
+                self.assertIsInstance(resultado["resposta"], str)
+
     def test_disciplina_sem_texto_legivel_nao_chama_o_modelo(self):
         """Só links: não há o que o modelo ler. Chamá-lo custava 10 a 20 s para ouvir 'não cobre'."""
         anatomia = criar_turma(ADMIN, PROFESSOR, "Anatomia", "2026.2")["turma"]["id"]

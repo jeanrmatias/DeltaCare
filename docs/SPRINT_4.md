@@ -276,7 +276,7 @@ resumo aqui, só com dado das sessões.
 
 | Verificação | Resultado em 05/10/2026 |
 |---|---|
-| Testes do backend (regras e rotas, sem o Ollama) | 606 passando |
+| Testes do backend (regras e rotas, sem o Ollama) | 644 passando |
 | Testes das telas React (renderizadas no Node) | 71 passando |
 | Lint do React (oxlint) | sem aviso |
 | Contrato front ↔ back | 139 chamadas conferidas, nenhuma sem rota |

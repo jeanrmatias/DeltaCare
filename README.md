@@ -594,7 +594,7 @@ npm test                           # telas React: rotas por perfil e componentes
 npm run lint                       # regras do React (hooks, componentes)
 ```
 
-- **Backend (606 testes):** permissões de cada perfil, visibilidade de
+- **Backend (644 testes):** permissões de cada perfil, visibilidade de
   material, sessão e limite de login, senha provisória, turmas e exceções,
   atividades e correção, XP e ranking, avisos, privacidade e anonimização,
   exclusão de conta pela administração e troca de professor, dois fatores,
