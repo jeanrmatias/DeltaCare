@@ -1,5 +1,7 @@
 import { useId } from "react"
 
+import { useVerSenha } from "../hooks/useVerSenha"
+
 /**
  * Campo de formulário com rótulo. **Controlado:** o valor mora no estado de
  * quem usa (`valor` + `aoMudar`), e não no próprio input — é assim que o
@@ -20,25 +22,29 @@ export function CampoTexto({
   // useId liga o <label> ao <input> sem inventar id à mão — dois campos
   // iguais na mesma tela não colidem.
   const id = useId()
+  const senha = useVerSenha(tipo, id)
 
   return (
     <div>
       <label htmlFor={id} className="mt-5 mb-2 block text-[14px] font-medium text-texto">
         {rotulo}
       </label>
-      <input
-        id={id}
-        type={tipo}
-        value={valor}
-        onChange={(evento) => aoMudar(evento.target.value)}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        required={obrigatorio}
-        minLength={minimo}
-        maxLength={maximo}
-        inputMode={modoTeclado}
-        className="w-full rounded-campo border border-borda-campo bg-white px-3.5 py-3 text-sm text-texto outline-none transition placeholder:text-texto-secundario focus:border-primaria focus:ring-3 focus:ring-primaria/12"
-      />
+      <div className="relative">
+        <input
+          id={id}
+          type={senha.tipo}
+          value={valor}
+          onChange={(evento) => aoMudar(evento.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          required={obrigatorio}
+          minLength={minimo}
+          maxLength={maximo}
+          inputMode={modoTeclado}
+          className={`w-full rounded-campo border border-borda-campo bg-white px-3.5 py-3 text-sm text-texto outline-none transition placeholder:text-texto-secundario focus:border-primaria focus:ring-3 focus:ring-primaria/12 ${senha.botao ? "pr-11" : ""}`}
+        />
+        {senha.botao}
+      </div>
     </div>
   )
 }

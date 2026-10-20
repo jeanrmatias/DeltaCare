@@ -1,5 +1,7 @@
 import { useId } from "react"
 
+import { useVerSenha } from "../hooks/useVerSenha"
+
 /**
  * Campos de formulário com rótulo em cima, no estilo das telas logadas
  * (o CampoTexto do login tem espaçamento próprio). Todos controlados:
@@ -8,8 +10,9 @@ import { useId } from "react"
 const classeCampo =
   "w-full rounded-campo border border-borda-campo bg-superficie px-3 py-2.5 text-sm text-texto outline-none focus:border-primaria"
 
-export function Rotulado({ rotulo, children, className = "" }) {
-  const id = useId()
+export function Rotulado({ rotulo, children, className = "", id: idDeFora }) {
+  const idProprio = useId()
+  const id = idDeFora ?? idProprio
   return (
     <div className={className}>
       <label htmlFor={id} className="mb-1.5 block text-[14px] font-medium text-texto">{rotulo}</label>
@@ -50,19 +53,26 @@ export function Escolha({ rotulo, valor, aoMudar, opcoes, className }) {
 }
 
 export function Texto({ rotulo, valor, aoMudar, tipo = "text", placeholder, maximo, obrigatorio = false, className }) {
+  // O id sai daqui, e não do Rotulado, porque o olho da senha precisa dele
+  // antes do input existir (aria-controls).
+  const id = useId()
+  const senha = useVerSenha(tipo, id)
   return (
-    <Rotulado rotulo={rotulo} className={className}>
-      {(id) => (
-        <input
-          id={id}
-          type={tipo}
-          value={valor}
-          onChange={(evento) => aoMudar(evento.target.value)}
-          placeholder={placeholder}
-          maxLength={maximo}
-          required={obrigatorio}
-          className={classeCampo}
-        />
+    <Rotulado rotulo={rotulo} className={className} id={id}>
+      {() => (
+        <div className="relative">
+          <input
+            id={id}
+            type={senha.tipo}
+            value={valor}
+            onChange={(evento) => aoMudar(evento.target.value)}
+            placeholder={placeholder}
+            maxLength={maximo}
+            required={obrigatorio}
+            className={`${classeCampo} ${senha.botao ? "pr-11" : ""}`}
+          />
+          {senha.botao}
+        </div>
       )}
     </Rotulado>
   )
