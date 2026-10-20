@@ -13,6 +13,10 @@ busca por similaridade, montagem do prompt, matrícula) recebe essas funções
 como parâmetro (gerar_embeddings_fn / gerar_embedding_fn / gerar_resposta_fn),
 então dá pra testar com versões falsas delas. O endereço do Ollama pode ser
 trocado pela variável de ambiente OLLAMA_URL (padrão http://127.0.0.1:11434).
+
+O chat pode ir para outro servidor (OLLAMA_CHAT_URL, com OLLAMA_API_KEY): é
+como o sistema roda num servidor sem GPU, com o modelo no Ollama Cloud e os
+embeddings no Ollama local, que é leve e não precisa de GPU.
 """
 
 import heapq
@@ -34,6 +38,11 @@ from regras.turmas import buscar_usuario, conectar
 # chat faz duas chamadas — eram 4 s de espera por pergunta, sem fazer nada.
 OLLAMA_URL_PADRAO = "http://127.0.0.1:11434"
 OLLAMA_URL = os.environ.get("OLLAMA_URL", OLLAMA_URL_PADRAO)
+# Para onde vai a geração da resposta. Sem definir, o mesmo Ollama dos
+# embeddings. Com o Ollama Cloud: OLLAMA_CHAT_URL=https://ollama.com e a chave
+# em OLLAMA_API_KEY. A chave só segue para este endereço, nunca para o local.
+OLLAMA_CHAT_URL = os.environ.get("OLLAMA_CHAT_URL") or OLLAMA_URL
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")
 MODELO_EMBEDDING = os.environ.get("MODELO_EMBEDDING", "nomic-embed-text")
 # Padrão é o gpt-oss:20b. Dá pra trocar com a variável MODELO_CHAT sem
 # mexer no código (ex.: pra testar com um modelo menor numa GPU com menos
@@ -138,16 +147,24 @@ def montar_schema_resposta(titulos_disponiveis: list) -> dict:
 # =========================================================================
 
 def _chamar_ollama(caminho: str, corpo: dict) -> dict:
+    # A geração da resposta pode morar em outro servidor; o resto (embeddings)
+    # fica sempre no Ollama local.
+    do_chat = caminho == "/api/chat"
+    base = OLLAMA_CHAT_URL if do_chat else OLLAMA_URL
+    cabecalhos = {"Content-Type": "application/json"}
+    if do_chat and OLLAMA_API_KEY:
+        cabecalhos["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
+
     requisicao = urllib.request.Request(
-        f"{OLLAMA_URL}{caminho}",
+        f"{base}{caminho}",
         data=json.dumps(corpo).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=cabecalhos,
     )
     try:
         with urllib.request.urlopen(requisicao, timeout=300) as resposta:
             return json.loads(resposta.read().decode("utf-8"))
     except OSError as erro:
-        raise RuntimeError(f"Não foi possível falar com o Ollama em {OLLAMA_URL}: {erro}") from erro
+        raise RuntimeError(f"Não foi possível falar com o Ollama em {base}: {erro}") from erro
 
 
 # Quantos trechos vão numa chamada de embedding. Um PDF de aula tem dezenas a

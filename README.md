@@ -242,6 +242,8 @@ modelo completo para o servidor está em
 | `DELTACARE_TELAS` | `frontend/dist` | Pasta das telas compiladas (`npm run build`) que a API entrega em `/app/` |
 | `DELTACARE_ORIGENS` | portas 5500 e 5173 da máquina local | De onde o navegador pode chamar a API (CORS). Com as telas servidas pela própria API, não é preciso mexer |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Onde está o servidor do modelo. Use o IP, não `localhost`: no Windows, `localhost` tenta o IPv6 antes e soma ~2 s a cada chamada (5 s por pergunta no chat) |
+| `OLLAMA_CHAT_URL` | o mesmo de `OLLAMA_URL` | Para onde vai só a geração da resposta. Servidor sem GPU: `https://ollama.com` (Ollama Cloud), com os embeddings no Ollama local |
+| `OLLAMA_API_KEY` | vazio | Chave do Ollama Cloud (ollama.com, Settings > Keys). Só é enviada para o `OLLAMA_CHAT_URL` |
 | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
 | `MODELO_EMBEDDING` | `nomic-embed-text` | Modelo que indexa o material |
 | `ESFORCO_RACIOCINIO` | `low` | Esforço de raciocínio do modelo (modelos que não raciocinam ignoram). `low` corta o tempo de resposta pela metade sem perder qualidade, medido |
@@ -503,6 +505,16 @@ a API **e** as telas (em `/app/`); na frente, o
 [Caddy](https://caddyserver.com) cuida do HTTPS. Os arquivos estão em
 [`deploy/`](deploy).
 
+**Sem GPU** (o caso de uma VPS comum, de 2 núcleos e 4 GB): a resposta do
+chat vai para o Ollama Cloud (`OLLAMA_CHAT_URL` e `OLLAMA_API_KEY`), e o
+servidor roda só o modelo de embeddings, que é leve.
+
+**Atalho:** num Ubuntu 24.04 novo, [`deploy/instalar.sh`](deploy/instalar.sh)
+faz os passos abaixo de uma vez (como root,
+`DOMINIO=seu.dominio bash instalar.sh`), menos preencher o `.env` e criar a
+primeira administração, que ele indica no fim. Para pôr no ar uma versão nova:
+[`deploy/atualizar.sh`](deploy/atualizar.sh).
+
 1. **Código e dependências**
    ```
    git clone <repositório> /opt/deltacare
@@ -524,7 +536,9 @@ a API **e** as telas (em `/app/`); na frente, o
 3. **Configuração:** copie `deploy/deltacare.env.exemplo` para
    `/etc/deltacare.env`, preencha (domínio, **SMTP — obrigatório**: é por ele
    que professor e administração recebem o código de acesso, pastas de dados) e
-   `chmod 600 /etc/deltacare.env`. Crie a pasta dos dados
+   proteja: `chown root:deltacare /etc/deltacare.env && chmod 640 /etc/deltacare.env`
+   (o grupo é porque o backup e a anonimização do passo 7 rodam como
+   `deltacare` e leem o arquivo). Crie a pasta dos dados
    (`/var/lib/deltacare`) com dono `deltacare`.
 4. **Primeira conta de administração** (ela também entra com o código por
    e-mail, então o SMTP precisa estar certo antes):
@@ -561,9 +575,9 @@ a API **e** as telas (em `/app/`); na frente, o
    senha para uma conta sua: se o e-mail não chegar, o SMTP está errado (o
    log do serviço diz o motivo).
 
-**Atualizar:** backup, `git pull`, `pip install -r backend/requirements.txt`,
-`npm ci && npm run build` em `frontend/` e `systemctl restart deltacare`. O banco
-migra sozinho na subida.
+**Atualizar:** `bash /opt/deltacare/deploy/atualizar.sh`, que faz backup,
+`git pull`, `pip install -r backend/requirements.txt`, `npm ci && npm run build`
+em `frontend/` e `systemctl restart deltacare`. O banco migra sozinho na subida.
 
 ## Testes
 

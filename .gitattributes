@@ -1,0 +1,3 @@
+# Scripts de shell rodam no servidor Linux: com a quebra de linha do Windows
+# (CRLF), o bash de lá falha em todas as linhas.
+*.sh text eol=lf

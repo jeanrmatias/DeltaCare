@@ -6652,6 +6652,42 @@ class TestesIndexacao(BaseDelta):
         self.assertNotIn("localhost", chat_ia.OLLAMA_URL_PADRAO)
 
 
+class TestesChatEmOutroServidor(unittest.TestCase):
+    """Servidor sem GPU: a resposta vem do Ollama Cloud (com chave) e os
+    embeddings do Ollama local. A chave não pode vazar para o local."""
+
+    def _chamadas(self, chat_url, chave):
+        import io
+        from unittest import mock
+
+        feitas = []
+
+        def abrir(requisicao, timeout):
+            feitas.append((requisicao.full_url, requisicao.get_header("Authorization")))
+            corpo = {"embeddings": [[0.1]]} if requisicao.full_url.endswith("/api/embed") else {"message": {"content": "oi"}}
+            return io.BytesIO(json.dumps(corpo).encode())
+
+        with mock.patch.object(chat_ia, "OLLAMA_URL", "http://127.0.0.1:11434"), \
+                mock.patch.object(chat_ia, "OLLAMA_CHAT_URL", chat_url), \
+                mock.patch.object(chat_ia, "OLLAMA_API_KEY", chave), \
+                mock.patch.object(chat_ia.urllib.request, "urlopen", abrir):
+            chat_ia.gerar_embedding("texto")
+            chat_ia.gerar_resposta_chat([{"role": "user", "content": "pergunta"}])
+        return feitas
+
+    def test_resposta_vai_para_a_nuvem_com_a_chave(self):
+        embed, chat = self._chamadas("https://ollama.com", "segredo")
+
+        self.assertEqual(chat, ("https://ollama.com/api/chat", "Bearer segredo"))
+        self.assertEqual(embed, ("http://127.0.0.1:11434/api/embed", None))
+
+    def test_sem_configurar_tudo_fica_no_local_sem_chave(self):
+        embed, chat = self._chamadas("http://127.0.0.1:11434", "")
+
+        self.assertEqual(chat, ("http://127.0.0.1:11434/api/chat", None))
+        self.assertEqual(embed, ("http://127.0.0.1:11434/api/embed", None))
+
+
 class TestesBuscaDoChat(BaseDelta):
     """A busca em binário e com corte devolve o mesmo que pontuar tudo."""
 
