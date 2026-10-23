@@ -225,10 +225,13 @@ duas fontes de professores diferentes.
   Responde que o material não cobre a dose. Boa resposta para "e se o aluno
   insistir?".
 
-**Evite:** *O que causa a terceira e a quarta bulha?* (a busca não achou o
-trecho e veio "não cobre", embora a Aula 3 de Fisiologia fale disso) e
-qualquer coisa de Histologia: é disciplina do semestre passado, e o modo
-automático só procura nas do semestre vigente.
+**Evite:** *O que causa a terceira e a quarta bulha?* Veio "não cobre",
+embora a Aula 3 de Fisiologia fale disso: o PDF escreve "B3" e "B4", e a
+busca não liga "terceira bulha" a "B3" (o trecho ficou em 23º lugar; vão 10
+para o modelo). Perguntando "terceira bulha (B3)", acha.
+
+Histologia (semestre passado) funciona para quem cursou: Marina, Lucas e Ana.
+Para os outros alunos, "não cobre" é a resposta certa.
 
 ---
 
