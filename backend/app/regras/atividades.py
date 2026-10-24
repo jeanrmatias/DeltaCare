@@ -10,9 +10,11 @@ Dois tipos, e a diferença está em **quem corrige**:
 Três decisões que valem explicar, porque se forem desfeitas o módulo quebra de
 formas silenciosas:
 
-**O gabarito nunca sai do servidor para o aluno.** `_questoes_para_aluno()`
+**O gabarito não sai do servidor antes da entrega.** `_questoes_para_aluno()`
 monta a lista sem o campo `correta`. Mandar o gabarito e esconder na interface
-seria o mesmo que não ter gabarito: está tudo no DevTools.
+seria o mesmo que não ter gabarito: está tudo no DevTools. Depois da entrega,
+o aluno vê o que acertou e errou na hora, e a alternativa certa depois do
+prazo (`_correcao_para_aluno()`).
 
 **A entrega nasce no primeiro rascunho, não no envio.** Uma linha por aluno por
 atividade, com `enviado_em NULL` enquanto for progresso salvo. É assim que o
@@ -862,8 +864,42 @@ def _atividade_liberada_para(conexao, aluno_id: int, atividade_id: int):
     ).fetchone()
 
 
+def _correcao_para_aluno(conexao, atividade_id: int, respostas, prazo: str | None) -> dict:
+    """A correção de uma objetiva já entregue, questão por questão.
+
+    Certo ou errado sai logo depois da entrega: é o retorno de que o aluno
+    precisa para estudar. A alternativa certa só sai depois do prazo (ou na
+    hora, se a atividade não tem prazo): antes disso, quem entregou primeiro
+    passaria o gabarito para quem ainda vai fazer.
+    """
+    gabarito = conexao.execute(
+        "SELECT ordem, correta FROM questoes WHERE atividade_id = ? ORDER BY ordem",
+        (int(atividade_id),),
+    ).fetchall()
+    escolhas = respostas if isinstance(respostas, list) else []
+    limite = _para_datahora(prazo)
+    liberado = limite is None or datetime.now(timezone.utc) > limite
+
+    return {
+        "gabarito_liberado": liberado,
+        "gabarito_em": None if liberado else prazo,
+        # A mesma conta de enviar_entrega, para a tela nunca discordar da nota.
+        "questoes": [
+            {
+                "acertou": ordem < len(escolhas) and escolhas[ordem] == correta,
+                "correta": correta if liberado else None,
+            }
+            for ordem, correta in gabarito
+        ],
+    }
+
+
 def obter_atividade_do_aluno(aluno_email: str, atividade_id: int) -> dict:
-    """Enunciado, questões sem gabarito e o rascunho salvo do aluno."""
+    """Enunciado, questões sem gabarito e o rascunho salvo do aluno.
+
+    Objetiva entregue leva também a correção (ver _correcao_para_aluno), fora
+    da lista de questões: antes da entrega o gabarito não sai do servidor.
+    """
     conexao = conectar()
     aluno = buscar_usuario(conexao, aluno_email)
 
@@ -884,9 +920,15 @@ def obter_atividade_do_aluno(aluno_email: str, atividade_id: int) -> dict:
     ).fetchone()
 
     questoes = _questoes_para_aluno(conexao, atividade_id)
+    correcao = None
+    if atividade[3] == "objetiva" and entrega and entrega[1]:
+        correcao = _correcao_para_aluno(
+            conexao, atividade_id, json.loads(entrega[0]) if entrega[0] else None, atividade[5],
+        )
     conexao.close()
 
     return {
+        "correcao": correcao,
         "sucesso": True,
         "atividade": {
             "id": atividade[0],

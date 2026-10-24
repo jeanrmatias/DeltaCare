@@ -1205,6 +1205,68 @@ class TestesAtividadeAluno(BaseAtividades):
         for questao in visao["questoes"]:
             self.assertNotIn("correta", questao)
 
+    def test_sem_entrega_nao_ha_correcao(self):
+        """Progresso salvo não é entrega: nada do gabarito sai ainda."""
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        salvar_progresso(ALUNO, atividade_id, [1, None])
+
+        self.assertIsNone(obter_atividade_do_aluno(ALUNO, atividade_id)["correcao"])
+
+    def test_depois_de_entregar_ve_o_que_acertou(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 0])
+
+        correcao = obter_atividade_do_aluno(ALUNO, atividade_id)["correcao"]
+
+        self.assertEqual([q["acertou"] for q in correcao["questoes"]], [True, False])
+
+    def test_sem_prazo_a_alternativa_certa_sai_na_hora(self):
+        atividade_id = self.criar_objetiva()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 0])
+
+        correcao = obter_atividade_do_aluno(ALUNO, atividade_id)["correcao"]
+
+        self.assertTrue(correcao["gabarito_liberado"])
+        self.assertEqual([q["correta"] for q in correcao["questoes"]], [1, 1])
+
+    def test_antes_do_prazo_a_alternativa_certa_fica_no_servidor(self):
+        """Quem entregou primeiro não passa o gabarito para a turma."""
+        prazo = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+        atividade_id = self.criar_objetiva(prazo=prazo)["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [1, 0])
+
+        correcao = obter_atividade_do_aluno(ALUNO, atividade_id)["correcao"]
+
+        self.assertFalse(correcao["gabarito_liberado"])
+        self.assertEqual(correcao["gabarito_em"], prazo)
+        self.assertEqual([q["correta"] for q in correcao["questoes"]], [None, None])
+        self.assertEqual([q["acertou"] for q in correcao["questoes"]], [True, False])
+
+    def test_depois_do_prazo_a_alternativa_certa_sai(self):
+        prazo = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        atividade_id = self.criar_objetiva(prazo=prazo)["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, [None, 1])
+
+        correcao = obter_atividade_do_aluno(ALUNO, atividade_id)["correcao"]
+
+        self.assertTrue(correcao["gabarito_liberado"])
+        self.assertEqual([q["correta"] for q in correcao["questoes"]], [1, 1])
+        self.assertEqual([q["acertou"] for q in correcao["questoes"]], [False, True])
+
+    def test_correcao_bate_com_a_nota(self):
+        atividade_id = self.criar_objetiva(pontos=10)["atividade_ids"][0]
+        resultado = enviar_entrega(ALUNO, atividade_id, [1, 0])
+
+        correcao = obter_atividade_do_aluno(ALUNO, atividade_id)["correcao"]
+
+        self.assertEqual(sum(q["acertou"] for q in correcao["questoes"]), resultado["acertos"])
+
+    def test_dissertativa_nao_tem_correcao(self):
+        atividade_id = self.criar_dissertativa()["atividade_ids"][0]
+        enviar_entrega(ALUNO, atividade_id, "resposta")
+
+        self.assertIsNone(obter_atividade_do_aluno(ALUNO, atividade_id)["correcao"])
+
     def test_aluno_de_fora_nao_abre_a_atividade(self):
         atividade_id = self.criar_objetiva()["atividade_ids"][0]
         self.assertFalse(obter_atividade_do_aluno(ALUNO_FORA, atividade_id)["sucesso"])

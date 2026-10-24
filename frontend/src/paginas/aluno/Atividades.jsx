@@ -62,7 +62,7 @@ export function Atividades() {
         <Resolver
           atividade={aberta}
           aoFechar={() => setAberta(null)}
-          aoEntregar={() => { setAberta(null); lista.recarregar() }}
+          aoEntregar={lista.recarregar}
         />
       )}
     </>
@@ -122,7 +122,7 @@ const ACEITOS = ".pdf,.doc,.docx,.odt,.txt,.rtf,.png,.jpg,.jpeg,.webp,.xlsx,.csv
 
 /** O painel de resolver: questões ou resposta escrita, anexo e as duas ações. */
 function Resolver({ atividade, aoFechar, aoEntregar }) {
-  const { dados, carregando, erro } = useApi(`/aluno/atividades/${atividade.id}`)
+  const { dados, carregando, erro, recarregar } = useApi(`/aluno/atividades/${atividade.id}`)
   const subtitulo = [atividade.turma_nome, `vale ${atividade.pontos}`, atividade.prazo && `prazo ${dataEHora(atividade.prazo)}`].filter(Boolean).join(" · ")
 
   return (
@@ -134,16 +134,20 @@ function Resolver({ atividade, aoFechar, aoEntregar }) {
         </div>
         <Botao variante="neutra" onClick={aoFechar} className="py-2">Fechar</Botao>
       </div>
-      {carregando && <Carregando />}
+      {carregando && !dados && <Carregando />}
       {erro && <p className="text-sm text-texto-secundario">{erro}</p>}
-      {/* key: o formulário nasce com as respostas salvas desta atividade. */}
-      {dados?.sucesso && <FormularioDeEntrega key={atividade.id} dados={dados} aoEntregar={aoEntregar} />}
+      {/* key: o formulário nasce com as respostas salvas desta atividade.
+          Depois de entregar, a janela fica aberta e recarrega: é aí que a
+          correção de cada questão aparece. */}
+      {dados?.sucesso && (
+        <FormularioDeEntrega key={atividade.id} dados={dados} aoEntregar={() => { recarregar(); aoEntregar() }} />
+      )}
     </Modal>
   )
 }
 
 function FormularioDeEntrega({ dados, aoEntregar }) {
-  const { atividade, questoes, entrega } = dados
+  const { atividade, questoes, entrega, correcao } = dados
   const objetiva = atividade.tipo === "objetiva"
   const entregue = Boolean(entrega.enviado_em)
   const anexo = atividade.anexo || "nenhum"
@@ -210,6 +214,9 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
       const resultado = await resposta.json()
       if (!resultado.sucesso) return setMensagem({ texto: resultado.mensagem || "Não foi possível enviar." })
       if (!definitivo) return setMensagem({ texto: resultado.mensagem, sucesso: true })
+      // A janela fica aberta com a correção: o aviso de antes ("o prazo já
+      // venceu") não vale mais — a entrega mostra se saiu com atraso.
+      setMensagem({ texto: "" })
       aoEntregar()
       await avisar(resultado.mensagem, "Atividade entregue")
     } catch (falha) {
@@ -226,25 +233,51 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
       {atividade.arquivo_nome && <ArquivoParaBaixar caminho={`/aluno/atividades/${atividade.id}/arquivo`} nome={atividade.arquivo_nome} />}
 
       {objetiva ? (
-        questoes.map((questao, indice) => (
-          <fieldset key={indice} className="rounded-bloco border border-borda p-4" disabled={entregue}>
-            <legend className="px-1 text-sm text-texto"><strong>{indice + 1}.</strong> {questao.enunciado}</legend>
-            <div className="mt-2 flex flex-col gap-2">
-              {questao.alternativas.map((alternativa, posicao) => (
-                <label key={posicao} className="flex cursor-pointer items-start gap-2.5 rounded-campo px-2 py-1.5 text-sm hover:bg-fundo">
-                  <input
-                    type="radio"
-                    name={`questao-${indice}`}
-                    checked={respostas[indice] === posicao}
-                    onChange={() => setRespostas((atual) => atual.map((r, i) => (i === indice ? posicao : r)))}
-                    className="mt-0.5 accent-primaria"
-                  />
-                  <span>{alternativa}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ))
+        questoes.map((questao, indice) => {
+          const corrigida = correcao?.questoes?.[indice]
+          return (
+            <fieldset key={indice} className="rounded-bloco border border-borda p-4" disabled={entregue}>
+              <legend className="px-1 text-sm text-texto">
+                <strong>{indice + 1}.</strong> {questao.enunciado}
+                {corrigida && (
+                  <span className="ml-2 align-middle">
+                    <Selo tom={corrigida.acertou ? "sucesso" : "perigo"}>{corrigida.acertou ? "Certa" : "Errada"}</Selo>
+                  </span>
+                )}
+              </legend>
+              <div className="mt-2 flex flex-col gap-2">
+                {questao.alternativas.map((alternativa, posicao) => {
+                  const escolhida = respostas[indice] === posicao
+                  const certa = corrigida && corrigida.correta === posicao
+                  // Cor e texto juntos: quem não distingue verde de vermelho
+                  // lê "sua resposta" e "resposta certa".
+                  const fundo = !corrigida ? "hover:bg-fundo"
+                    : certa || (escolhida && corrigida.acertou) ? "bg-sucesso-fundo"
+                      : escolhida ? "bg-perigo-fundo" : ""
+                  const notas = corrigida && [escolhida && "sua resposta", (certa || (escolhida && corrigida.acertou)) && "resposta certa"].filter(Boolean)
+                  return (
+                    <label key={posicao} className={`flex cursor-pointer items-start gap-2.5 rounded-campo px-2 py-1.5 text-sm ${fundo}`}>
+                      <input
+                        type="radio"
+                        name={`questao-${indice}`}
+                        checked={escolhida}
+                        onChange={() => setRespostas((atual) => atual.map((r, i) => (i === indice ? posicao : r)))}
+                        className="mt-0.5 accent-primaria"
+                      />
+                      <span>
+                        {alternativa}
+                        {notas?.length > 0 && <span className="ml-1.5 text-xs font-semibold text-texto">({notas.join(" · ")})</span>}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              {corrigida && respostas[indice] == null && (
+                <p className="mt-2 px-2 text-xs text-texto-secundario">Sem resposta.</p>
+              )}
+            </fieldset>
+          )
+        })
       ) : (
         <textarea
           value={respostas}
@@ -275,7 +308,7 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
         </label>
       )}
 
-      {entregue ? <Resultado atividade={atividade} entrega={entrega} /> : (
+      {entregue ? <Resultado atividade={atividade} entrega={entrega} correcao={correcao} /> : (
         <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
           <Botao variante="neutra" onClick={() => enviar(false)} desativado={enviando}>Salvar e continuar depois</Botao>
           <Botao onClick={() => enviar(true)} desativado={enviando}>Entregar</Botao>
@@ -286,7 +319,8 @@ function FormularioDeEntrega({ dados, aoEntregar }) {
   )
 }
 
-function Resultado({ atividade, entrega }) {
+function Resultado({ atividade, entrega, correcao }) {
+  const acertos = correcao?.questoes?.filter((q) => q.acertou).length
   const { avisar } = useDialogo()
 
   // Download autenticado. O front antigo usava um link direto, que não leva
@@ -309,6 +343,14 @@ function Resultado({ atividade, entrega }) {
       {temNota(entrega.nota)
         ? <p className="mt-1.5"><strong className="text-sucesso">Nota {entrega.nota}</strong> de {atividade.pontos}</p>
         : <p className="mt-1.5 text-texto-secundario">Aguardando correção do professor.</p>}
+      {correcao && (
+        <p className="mt-1.5">
+          Você acertou {acertos} de {correcao.questoes.length}.
+          {correcao.gabarito_liberado
+            ? " A resposta certa está marcada em cada questão."
+            : ` A resposta certa de cada questão aparece depois do prazo${correcao.gabarito_em ? `, em ${dataEHora(correcao.gabarito_em)}` : ""}.`}
+        </p>
+      )}
       {entrega.devolutiva && <Devolutiva texto={entrega.devolutiva} />}
       {entrega.arquivo_nome && entrega.entrega_id && (
         <button type="button" onClick={baixarAnexo} className="mt-2 text-[14px] font-semibold text-primaria hover:underline">
