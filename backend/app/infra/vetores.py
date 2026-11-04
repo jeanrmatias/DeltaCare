@@ -10,10 +10,18 @@ JSON aparece na sétima casa do cosseno, longe de mudar qual trecho é o melhor.
 
 Sem numpy de propósito: `array` é da biblioteca padrão, e o projeto tem cinco
 dependências.
+
+A similaridade da busca é calculada em C++ quando a biblioteca está compilada
+(backend/nativo/, ver infra/nativo.py), e em Python quando não está — com o
+mesmo resultado, bit a bit (há teste comparando os dois).
 """
 
+import json
 import math
+import operator
 from array import array
+
+from infra import nativo
 
 
 def normalizar(vetor) -> list:
@@ -33,3 +41,29 @@ def desempacotar(blob: bytes) -> array:
     vetor = array("f")
     vetor.frombytes(blob)
     return vetor
+
+
+def similaridade_em_python(pergunta, blob: bytes) -> float:
+    """Os dois vetores têm norma 1: o produto escalar já é o cosseno."""
+    return sum(map(operator.mul, pergunta, desempacotar(blob)))
+
+
+def similaridades(pergunta, linhas: list) -> list:
+    """A similaridade de `pergunta` (já normalizada) com cada trecho.
+
+    `linhas` são pares (vetor, embedding) como saem de material_chunks: o
+    vetor em binário, ou — trecho gravado antes da coluna binária, que o banco
+    converte ao subir (infra/database.py) — vazio, com o vetor em JSON.
+
+    Os binários vão todos de uma vez para o C++; sem a biblioteca, um a um em
+    Python. A ordem da saída é a da entrada.
+    """
+    binarios = [vetor for vetor, _ in linhas if vetor]
+    calculadas = nativo.similaridades(pergunta, binarios) if binarios else []
+    if calculadas is None:
+        calculadas = [similaridade_em_python(pergunta, vetor) for vetor in binarios]
+    proxima = iter(calculadas)
+    return [
+        next(proxima) if vetor else sum(map(operator.mul, pergunta, normalizar(json.loads(embedding))))
+        for vetor, embedding in linhas
+    ]

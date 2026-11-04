@@ -21,14 +21,13 @@ embeddings no Ollama local, que é leve e não precisa de GPU.
 
 import heapq
 import json
-import operator
 import os
 import re
 import unicodedata
 import urllib.request
 from datetime import datetime, timezone
 
-from infra.vetores import desempacotar, empacotar, normalizar
+from infra.vetores import empacotar, normalizar, similaridades
 from regras import limites
 from regras.turmas import buscar_usuario, conectar
 
@@ -522,20 +521,17 @@ def buscar_trechos_relevantes(turma_id, pergunta: str, gerar_embedding_fn=gerar_
     finally:
         conexao.close()
 
-    candidatos = []
-    for texto, vetor, embedding_json, titulo_material, material_id, rascunho, data_liberacao, turma, disciplina in linhas:
-        # O rascunho já saiu no SQL. O agendado fica aqui de propósito: a regra
-        # trata data sem fuso e data malformada, e o SQLite compararia as duas
-        # como texto — seria trocar 30ms por um material aparecendo antes da
-        # hora.
-        if _status_material(rascunho, data_liberacao) != "publicado":
-            continue
-        # Vetor ainda em JSON: trecho gravado antes da coluna binária, que o
-        # banco converte ao subir (infra/database.py).
-        trecho = desempacotar(vetor) if vetor else normalizar(json.loads(embedding_json))
-        # Os dois vetores têm norma 1: o produto escalar já é o cosseno.
-        similaridade = sum(map(operator.mul, pergunta_vetor, trecho))
-        candidatos.append((similaridade, texto, titulo_material, material_id, turma, disciplina))
+    # O rascunho já saiu no SQL. O agendado fica aqui de propósito: a regra
+    # trata data sem fuso e data malformada, e o SQLite compararia as duas
+    # como texto — seria trocar 30ms por um material aparecendo antes da hora.
+    linhas = [linha for linha in linhas if _status_material(linha[5], linha[6]) == "publicado"]
+    # A conta pesada: em C++ quando a biblioteca está compilada (infra/nativo.py).
+    cossenos = similaridades(pergunta_vetor, [(linha[1], linha[2]) for linha in linhas])
+    candidatos = [
+        (similaridade, texto, titulo_material, material_id, turma, disciplina)
+        for similaridade, (texto, _, _, titulo_material, material_id, _, _, turma, disciplina)
+        in zip(cossenos, linhas)
+    ]
 
     # O bônus literal (_pontuar_trecho) soma no máximo PESO_BUSCA_LITERAL.
     # Então um trecho com similaridade abaixo da k-ésima melhor menos esse

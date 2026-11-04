@@ -49,6 +49,7 @@ sys.path[:0] = [os.path.join(_BACKEND, "app"), os.path.join(_BACKEND, "scripts")
 import sqlite3  # noqa: E402
 
 from infra.database import CAMINHO_DB, configurar_banco  # noqa: E402
+from infra import nativo  # noqa: E402
 from infra.vetores import desempacotar, empacotar, normalizar  # noqa: E402
 from regras.autenticacao import (  # noqa: E402
     JANELA_LOGIN_MINUTOS,
@@ -6876,6 +6877,138 @@ class TestesBuscaDoChat(BaseDelta):
         self.assertEqual(restantes, 0)
         depois = chat_ia.buscar_trechos_relevantes(self.turma_id, "cardiolex", gerar_embedding_fn=lambda _: pergunta)
         self.assertEqual([a["texto"] for a in depois], [a["texto"] for a in antes])
+
+
+# =========================================================================
+# A similaridade em C++ (backend/nativo/, infra/nativo.py)
+# =========================================================================
+
+SEM_BIBLIOTECA = "biblioteca em C++ não compilada (python nativo/compilar.py)"
+
+
+def _sem_a_biblioteca():
+    """Como se ninguém tivesse compilado: a busca cai no Python."""
+    from unittest import mock
+
+    return mock.patch.object(nativo, "_carregada", False)
+
+
+class TestesSimilaridadeEmCpp(BaseDelta):
+    """O C++ tem de devolver exatamente o que o Python devolveria. Se a
+    biblioteca não estiver compilada, os que dependem dela são pulados — e o
+    resto da suíte já roda o caminho em Python."""
+
+    def _vetores(self, semente):
+        import random
+        from array import array
+
+        sorteio = random.Random(semente)
+        pergunta = normalizar([sorteio.gauss(0, 1) for _ in range(768)])
+        # A biblioteca calcula de quatro em quatro (SIMD) quando os quatro têm
+        # o mesmo tamanho, e um a um no resto. Os extremos vêm primeiro, quatro
+        # do mesmo tamanho, para passar pelo caminho de quatro; os de tamanho
+        # diferente, no fim, pelo de um.
+        extremos = [
+            [float("inf")] + [1.0] * 767,               # estouro: infinito, não NaN
+            [1e30, -1e30, 3.0] + [sorteio.gauss(0, 1e30) for _ in range(765)],   # sem normalizar
+            [1e-40, -1e-42] * 384,                       # subnormais do float32
+            [-0.0] * 768,
+        ]
+        blobs = [array("f", vetor).tobytes() for vetor in extremos]
+        blobs += [empacotar([sorteio.gauss(0, 1) for _ in range(768)]) for _ in range(300)]
+        blobs += [
+            empacotar([0.0] * 768),                    # vetor nulo
+            empacotar([sorteio.gauss(0, 1) for _ in range(384)]),   # outro modelo, mais curto
+            empacotar([sorteio.gauss(0, 1) for _ in range(1024)]),  # e mais longo
+            b"",                                       # vazio
+            array("f", [1e30, -1e30, 3.0, 1e-40]).tobytes(),
+            array("f", [float("inf"), 1.0]).tobytes(),
+        ]
+        return pergunta, blobs
+
+    @unittest.skipUnless(nativo.disponivel(), SEM_BIBLIOTECA)
+    def test_mesmo_resultado_que_o_python_bit_a_bit(self):
+        from infra.vetores import similaridade_em_python
+
+        for semente in range(5):
+            with self.subTest(semente=semente):
+                pergunta, blobs = self._vetores(semente)
+                em_cpp = nativo.similaridades(pergunta, blobs)
+                em_python = [similaridade_em_python(pergunta, blob) for blob in blobs]
+                if sys.version_info >= (3, 12):
+                    # O sum() do Python passou a usar a soma de Neumaier na
+                    # 3.12, e o C++ faz a mesma: tem de bater até o último bit.
+                    self.assertEqual(em_cpp, em_python)
+                else:
+                    for a, b in zip(em_cpp, em_python):
+                        self.assertAlmostEqual(a, b, places=12)
+
+    @unittest.skipUnless(nativo.disponivel(), SEM_BIBLIOTECA)
+    def test_busca_do_chat_igual_com_e_sem_a_biblioteca(self):
+        import random
+
+        sorteio = random.Random(7)
+        pergunta = [sorteio.uniform(-1, 1) for _ in range(64)]
+        material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 1",
+                                  tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
+        conexao = sqlite3.connect(CAMINHO_DB)
+        for indice in range(200):
+            vetor = [x * sorteio.uniform(0, 1) + sorteio.uniform(-0.5, 0.5) for x in pergunta]
+            texto = f"Trecho {indice}." + (" dobutamina" if indice % 4 == 0 else "")
+            if indice % 3:
+                conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor) VALUES (?, ?, ?, '', ?)",
+                                (material, indice, texto, empacotar(vetor)))
+            else:   # um terço ainda em JSON: o caminho misto também
+                conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
+                                (material, indice, texto, json.dumps(vetor)))
+        conexao.commit()
+        conexao.close()
+
+        def buscar():
+            return chat_ia.buscar_trechos_relevantes(self.turma_id, "dose de dobutamina",
+                                                     gerar_embedding_fn=lambda _: pergunta)
+
+        com = buscar()
+        with _sem_a_biblioteca():
+            sem = buscar()
+
+        self.assertEqual(len(com), chat_ia.TOP_K)
+        if sys.version_info >= (3, 12):
+            self.assertEqual(com, sem)   # até a similaridade, bit a bit
+        else:
+            self.assertEqual([c["texto"] for c in com], [s["texto"] for s in sem])
+
+    def test_sem_a_biblioteca_a_conta_e_feita_em_python(self):
+        from infra import vetores
+
+        pergunta = normalizar([3.0, 4.0])
+        with _sem_a_biblioteca():
+            self.assertIsNone(nativo.similaridades(pergunta, [empacotar([3.0, 4.0])]))
+            calculadas = vetores.similaridades(pergunta, [(empacotar([3.0, 4.0]), ""), (b"", "[4.0, -3.0]")])
+        self.assertAlmostEqual(calculadas[0], 1.0, places=6)
+        self.assertAlmostEqual(calculadas[1], 0.0, places=6)
+
+    def test_bytes_quebrados_dao_o_mesmo_erro_nos_dois_caminhos(self):
+        """7 bytes não são float32 inteiros. O Python recusa; o C++ não pode
+        ler o byte que falta da memória ao lado."""
+        from infra import vetores
+
+        linhas = [(empacotar([1.0, 0.0]), ""), (b"\x00" * 7, "")]
+        with self.assertRaises(ValueError):
+            vetores.similaridades([1.0, 0.0], linhas)
+        with _sem_a_biblioteca(), self.assertRaises(ValueError):
+            vetores.similaridades([1.0, 0.0], linhas)
+
+    def test_desligada_pela_variavel_de_ambiente(self):
+        """DELTACARE_NATIVO=0 desliga sem precisar apagar o arquivo — para
+        comparar os dois caminhos no servidor, ou se a biblioteca der problema."""
+        import subprocess
+
+        codigo = "from infra import nativo; print(nativo.disponivel(), nativo.situacao())"
+        ambiente = dict(os.environ, DELTACARE_NATIVO="0")
+        saida = subprocess.run([sys.executable, "-c", codigo], cwd=os.path.join(_BACKEND, "app"), env=ambiente,
+                               capture_output=True, text=True, check=True).stdout
+        self.assertEqual(saida.strip(), "False desligada por DELTACARE_NATIVO=0")
 
 
 # =========================================================================
