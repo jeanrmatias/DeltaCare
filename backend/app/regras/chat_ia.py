@@ -27,6 +27,7 @@ import unicodedata
 import urllib.request
 from datetime import datetime, timezone
 
+from infra import busca_cpp
 from infra.vetores import empacotar, normalizar, similaridades
 from regras import limites
 from regras.turmas import buscar_usuario, conectar
@@ -483,6 +484,53 @@ def _status_material(rascunho: int, data_liberacao) -> str:
     return "publicado"
 
 
+_SELECAO_DO_TRECHO = """
+    SELECT c.id, c.texto, c.vetor, c.embedding, m.titulo, m.id, m.turma_id, t.nome
+    FROM material_chunks c
+    JOIN materiais m ON m.id = c.material_id
+    JOIN turmas t ON t.id = m.turma_id
+"""
+
+
+def _candidatos_em_python(conexao, pergunta_vetor: list, turma_ids: list, visiveis: set) -> list:
+    """A busca sem o serviço em C++: lê o vetor de todos os trechos visíveis e
+    faz a conta aqui. Em ordem de id, como o serviço, para os empates saírem
+    na mesma ordem pelos dois caminhos."""
+    marcas = ",".join("?" for _ in turma_ids)
+    linhas = [
+        linha for linha in conexao.execute(
+            f"{_SELECAO_DO_TRECHO} WHERE m.turma_id IN ({marcas}) AND m.rascunho = 0 ORDER BY c.id", turma_ids,
+        ).fetchall()
+        if linha[5] in visiveis
+    ]
+    cossenos = similaridades(pergunta_vetor, [(linha[2], linha[3]) for linha in linhas])
+    return [
+        (similaridade, texto, titulo, material_id, turma, disciplina)
+        for similaridade, (_, texto, _, _, titulo, material_id, turma, disciplina) in zip(cossenos, linhas)
+    ]
+
+
+def _candidatos_por_id(conexao, achados: list) -> list:
+    """O texto e o material dos trechos que o serviço em C++ escolheu. Só
+    estes saem do banco — o vetor de todos os outros, não."""
+    linhas = {}
+    ids = [trecho_id for trecho_id, _ in achados]
+    # Em lotes: o SQLite limita quantos "?" cabem numa consulta.
+    for inicio in range(0, len(ids), 500):
+        lote = ids[inicio:inicio + 500]
+        marcas = ",".join("?" for _ in lote)
+        for linha in conexao.execute(f"{_SELECAO_DO_TRECHO} WHERE c.id IN ({marcas})", lote):
+            linhas[linha[0]] = linha
+    # Trecho apagado entre a busca e esta leitura (o professor reindexou o
+    # PDF naquele instante) simplesmente fica de fora.
+    return [
+        (similaridade, linhas[trecho_id][1], linhas[trecho_id][4], linhas[trecho_id][5],
+         linhas[trecho_id][6], linhas[trecho_id][7])
+        for trecho_id, similaridade in achados
+        if trecho_id in linhas
+    ]
+
+
 def buscar_trechos_relevantes(turma_id, pergunta: str, gerar_embedding_fn=gerar_embedding, top_k: int = TOP_K) -> list:
     """Busca os trechos de material mais relevantes pra pergunta, só entre
     os materiais já PUBLICADOS (não rascunho, e já liberados se agendados)
@@ -497,9 +545,14 @@ def buscar_trechos_relevantes(turma_id, pergunta: str, gerar_embedding_fn=gerar_
     literal calculado para todos, eram 0,28 ms por trecho — 0,8 s numa
     disciplina com 30 PDFs, 2,8 s com 100. Ver infra/vetores.py e o corte
     abaixo.
+
+    Com o serviço em C++ no ar (infra/busca_cpp.py, backend/busca_cpp/), os
+    vetores ficam na memória dele e a conta é feita lá: com 18 mil trechos,
+    a busca inteira caiu de 821 ms para 18 ms (busca_cpp/medir.py).
     """
     pergunta_vetor = normalizar(gerar_embedding_fn(pergunta))
     termos = _termos_distintivos(pergunta)
+    folga = PESO_BUSCA_LITERAL if termos else 0.0
 
     turma_ids = [int(t) for t in turma_id] if isinstance(turma_id, (list, tuple, set)) else [int(turma_id)]
     if not turma_ids:
@@ -508,38 +561,35 @@ def buscar_trechos_relevantes(turma_id, pergunta: str, gerar_embedding_fn=gerar_
 
     conexao = conectar()
     try:
-        linhas = conexao.execute(
-            f'''
-            SELECT c.texto, c.vetor, c.embedding, m.titulo, m.id, m.rascunho, m.data_liberacao, m.turma_id, t.nome
-            FROM material_chunks c
-            JOIN materiais m ON m.id = c.material_id
-            JOIN turmas t ON t.id = m.turma_id
-            WHERE m.turma_id IN ({marcas}) AND m.rascunho = 0
-            ''',
+        # Os materiais que o aluno pode ver. O rascunho sai no SQL; o agendado
+        # fica aqui de propósito: a regra trata data sem fuso e data
+        # malformada, e o SQLite compararia as duas como texto — seria trocar
+        # 30ms por um material aparecendo antes da hora.
+        materiais = conexao.execute(
+            f"SELECT id, rascunho, data_liberacao FROM materiais WHERE turma_id IN ({marcas}) AND rascunho = 0",
             turma_ids,
         ).fetchall()
+        visiveis = [material_id for material_id, rascunho, liberacao in materiais
+                    if _status_material(rascunho, liberacao) == "publicado"]
+        if not visiveis:
+            return []
+        # A conta pesada vai para o serviço em C++, quando ele está no ar
+        # (infra/busca_cpp.py); senão, é feita aqui. Os candidatos saem iguais.
+        achados = busca_cpp.buscar(pergunta_vetor, visiveis, top_k, folga)
+        if achados is not None:
+            candidatos = _candidatos_por_id(conexao, achados)
+        else:
+            candidatos = _candidatos_em_python(conexao, pergunta_vetor, turma_ids, set(visiveis))
     finally:
         conexao.close()
-
-    # O rascunho já saiu no SQL. O agendado fica aqui de propósito: a regra
-    # trata data sem fuso e data malformada, e o SQLite compararia as duas
-    # como texto — seria trocar 30ms por um material aparecendo antes da hora.
-    linhas = [linha for linha in linhas if _status_material(linha[5], linha[6]) == "publicado"]
-    # A conta pesada: em C++ quando a biblioteca está compilada (infra/nativo.py).
-    cossenos = similaridades(pergunta_vetor, [(linha[1], linha[2]) for linha in linhas])
-    candidatos = [
-        (similaridade, texto, titulo_material, material_id, turma, disciplina)
-        for similaridade, (texto, _, _, titulo_material, material_id, _, _, turma, disciplina)
-        in zip(cossenos, linhas)
-    ]
 
     # O bônus literal (_pontuar_trecho) soma no máximo PESO_BUSCA_LITERAL.
     # Então um trecho com similaridade abaixo da k-ésima melhor menos esse
     # peso não alcança o top-k nem com o bônus inteiro: sai antes, sem pagar a
     # normalização do texto, que era o segundo maior custo da busca. O
     # resultado é o mesmo de pontuar todos (há teste comparando os dois).
+    # (O serviço em C++ já devolve cortado; cortar de novo não muda nada.)
     if len(candidatos) > top_k:
-        folga = PESO_BUSCA_LITERAL if termos else 0.0
         corte = heapq.nlargest(top_k, (c[0] for c in candidatos))[-1] - folga
         candidatos = [c for c in candidatos if c[0] >= corte]
 

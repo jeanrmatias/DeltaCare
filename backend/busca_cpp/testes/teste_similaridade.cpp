@@ -1,10 +1,10 @@
-// Testes da biblioteca em C++, sem Python no meio.
+// Testes da conta da busca, em C++, sem Python nem HTTP no meio.
 //
-// O que a suíte do backend (testes/testes.py) não pega: a conta isolada, com
-// valores que dá para conferir à mão. A comparação bit a bit com o Python
-// fica na suíte do backend, que tem o Python para comparar.
+// O que a suíte do backend (backend/testes/testes.py) não pega: a conta
+// isolada, com valores que dá para conferir à mão. A comparação bit a bit
+// com o Python fica na suíte do backend, que sobe o serviço e compara.
 //
-// Compilado e executado por: python nativo/compilar.py --testar
+// Compilado pelo CMake; rodado por `ctest --test-dir build`.
 
 #include <cmath>
 #include <cstdint>
@@ -12,9 +12,7 @@
 #include <cstring>
 #include <vector>
 
-extern "C" int dc_versao(void);
-extern "C" std::int64_t dc_similaridades(const double*, std::int64_t, const unsigned char* const*,
-                                         const std::int64_t*, std::int64_t, double*);
+#include "similaridade.hpp"
 
 namespace {
 
@@ -37,7 +35,7 @@ struct Trechos {
     }
 };
 
-// Chama a biblioteca como o Python chama: endereços e tamanhos em bytes.
+// Chama a conta como o serviço chama: endereços e tamanhos em bytes.
 // A saída começa em -5, que nenhum cosseno dá, para ver o que não foi escrito.
 std::vector<double> calcular(const std::vector<double>& pergunta, const Trechos& trechos,
                              std::int64_t* devolvido = nullptr) {
@@ -48,9 +46,9 @@ std::vector<double> calcular(const std::vector<double>& pergunta, const Trechos&
         tamanhos.push_back(static_cast<std::int64_t>(bloco.size()));
     }
     std::vector<double> saida(trechos.blocos.size(), -5.0);
-    const std::int64_t r = dc_similaridades(pergunta.data(), static_cast<std::int64_t>(pergunta.size()),
-                                            enderecos.data(), tamanhos.data(),
-                                            static_cast<std::int64_t>(saida.size()), saida.data());
+    const std::int64_t r = similaridade::calcular(pergunta.data(), static_cast<std::int64_t>(pergunta.size()),
+                                                  enderecos.data(), tamanhos.data(),
+                                                  static_cast<std::int64_t>(saida.size()), saida.data());
     if (devolvido) {
         *devolvido = r;
     }
@@ -60,7 +58,7 @@ std::vector<double> calcular(const std::vector<double>& pergunta, const Trechos&
 }  // namespace
 
 int main() {
-    std::printf("Biblioteca de similaridade, versao %d\n", dc_versao());
+    std::printf("Conta da similaridade\n");
 
     const double raiz_de_meio = std::sqrt(0.5);
     const std::vector<double> pergunta = {1.0, 0.0, 0.0};
@@ -139,7 +137,7 @@ int main() {
     const std::int64_t bytes = 12;
     const double eixo_z[3] = {0.0, 0.0, 1.0};
     double resultado = -5.0;
-    dc_similaridades(eixo_z, 3, &endereco, &bytes, 1, &resultado);
+    similaridade::calcular(eixo_z, 3, &endereco, &bytes, 1, &resultado);
     conferir(resultado == 1.0, "bloco desalinhado na memoria: le certo");
 
     // 7 bytes não são float32 inteiros: devolve a posição e não calcula nada.

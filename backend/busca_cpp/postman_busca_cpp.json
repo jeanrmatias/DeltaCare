@@ -1,0 +1,42 @@
+{
+  "info": {
+    "name": "Delta Care - busca em C++",
+    "description": "As rotas do serviço de busca em C++ (backend/busca_cpp). Suba o serviço antes: de dentro de backend/, busca_cpp/build/busca_cpp (no Windows, busca_cpp\\build\\busca_cpp.exe). Documentação em docs/SPRINT_4_ECCS.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base", "value": "http://127.0.0.1:8090" }
+  ],
+  "item": [
+    {
+      "name": "Saúde",
+      "request": { "method": "GET", "url": "{{base}}/saude" }
+    },
+    {
+      "name": "Índice (o que está na memória)",
+      "request": { "method": "GET", "url": "{{base}}/indice" }
+    },
+    {
+      "name": "Busca",
+      "request": {
+        "method": "POST",
+        "url": "{{base}}/busca",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pergunta\": [0.6, 0.8],\n  \"materiais\": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],\n  \"top_k\": 3,\n  \"folga\": 0\n}"
+        },
+        "description": "Na vida real a pergunta tem 768 números (o vetor que o modelo nomic-embed-text gera) e quem chama é o backend em Python. Aqui vão só 2: o serviço compara até o menor dos dois vetores, então a resposta sai com o formato certo, mas sem significado. Com folga 0 voltam exatamente os top_k melhores; o backend manda folga 0.12 (o bônus literal) e recebe todos os que ainda podem chegar ao top_k."
+      }
+    },
+    {
+      "name": "Busca inválida (400)",
+      "request": {
+        "method": "POST",
+        "url": "{{base}}/busca",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"pergunta\": [],\n  \"materiais\": [1]\n}" }
+      }
+    }
+  ]
+}

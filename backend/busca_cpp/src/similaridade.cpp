@@ -1,35 +1,25 @@
 // Similaridade entre a pergunta do aluno e os trechos de material, em C++.
 //
-// É o laço mais pesado do chat: a cada pergunta, o backend compara o vetor da
+// É o laço mais pesado do chat: a cada pergunta, a busca compara o vetor da
 // pergunta (768 números) com o vetor de cada trecho publicado nas disciplinas
 // do aluno. Em Python, cada multiplicação passa pelo interpretador; aqui o
-// laço vira instruções de máquina sobre a memória contígua dos vetores.
+// laço vira instruções de máquina, duas contas por instrução (SSE2).
 //
-// O Python carrega este arquivo compilado como biblioteca compartilhada
-// (.so no Linux, .dll no Windows) pelo módulo ctypes — ver
-// backend/app/infra/nativo.py. Se a biblioteca não existir, o backend faz a
-// mesma conta em Python, e o resultado é o mesmo.
-//
-// "O mesmo" quer dizer bit a bit, não "parecido". Duas coisas garantem isso:
+// O resultado é o mesmo da busca em Python — bit a bit, não "parecido". Duas
+// coisas garantem isso:
 //
 //   1. A soma segue o algoritmo do sum() do Python (desde a 3.12): soma
 //      compensada de Neumaier, que guarda à parte o que se perde no
 //      arredondamento de cada adição e devolve no fim.
 //   2. O compilador não pode fundir "a * b + c" numa instrução FMA, que
-//      arredonda uma vez só em vez de duas e muda a última casa. Por isso a
-//      compilação usa -ffp-contract=off (ver compilar.py).
-//
-// Compilação e testes: python nativo/compilar.py --testar (de dentro de backend/).
+//      arredonda uma vez só em vez de duas e muda a última casa. Por isso o
+//      CMakeLists.txt compila com -ffp-contract=off.
+
+#include "similaridade.hpp"
 
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-
-#if defined(_WIN32)
-#define DC_API extern "C" __declspec(dllexport)
-#else
-#define DC_API extern "C" __attribute__((visibility("default")))
-#endif
 
 // SSE2 faz parte de todo processador x86-64 (é o mínimo da arquitetura), então
 // usar estas instruções não exclui nenhuma máquina desse tipo.
@@ -158,34 +148,10 @@ void soma_de_quatro(const double* pergunta, const unsigned char* const* trechos,
 
 }  // namespace
 
-// Versão do contrato entre este arquivo e infra/nativo.py. Se a assinatura de
-// dc_similaridades mudar, este número sobe, e uma biblioteca compilada antes
-// da mudança é recusada em vez de ler a memória do jeito errado.
-DC_API int dc_versao(void) {
-    return 1;
-}
+namespace similaridade {
 
-// Calcula a similaridade da pergunta com `quantidade` trechos de uma vez.
-//
-//   pergunta    vetor da pergunta, já normalizado, em double (`dimensao` números)
-//   trechos[i]  endereço dos bytes do trecho i, em float32 — os próprios bytes
-//               que o SQLite devolveu ao Python, sem cópia
-//   bytes[i]    quantos bytes o trecho i tem
-//   saida[i]    recebe a similaridade do trecho i
-//
-// Devolve -1 se deu tudo certo, ou a posição do primeiro trecho cujo tamanho
-// não é múltiplo de 4 (não é uma sequência de float32 inteiros). Nesse caso
-// nada é calculado: o Python levanta o mesmo erro do caminho sem C++.
-//
-// Uma chamada para todos os trechos, e não uma por trecho: atravessar a
-// fronteira Python -> C custa cerca de um microssegundo, quase o mesmo que a
-// conta de um trecho inteiro.
-//
-// Trecho com outro tamanho (vetor de outro modelo de embedding) é comparado
-// até o menor dos dois, como o map() do Python, que para no mais curto.
-DC_API std::int64_t dc_similaridades(const double* pergunta, std::int64_t dimensao,
-                                     const unsigned char* const* trechos, const std::int64_t* bytes,
-                                     std::int64_t quantidade, double* saida) {
+std::int64_t calcular(const double* pergunta, std::int64_t dimensao, const unsigned char* const* trechos,
+                      const std::int64_t* bytes, std::int64_t quantidade, double* saida) {
     for (std::int64_t i = 0; i < quantidade; ++i) {
         if (bytes[i] % 4 != 0) {
             return i;
@@ -211,3 +177,5 @@ DC_API std::int64_t dc_similaridades(const double* pergunta, std::int64_t dimens
     }
     return -1;
 }
+
+}  // namespace similaridade

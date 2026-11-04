@@ -35,6 +35,11 @@ serviço de terceiros.
   | Tailwind CSS | tema do projeto em [`frontend/src/index.css`](frontend/src/index.css) |
   | Validação de usabilidade com no mínimo 3 participantes | [`docs/validacao/`](docs/validacao/README.md) e a seção **Validação de usabilidade** abaixo |
 
+- **Sprint 4 de Edge Computing & Computer Systems** (opção 2, backend em
+  C++): o serviço de busca do chat em C++, com cpp-httplib e CMake, em
+  [`backend/busca_cpp/`](backend/busca_cpp). Documento da entrega, com as
+  APIs, como compilar e as medidas: [`docs/SPRINT_4_ECCS.md`](docs/SPRINT_4_ECCS.md).
+
 ### Contas para teste
 
 Criadas pelo `backend/scripts/seed_demo.py`, que grava no banco de verdade — não são
@@ -125,6 +130,7 @@ a administração marcar como exceção (aproveitamento de estudos, por exemplo)
 | API | Python 3.10+ com FastAPI, servida pelo Uvicorn |
 | Banco | SQLite (modo WAL, chaves estrangeiras cobradas) |
 | IA do produto | Ollama local: `gpt-oss:20b` (chat) e `nomic-embed-text` (embeddings) |
+| Busca do chat (opcional) | Serviço em **C++17** com **cpp-httplib**, **nlohmann/json** e **SQLite**, compilado pelo **CMake**: guarda os vetores na memória e faz a conta com SSE2. Fora do ar, a busca roda em Python, com o mesmo resultado |
 | E-mail | SMTP da instituição, pela biblioteca padrão do Python |
 | Testes | `unittest` no backend, `node:test` no front (as telas React renderizadas no Node), conferência front↔back própria |
 | Implantação | Servidor Linux com systemd, Caddy na frente (HTTPS automático) |
@@ -134,6 +140,8 @@ React, React DOM, React Router e Tailwind (com o Vite para compilar), sem
 biblioteca de componentes nem de gráficos. O backend tem cinco pacotes no
 `requirements.txt` — FastAPI, Uvicorn, Pydantic, pypdf e AnyIO —; o resto
 (hash de senha, e-mail, banco, leitura de XLSX) vem da biblioteca padrão.
+O serviço de busca em C++ usa três bibliotecas, que o CMake baixa com versão
+presa e hash conferido.
 
 > **O front antigo.** Até a Sprint 3 as telas eram HTML, CSS e JavaScript sem
 > framework. Na Sprint 4 todas foram reescritas em React, que é o que o
@@ -228,6 +236,19 @@ navegador.
 5. **Dados de demonstração** (opcional, ver abaixo):
    `python scripts/seed_demo.py`, dentro de `backend/`.
 
+6. **Busca do chat em C++** (opcional): com CMake e um compilador C++,
+
+   ```
+   cd backend/busca_cpp
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --config Release
+   ```
+
+   Suba o serviço de dentro de `backend/` (`busca_cpp/build/busca_cpp`) e o
+   backend com `DELTACARE_BUSCA_URL=http://127.0.0.1:8090`. Passo a passo,
+   inclusive no Windows sem Visual Studio, em
+   [`docs/SPRINT_4_ECCS.md`](docs/SPRINT_4_ECCS.md).
+
 ### Configuração
 
 Tudo por variável de ambiente. Os padrões servem para rodar na máquina; o
@@ -246,6 +267,8 @@ modelo completo para o servidor está em
 | `OLLAMA_API_KEY` | vazio | Chave do Ollama Cloud (ollama.com, Settings > Keys). Só é enviada para o `OLLAMA_CHAT_URL` |
 | `MODELO_CHAT` | `gpt-oss:20b` | Modelo que responde o aluno |
 | `MODELO_EMBEDDING` | `nomic-embed-text` | Modelo que indexa o material |
+| `DELTACARE_BUSCA_URL` | vazio | Onde está o serviço de busca em C++, ex.: `http://127.0.0.1:8090`. Vazio, a busca do chat roda em Python. Fora do ar, também: o backend tenta de novo a cada 30 s |
+| `DELTACARE_BUSCA_PORTA` | `8090` | Porta do serviço em C++ (lido pelo próprio serviço, que só escuta em 127.0.0.1) |
 | `ESFORCO_RACIOCINIO` | `low` | Esforço de raciocínio do modelo (modelos que não raciocinam ignoram). `low` corta o tempo de resposta pela metade sem perder qualidade, medido |
 | `DELTACARE_IA_SIMULTANEAS` | `4` | Chamadas ao modelo ao mesmo tempo. **Não é limite de perguntas:** quem passa espera, sem travar login nem telas. Suba conforme o servidor do modelo aguentar |
 | `DELTACARE_SMTP_HOST`, `_PORTA`, `_SEGURANCA`, `_USUARIO`, `_SENHA`, `_REMETENTE` | vazio, `587`, `starttls` | E-mail do código de acesso de professor e administração, da recuperação de senha e dos avisos de privacidade. Sem host, o código aparece no console — serve para desenvolver, **não para produção**: sem e-mail, professor e administração não entram |
@@ -659,6 +682,7 @@ backend/                   - a API (Python). Rode tudo de dentro desta pasta:
       email.py                 envio por SMTP, em segundo plano
       arquivos.py              gravação dos uploads
       vetores.py               os vetores do chat em binário, normalizados
+      busca_cpp.py             cliente do serviço de busca em C++, com volta ao Python
       cabecalhos.py            cabeçalhos de segurança (CSP, clickjacking...)
 
     regras/                  o que o sistema DECIDE
@@ -686,6 +710,14 @@ backend/                   - a API (Python). Rode tudo de dentro desta pasta:
       auditoria.py             a trilha de auditoria
       importacao.py            planilha CSV/XLSX
       chat_ia.py               RAG: indexação, busca híbrida e resposta
+
+  busca_cpp/               - o serviço de busca do chat, em C++ (opcional)
+    CMakeLists.txt           compilação; baixa e confere as bibliotecas de terceiros
+    src/servidor.cpp         a API HTTP: /saude, /indice, /busca
+    src/indice.cpp           os vetores do banco na memória, recarregados quando mudam
+    src/similaridade.cpp     a conta: soma de Neumaier com SSE2, igual ao Python bit a bit
+    testes/                  teste da conta em C++ (ctest)
+    medir.py                 a busca com e sem o serviço, cronometrada
 
   scripts/                 - o que se roda à mão ou agendado
     seed_demo.py             dados de demonstração (chama o seed_semestre.py)
@@ -752,6 +784,9 @@ só (`INICIO_DO_PERFIL`, em `frontend/src/lib/usuario.js`).
 - [`docs/SPRINT_4.md`](docs/SPRINT_4.md) — entrega da Sprint 4: requisitos e onde
   estão, backlog, decisões de experiência, validação de usabilidade e
   retrospectiva.
+- [`docs/SPRINT_4_ECCS.md`](docs/SPRINT_4_ECCS.md) — entrega da Sprint 4 de Edge
+  Computing & Computer Systems: o serviço de busca em C++, as APIs, como
+  compilar e testar, e as medidas.
 - [`docs/SPRINT_3.md`](docs/SPRINT_3.md) — entrega da Sprint 3: backlog com as user
   stories e critérios de aceite, decisões de experiência, incremento e
   retrospectiva.

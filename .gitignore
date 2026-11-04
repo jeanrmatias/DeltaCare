@@ -49,9 +49,6 @@ SPRINT_3.pdf
 CODIGO_COMPLETO.md
 DeltaCare_Sprint3_WebDevelopment.zip
 
-# Biblioteca em C++ compilada (backend/nativo/compilar.py): binário de cada
-# máquina, recriado com um comando. O fonte é que vai para o repositório.
-backend/nativo/*.dll
-backend/nativo/*.so
-backend/nativo/*.dylib
-backend/nativo/*.novo
+# Compilação do serviço de busca em C++ (backend/busca_cpp/): o executável e
+# as bibliotecas de terceiros que o CMake baixa. Tudo recriado por um comando.
+backend/busca_cpp/build/

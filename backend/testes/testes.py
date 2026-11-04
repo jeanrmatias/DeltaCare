@@ -49,7 +49,7 @@ sys.path[:0] = [os.path.join(_BACKEND, "app"), os.path.join(_BACKEND, "scripts")
 import sqlite3  # noqa: E402
 
 from infra.database import CAMINHO_DB, configurar_banco  # noqa: E402
-from infra import nativo  # noqa: E402
+from infra import busca_cpp  # noqa: E402
 from infra.vetores import desempacotar, empacotar, normalizar  # noqa: E402
 from regras.autenticacao import (  # noqa: E402
     JANELA_LOGIN_MINUTOS,
@@ -6880,135 +6880,242 @@ class TestesBuscaDoChat(BaseDelta):
 
 
 # =========================================================================
-# A similaridade em C++ (backend/nativo/, infra/nativo.py)
+# O serviço de busca em C++ (backend/busca_cpp/, infra/busca_cpp.py)
 # =========================================================================
 
-SEM_BIBLIOTECA = "biblioteca em C++ não compilada (python nativo/compilar.py)"
+def _binario_da_busca_cpp():
+    """O executável compilado pelo CMake, ou None se ninguém compilou."""
+    if os.environ.get("DELTACARE_BUSCA_BINARIO"):
+        return os.environ["DELTACARE_BUSCA_BINARIO"]
+    nome = "busca_cpp.exe" if sys.platform == "win32" else "busca_cpp"
+    pasta = os.path.join(_BACKEND, "busca_cpp", "build")
+    # Ninja e Make põem em build/; o Visual Studio, em build/Release/.
+    for caminho in (os.path.join(pasta, nome), os.path.join(pasta, "Release", nome)):
+        if os.path.exists(caminho):
+            return caminho
+    return None
 
 
-def _sem_a_biblioteca():
-    """Como se ninguém tivesse compilado: a busca cai no Python."""
-    from unittest import mock
-
-    return mock.patch.object(nativo, "_carregada", False)
+SEM_SERVICO = "serviço em C++ não compilado (ver docs/SPRINT_4_ECCS.md)"
 
 
-class TestesSimilaridadeEmCpp(BaseDelta):
-    """O C++ tem de devolver exatamente o que o Python devolveria. Se a
-    biblioteca não estiver compilada, os que dependem dela são pulados — e o
-    resto da suíte já roda o caminho em Python."""
+class _RespostaFalsa:
+    """O que urllib devolveria, com o corpo que o teste quiser."""
 
-    def _vetores(self, semente):
-        import random
-        from array import array
+    def __init__(self, corpo: bytes):
+        self.corpo = corpo
 
-        sorteio = random.Random(semente)
-        pergunta = normalizar([sorteio.gauss(0, 1) for _ in range(768)])
-        # A biblioteca calcula de quatro em quatro (SIMD) quando os quatro têm
-        # o mesmo tamanho, e um a um no resto. Os extremos vêm primeiro, quatro
-        # do mesmo tamanho, para passar pelo caminho de quatro; os de tamanho
-        # diferente, no fim, pelo de um.
-        extremos = [
-            [float("inf")] + [1.0] * 767,               # estouro: infinito, não NaN
-            [1e30, -1e30, 3.0] + [sorteio.gauss(0, 1e30) for _ in range(765)],   # sem normalizar
-            [1e-40, -1e-42] * 384,                       # subnormais do float32
-            [-0.0] * 768,
-        ]
-        blobs = [array("f", vetor).tobytes() for vetor in extremos]
-        blobs += [empacotar([sorteio.gauss(0, 1) for _ in range(768)]) for _ in range(300)]
-        blobs += [
-            empacotar([0.0] * 768),                    # vetor nulo
-            empacotar([sorteio.gauss(0, 1) for _ in range(384)]),   # outro modelo, mais curto
-            empacotar([sorteio.gauss(0, 1) for _ in range(1024)]),  # e mais longo
-            b"",                                       # vazio
-            array("f", [1e30, -1e30, 3.0, 1e-40]).tobytes(),
-            array("f", [float("inf"), 1.0]).tobytes(),
-        ]
-        return pergunta, blobs
+    def read(self):
+        return self.corpo
 
-    @unittest.skipUnless(nativo.disponivel(), SEM_BIBLIOTECA)
-    def test_mesmo_resultado_que_o_python_bit_a_bit(self):
-        from infra.vetores import similaridade_em_python
+    def __enter__(self):
+        return self
 
-        for semente in range(5):
-            with self.subTest(semente=semente):
-                pergunta, blobs = self._vetores(semente)
-                em_cpp = nativo.similaridades(pergunta, blobs)
-                em_python = [similaridade_em_python(pergunta, blob) for blob in blobs]
-                if sys.version_info >= (3, 12):
-                    # O sum() do Python passou a usar a soma de Neumaier na
-                    # 3.12, e o C++ faz a mesma: tem de bater até o último bit.
-                    self.assertEqual(em_cpp, em_python)
-                else:
-                    for a, b in zip(em_cpp, em_python):
-                        self.assertAlmostEqual(a, b, places=12)
+    def __exit__(self, *_):
+        return False
 
-    @unittest.skipUnless(nativo.disponivel(), SEM_BIBLIOTECA)
-    def test_busca_do_chat_igual_com_e_sem_a_biblioteca(self):
-        import random
 
-        sorteio = random.Random(7)
-        pergunta = [sorteio.uniform(-1, 1) for _ in range(64)]
+class TestesClienteDaBuscaCpp(BaseDelta):
+    """O chat não pode depender do serviço: fora do ar, lento ou estranho, a
+    busca cai no Python. Sem o executável — o serviço é imitado."""
+
+    def setUp(self):
+        super().setUp()
+        from unittest import mock
+
+        patch = mock.patch.multiple(busca_cpp, URL="http://127.0.0.1:9", _falhou_em=None)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def _abrir(self, efeito):
+        from unittest import mock
+
+        return mock.patch.object(busca_cpp._abridor, "open", side_effect=efeito)
+
+    def test_desligado_por_padrao(self):
+        """Sem DELTACARE_BUSCA_URL ninguém tenta conectar (no Windows, porta
+        local fechada leva 2 s para desistir)."""
+        from unittest import mock
+
+        with mock.patch.object(busca_cpp, "URL", ""), self._abrir(AssertionError("não devia conectar")):
+            self.assertIsNone(busca_cpp.buscar([1.0], [1], 10, 0.0))
+
+    def test_fora_do_ar_cai_no_python_e_espera_antes_de_tentar_de_novo(self):
+        import urllib.error
+
+        with self._abrir(urllib.error.URLError("recusada")) as abrir:
+            self.assertIsNone(busca_cpp.buscar([1.0], [1], 10, 0.0))
+            self.assertIsNone(busca_cpp.buscar([1.0], [1], 10, 0.0))
+        self.assertEqual(abrir.call_count, 1)
+
+    def test_resposta_estranha_cai_no_python(self):
+        corpos = (b"isto nao e json", b'{"outra": "coisa"}', b'{"trechos": [{"id": "x"}], "fora_do_indice": 0}')
+        for corpo in corpos:
+            with self.subTest(corpo=corpo):
+                busca_cpp._falhou_em = None
+                with self._abrir(lambda *_a, c=corpo, **_k: _RespostaFalsa(c)):
+                    self.assertIsNone(busca_cpp.buscar([1.0], [1], 10, 0.0))
+
+    def test_trecho_fora_do_indice_cai_no_python(self):
+        """Linha antiga, em JSON, que o serviço não calcula: o Python faz a
+        busca inteira, em vez de misturar os dois."""
+        corpo = b'{"trechos": [{"id": 1, "similaridade": 0.5}], "fora_do_indice": 1}'
+        with self._abrir(lambda *_a, **_k: _RespostaFalsa(corpo)):
+            self.assertIsNone(busca_cpp.buscar([1.0], [1], 10, 0.0))
+
+    def test_chat_responde_com_o_servico_fora_do_ar(self):
+        import urllib.error
+
         material = criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo="Aula 1",
                                   tipo="link", link_url="https://exemplo.com", rascunho=False)["material_id"]
         conexao = sqlite3.connect(CAMINHO_DB)
-        for indice in range(200):
-            vetor = [x * sorteio.uniform(0, 1) + sorteio.uniform(-0.5, 0.5) for x in pergunta]
-            texto = f"Trecho {indice}." + (" dobutamina" if indice % 4 == 0 else "")
-            if indice % 3:
-                conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor) VALUES (?, ?, ?, '', ?)",
-                                (material, indice, texto, empacotar(vetor)))
-            else:   # um terço ainda em JSON: o caminho misto também
-                conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, ?, ?, ?)",
-                                (material, indice, texto, json.dumps(vetor)))
+        conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor) VALUES (?, 0, ?, '', ?)",
+                        (material, "trecho da aula", empacotar([1.0, 0.0])))
         conexao.commit()
         conexao.close()
 
-        def buscar():
-            return chat_ia.buscar_trechos_relevantes(self.turma_id, "dose de dobutamina",
-                                                     gerar_embedding_fn=lambda _: pergunta)
+        with self._abrir(urllib.error.URLError("recusada")):
+            achados = chat_ia.buscar_trechos_relevantes(self.turma_id, "aula", gerar_embedding_fn=lambda _: [1.0, 0.0])
+        self.assertEqual([a["texto"] for a in achados], ["trecho da aula"])
 
-        com = buscar()
-        with _sem_a_biblioteca():
-            sem = buscar()
 
-        self.assertEqual(len(com), chat_ia.TOP_K)
-        if sys.version_info >= (3, 12):
-            self.assertEqual(com, sem)   # até a similaridade, bit a bit
-        else:
-            self.assertEqual([c["texto"] for c in com], [s["texto"] for s in sem])
+@unittest.skipUnless(_binario_da_busca_cpp(), SEM_SERVICO)
+class TestesServicoDeBuscaCpp(BaseDelta):
+    """O executável de verdade, num banco temporário: tem de escolher
+    exatamente os trechos que a busca em Python escolheria."""
 
-    def test_sem_a_biblioteca_a_conta_e_feita_em_python(self):
-        from infra import vetores
+    _processo = None
 
-        pergunta = normalizar([3.0, 4.0])
-        with _sem_a_biblioteca():
-            self.assertIsNone(nativo.similaridades(pergunta, [empacotar([3.0, 4.0])]))
-            calculadas = vetores.similaridades(pergunta, [(empacotar([3.0, 4.0]), ""), (b"", "[4.0, -3.0]")])
-        self.assertAlmostEqual(calculadas[0], 1.0, places=6)
-        self.assertAlmostEqual(calculadas[1], 0.0, places=6)
+    def tearDown(self):
+        # Derruba o serviço antes de o tearDown da base apagar o banco: no
+        # Windows, arquivo aberto por outro processo não pode ser apagado.
+        if self._processo:
+            self._processo.terminate()
+            self._processo.wait(timeout=10)
+        super().tearDown()
 
-    def test_bytes_quebrados_dao_o_mesmo_erro_nos_dois_caminhos(self):
-        """7 bytes não são float32 inteiros. O Python recusa; o C++ não pode
-        ler o byte que falta da memória ao lado."""
-        from infra import vetores
-
-        linhas = [(empacotar([1.0, 0.0]), ""), (b"\x00" * 7, "")]
-        with self.assertRaises(ValueError):
-            vetores.similaridades([1.0, 0.0], linhas)
-        with _sem_a_biblioteca(), self.assertRaises(ValueError):
-            vetores.similaridades([1.0, 0.0], linhas)
-
-    def test_desligada_pela_variavel_de_ambiente(self):
-        """DELTACARE_NATIVO=0 desliga sem precisar apagar o arquivo — para
-        comparar os dois caminhos no servidor, ou se a biblioteca der problema."""
+    def _subir(self):
+        import socket
         import subprocess
+        import time
+        import urllib.request
+        from unittest import mock
 
-        codigo = "from infra import nativo; print(nativo.disponivel(), nativo.situacao())"
-        ambiente = dict(os.environ, DELTACARE_NATIVO="0")
-        saida = subprocess.run([sys.executable, "-c", codigo], cwd=os.path.join(_BACKEND, "app"), env=ambiente,
-                               capture_output=True, text=True, check=True).stdout
-        self.assertEqual(saida.strip(), "False desligada por DELTACARE_NATIVO=0")
+        with socket.socket() as livre:
+            livre.bind(("127.0.0.1", 0))
+            porta = livre.getsockname()[1]
+        self._processo = subprocess.Popen([_binario_da_busca_cpp(), CAMINHO_DB],
+                                          env=dict(os.environ, DELTACARE_BUSCA_PORTA=str(porta)),
+                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.url = f"http://127.0.0.1:{porta}"
+        for _ in range(100):
+            try:
+                urllib.request.urlopen(f"{self.url}/saude", timeout=1).close()
+                break
+            except OSError:
+                time.sleep(0.05)
+        else:
+            self.fail("o serviço não subiu")
+        patch = mock.patch.multiple(busca_cpp, URL=self.url, _falhou_em=None)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def _material(self, titulo, rascunho=False):
+        return criar_material(professor_email=PROFESSOR, turma_id=self.turma_id, titulo=titulo,
+                              tipo="link", link_url="https://exemplo.com", rascunho=rascunho)["material_id"]
+
+    def _trechos(self, material, vetores_e_textos):
+        conexao = sqlite3.connect(CAMINHO_DB)
+        for indice, (vetor, texto) in enumerate(vetores_e_textos):
+            conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding, vetor) VALUES (?, ?, ?, '', ?)",
+                            (material, indice, texto, empacotar(vetor)))
+        conexao.commit()
+        conexao.close()
+
+    def test_mesma_busca_com_e_sem_o_servico(self):
+        import random
+        from unittest import mock
+
+        sorteio = random.Random(11)
+        pergunta = [sorteio.gauss(0, 1) for _ in range(768)]
+
+        def parecidos(quantos, rotulo):
+            return [([x * sorteio.uniform(0, 1) + sorteio.gauss(0, 0.8) for x in pergunta],
+                     f"{rotulo} {i}." + (" dobutamina" if i % 5 == 0 else "")) for i in range(quantos)]
+
+        aula1, aula2 = self._material("Aula 1"), self._material("Aula 2")
+        self._trechos(aula1, parecidos(150, "Aula 1, trecho"))
+        self._trechos(aula2, parecidos(150, "Aula 2, trecho"))
+        # O que o aluno não pode ver tem de ficar de fora pelos dois caminhos.
+        self._trechos(self._material("Rascunho", rascunho=True), [(pergunta, "segredo do rascunho")])
+        agendado = self._material("Agendado")
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("UPDATE materiais SET data_liberacao = '2099-01-01T00:00:00+00:00' WHERE id = ?", (agendado,))
+        conexao.commit()
+        conexao.close()
+        self._trechos(agendado, [(pergunta, "segredo do agendado")])
+        self._subir()
+
+        def buscar(texto):
+            return chat_ia.buscar_trechos_relevantes(self.turma_id, texto, gerar_embedding_fn=lambda _: pergunta)
+
+        for texto in ("dose de dobutamina", "pergunta sem termo distintivo"):
+            with self.subTest(pergunta=texto):
+                com_cpp = buscar(texto)
+                with mock.patch.object(busca_cpp, "URL", ""):
+                    sem_cpp = buscar(texto)
+
+                self.assertEqual(len(com_cpp), chat_ia.TOP_K)
+                if sys.version_info >= (3, 12):
+                    self.assertEqual(com_cpp, sem_cpp)   # até a similaridade, bit a bit
+                else:
+                    self.assertEqual([c["texto"] for c in com_cpp], [c["texto"] for c in sem_cpp])
+                self.assertFalse([c for c in com_cpp if "segredo" in c["texto"]])
+
+        # E o serviço foi mesmo usado (não caiu no Python sem avisar).
+        self.assertIsNotNone(busca_cpp.buscar(normalizar(pergunta), [aula1, aula2], 10, 0.0))
+
+    def test_material_novo_entra_sem_reiniciar_o_servico(self):
+        material = self._material("Aula 1")
+        self._trechos(material, [([0.0, 1.0], "trecho antigo")])
+        self._subir()
+        antes = chat_ia.buscar_trechos_relevantes(self.turma_id, "x", gerar_embedding_fn=lambda _: [1.0, 0.0])
+        self.assertEqual([a["texto"] for a in antes], ["trecho antigo"])
+
+        self._trechos(material, [([1.0, 0.0], "trecho novo")])
+
+        depois = chat_ia.buscar_trechos_relevantes(self.turma_id, "x", gerar_embedding_fn=lambda _: [1.0, 0.0])
+        self.assertEqual([a["texto"] for a in depois], ["trecho novo", "trecho antigo"])
+        self.assertIsNotNone(busca_cpp.buscar([1.0, 0.0], [material], 10, 0.0))
+
+    def test_linha_antiga_em_json_cai_no_python(self):
+        material = self._material("Aula 1")
+        self._trechos(material, [([1.0, 0.0], "em binario")])
+        conexao = sqlite3.connect(CAMINHO_DB)
+        conexao.execute("INSERT INTO material_chunks (material_id, indice, texto, embedding) VALUES (?, 1, 'em json', '[0.6, 0.8]')",
+                        (material,))
+        conexao.commit()
+        conexao.close()
+        self._subir()
+
+        self.assertIsNone(busca_cpp.buscar([1.0, 0.0], [material], 10, 0.0))
+        achados = chat_ia.buscar_trechos_relevantes(self.turma_id, "x", gerar_embedding_fn=lambda _: [1.0, 0.0])
+        self.assertEqual([a["texto"] for a in achados], ["em binario", "em json"])
+
+    def test_pedido_invalido_recebe_400_com_o_motivo(self):
+        import urllib.error
+        import urllib.request
+
+        self._subir()
+        corpos = (b"lixo", b'{"pergunta": []}', b'{"pergunta": [1], "materiais": [1], "top_k": 0}',
+                  b'{"pergunta": ["a"], "materiais": []}', b'{"pergunta": [1], "materiais": [1.5]}')
+        for corpo in corpos:
+            with self.subTest(corpo=corpo):
+                with self.assertRaises(urllib.error.HTTPError) as erro:
+                    urllib.request.urlopen(urllib.request.Request(f"{self.url}/busca", data=corpo), timeout=5)
+                with erro.exception as resposta:
+                    self.assertEqual(resposta.code, 400)
+                    self.assertIn("erro", json.loads(resposta.read()))
 
 
 # =========================================================================
@@ -8424,9 +8531,13 @@ class TestesFusoDaInstituicao(BaseDelta):
 
         meses = relatorio_mensal(ADMIN, coorte)["meses"]
 
-        self.assertNotIn("2026-11", [m["mes"] for m in meses])
+        # Novembro pode aparecer: a lista vai até o mês de hoje (o teste
+        # falhou em 01/11/2026 por exigir que ele não existisse). O que importa
+        # é a pergunta não ter ido para lá.
         outubro = [m for m in meses if m["mes"] == "2026-10"][0]
         self.assertEqual(outubro["total"]["chat"]["perguntas"], 1)
+        novembro = [m for m in meses if m["mes"] == "2026-11"]
+        self.assertEqual([m["total"]["chat"]["perguntas"] for m in novembro], [0] * len(novembro))
 
 
 # =========================================================================
