@@ -479,8 +479,11 @@ Auditada na Sprint 4, contra o WCAG 2.1 nível AA:
   contraste, a hora das mensagens enviadas, títulos que pulavam de nível,
   tabelas e gráficos que rolam de lado sem acesso pelo teclado e a conversa de
   Mensagens que não recebia foco para rolar.
-- **O que ainda não foi feito:** o teste com leitor de tela real (NVDA) e
-  com usuários com deficiência. O roteiro está pronto em
+- **Leitor de tela:** um voluntário de fora da equipe usou a plataforma com o
+  NVDA e não relatou problema (registro em
+  [`validacao/RESULTADOS.md`](docs/validacao/RESULTADOS.md#leitor-de-tela)).
+- **O que ainda não foi feito:** o teste com usuários com deficiência, que
+  usam leitor de tela no dia a dia. O roteiro está pronto em
   [`validacao/TESTE_LEITOR_DE_TELA.md`](docs/validacao/TESTE_LEITOR_DE_TELA.md).
 
 ## Privacidade (LGPD)

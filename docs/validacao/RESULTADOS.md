@@ -63,3 +63,14 @@ problema — o mesmo problema em duas pessoas pesa mais que um grave isolado.
 ## O que não mudou, e por quê
 
 -
+
+## Leitor de tela
+
+Teste com o NVDA ([roteiro](TESTE_LEITOR_DE_TELA.md)).
+
+| Quem fez | Data | Navegador | Resultado |
+|---|---|---|---|
+| Voluntário de fora da equipe, amigo de um integrante | não anotada | não anotado | Usou a plataforma com o NVDA e não relatou problema ("tudo ok, super tranquilo") |
+
+O resultado de cada tarefa e as frases do NVDA não foram anotados. Fica
+pendente o teste com uma pessoa que usa leitor de tela no dia a dia.
